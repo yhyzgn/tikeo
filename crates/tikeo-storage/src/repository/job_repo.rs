@@ -21,17 +21,20 @@ pub struct JobRepository {
 impl JobRepository {
     /// Create a repository using the provided database connection.
     #[must_use]
+    /// New.
     pub fn new(db: DatabaseConnection) -> Self {
         let versions = JobVersionRepository::new(db.clone());
         Self { db, versions }
     }
 
     #[must_use]
+    /// Versions.
     pub const fn versions(&self) -> &JobVersionRepository {
         &self.versions
     }
 
     #[must_use]
+    /// Db.
     pub fn db(&self) -> DatabaseConnection {
         self.db.clone()
     }

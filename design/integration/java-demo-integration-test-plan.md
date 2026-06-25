@@ -13,7 +13,7 @@ Verify that the tikeo server, Java SDK, and Java Spring worker demo can run toge
 
 In scope:
 
-- Local tikeo server with `config/dev.toml` or an equivalent temporary config.
+- Local tikeo server with `config/dev.yml` or an equivalent temporary config.
 - Java SDK modules under `sdks/java`.
 - Java Spring demo under `examples/java/spring-boot3-worker-demo`.
 - HTTP API automation for auth, workers, jobs, instances, logs, and workflow materialization.

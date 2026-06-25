@@ -8,6 +8,7 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     /// Version record identifier.
     #[sea_orm(primary_key, auto_increment = false)]
+    /// Identifier value.
     pub id: String,
     /// Soft-linked to `scripts.id`.
     pub script_id: String,

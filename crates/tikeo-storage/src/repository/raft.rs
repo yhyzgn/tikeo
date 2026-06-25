@@ -282,17 +282,23 @@ pub struct RaftRepository {
 impl RaftRepository {
     /// Create a repository using the provided database connection.
     #[must_use]
+    /// New.
     pub const fn new(db: DatabaseConnection) -> Self {
         Self { db }
     }
 
     /// Clone the underlying database handle for repositories that need the same transaction scope.
     #[must_use]
+    /// Db.
     pub fn db(&self) -> DatabaseConnection {
         self.db.clone()
     }
 
     /// Upsert local Raft metadata by `node_id`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn upsert_metadata(
         &self,
         input: UpsertRaftMetadata,
@@ -333,6 +339,10 @@ impl RaftRepository {
     }
 
     /// Return local Raft metadata by `node_id`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn get_metadata(
         &self,
         node_id: &str,
@@ -348,6 +358,10 @@ impl RaftRepository {
     ///
     /// Returns the current row when it exists. If the requested index is older than the
     /// stored value, the stored value is preserved.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn update_applied_index(
         &self,
         node_id: &str,
@@ -376,6 +390,10 @@ impl RaftRepository {
     }
 
     /// Update only the local leader fencing token for a Raft node.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn update_leader_fencing_token(
         &self,
         node_id: &str,
@@ -404,6 +422,10 @@ impl RaftRepository {
     }
 
     /// Update only the local persisted raft-rs `ConfState` for a Raft node.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn update_conf_state(
         &self,
         node_id: &str,
@@ -432,6 +454,10 @@ impl RaftRepository {
     }
 
     /// Upsert a configured Raft member by `node_id`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn upsert_member(
         &self,
         input: UpsertRaftMember,
@@ -463,6 +489,10 @@ impl RaftRepository {
     }
 
     /// List all configured Raft members.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn list_members(&self) -> Result<Vec<RaftMemberSummary>, sea_orm::DbErr> {
         raft_member::Entity::find()
             .all(&self.db)
@@ -471,6 +501,10 @@ impl RaftRepository {
     }
 
     /// Return a configured Raft member by `node_id`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn get_member(
         &self,
         node_id: &str,
@@ -483,6 +517,10 @@ impl RaftRepository {
     }
 
     /// Upsert a local raft-rs log entry by `(node_id, log_index)`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn upsert_log_entry(
         &self,
         input: UpsertRaftLogEntry,
@@ -524,6 +562,10 @@ impl RaftRepository {
     }
 
     /// List local raft-rs log entries from `from_index` inclusive.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn list_log_entries(
         &self,
         node_id: &str,
@@ -541,6 +583,10 @@ impl RaftRepository {
     }
 
     /// Upsert a local raft-rs snapshot by `(node_id, snapshot_index)`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn upsert_snapshot(
         &self,
         input: UpsertRaftSnapshot,
@@ -578,6 +624,10 @@ impl RaftRepository {
     }
 
     /// Record an applied Raft command idempotently by `(node_id, log_index)`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn record_applied_command(
         &self,
         input: RecordRaftAppliedCommand,
@@ -620,6 +670,10 @@ impl RaftRepository {
     }
 
     /// Return an applied Raft command by its cluster-wide idempotency key.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn get_applied_command_by_command_id(
         &self,
         cluster_id: &str,
@@ -634,6 +688,10 @@ impl RaftRepository {
     }
 
     /// List applied Raft commands for a node.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn list_applied_commands(
         &self,
         node_id: &str,
@@ -651,6 +709,10 @@ impl RaftRepository {
     }
 
     /// Record a Raft membership proposal intent idempotently by `(cluster_id, proposal_id)`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn record_membership_proposal(
         &self,
         input: RecordRaftMembershipProposal,
@@ -684,6 +746,10 @@ impl RaftRepository {
     }
 
     /// Return a membership proposal by cluster/proposal id.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn get_membership_proposal(
         &self,
         cluster_id: &str,
@@ -698,6 +764,10 @@ impl RaftRepository {
     }
 
     /// Update a membership proposal status by cluster/proposal id.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn update_membership_proposal_status(
         &self,
         cluster_id: &str,

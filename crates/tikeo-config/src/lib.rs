@@ -2,7 +2,7 @@
 
 #![forbid(unsafe_code)]
 
-use std::{collections::BTreeMap, net::SocketAddr, path::Path};
+use std::{collections::BTreeMap, fmt::Write as _, net::SocketAddr, path::Path};
 
 use config::{Config, Environment, File};
 use serde::{Deserialize, Serialize};
@@ -74,6 +74,7 @@ pub struct StorageConfig {
 impl StorageConfig {
     /// Build the effective SeaORM/sqlx connection URL consumed by storage.
     #[must_use]
+    /// Effective connection url.
     pub fn effective_connection_url(&self) -> String {
         self.database
             .to_url()
@@ -111,7 +112,7 @@ pub struct DatabaseConfig {
     /// Database/schema name for network databases.
     #[serde(default)]
     pub database: Option<String>,
-    /// SQLite file path.
+    /// `SQLite` file path.
     #[serde(default = "default_sqlite_path")]
     pub path: String,
     /// Query parameters appended to the generated URL.
@@ -122,6 +123,7 @@ pub struct DatabaseConfig {
 impl DatabaseConfig {
     /// Convert structured settings to the connection URL expected by SeaORM/sqlx.
     #[must_use]
+    /// To url.
     pub fn to_url(&self) -> Option<String> {
         match self.kind.trim().to_ascii_lowercase().as_str() {
             "sqlite" => {
@@ -145,18 +147,24 @@ impl DatabaseConfig {
         let host = self.host.as_deref().unwrap_or("127.0.0.1");
         let port = self.port.unwrap_or(default_port);
         let database = self.database.as_deref().unwrap_or("tikeo");
-        let mut url =
-            if let Some(username) = self.username.as_deref().filter(|value| !value.is_empty()) {
-                let encoded_username = percent_encode_url_component(username);
-                let encoded_password = self
-                    .password
-                    .as_deref()
-                    .map(percent_encode_url_component)
-                    .unwrap_or_default();
-                format!("{scheme}://{encoded_username}:{encoded_password}@{host}:{port}/{database}")
-            } else {
-                format!("{scheme}://{host}:{port}/{database}")
-            };
+        let mut url = self
+            .username
+            .as_deref()
+            .filter(|value| !value.is_empty())
+            .map_or_else(
+                || format!("{scheme}://{host}:{port}/{database}"),
+                |username| {
+                    let encoded_username = percent_encode_url_component(username);
+                    let encoded_password = self
+                        .password
+                        .as_deref()
+                        .map(percent_encode_url_component)
+                        .unwrap_or_default();
+                    format!(
+                        "{scheme}://{encoded_username}:{encoded_password}@{host}:{port}/{database}"
+                    )
+                },
+            );
         append_query_params(&mut url, &self.params);
         url
     }
@@ -185,7 +193,7 @@ fn default_sqlite_path() -> String {
     ".dev/tikeo-dev.db".to_owned()
 }
 
-fn default_database_params() -> BTreeMap<String, String> {
+const fn default_database_params() -> BTreeMap<String, String> {
     BTreeMap::new()
 }
 
@@ -211,7 +219,8 @@ fn percent_encode_url_component(value: &str) -> String {
             b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
                 encoded.push(char::from(byte));
             }
-            _ => encoded.push_str(&format!("%{byte:02X}")),
+            _ => write!(&mut encoded, "%{byte:02X}")
+                .unwrap_or_else(|error| unreachable!("writing to String cannot fail: {error}")),
         }
     }
     encoded
@@ -285,12 +294,15 @@ pub struct ClusterPeerConfig {
 pub struct AuthConfig {
     /// Keep local username/password login enabled.
     #[serde(default = "default_true")]
+    /// Local login enabled value.
     pub local_login_enabled: bool,
     /// Durable API token lifecycle policy.
     #[serde(default)]
+    /// Api tokens value.
     pub api_tokens: ApiTokenConfig,
     /// Optional OIDC/SSO provider configuration.
     #[serde(default)]
+    /// Oidc value.
     pub oidc: OidcConfig,
 }
 
@@ -309,12 +321,15 @@ impl Default for AuthConfig {
 pub struct ApiTokenConfig {
     /// Default token time-to-live in seconds.
     #[serde(default = "default_api_token_ttl_seconds")]
+    /// Default ttl seconds value.
     pub default_ttl_seconds: i64,
     /// Minimum accepted requested token TTL in seconds.
     #[serde(default = "default_api_token_min_ttl_seconds")]
+    /// Min ttl seconds value.
     pub min_ttl_seconds: i64,
     /// Maximum accepted requested token TTL in seconds.
     #[serde(default = "default_api_token_max_ttl_seconds")]
+    /// Max ttl seconds value.
     pub max_ttl_seconds: i64,
 }
 
@@ -333,18 +348,23 @@ impl Default for ApiTokenConfig {
 pub struct OidcConfig {
     /// Whether OIDC login is enabled.
     #[serde(default)]
+    /// Boolean state flag.
     pub enabled: bool,
     /// OIDC issuer URL.
     #[serde(default)]
+    /// Issuer url value.
     pub issuer_url: Option<String>,
     /// OAuth/OIDC client id.
     #[serde(default)]
+    /// Identifier value.
     pub client_id: Option<String>,
     /// OAuth/OIDC client secret; never returned by status APIs.
     #[serde(default)]
+    /// Client secret value.
     pub client_secret: Option<String>,
     /// Requested scopes.
     #[serde(default = "default_oidc_scopes")]
+    /// Scopes value.
     pub scopes: Vec<String>,
 }
 
@@ -353,6 +373,7 @@ pub struct OidcConfig {
 pub struct ScriptGovernanceConfig {
     /// Optional `env:NAME` secret reference used to verify local release signatures.
     #[serde(default)]
+    /// Release signature secret ref value.
     pub release_signature_secret_ref: Option<String>,
 }
 
@@ -361,9 +382,11 @@ pub struct ScriptGovernanceConfig {
 pub struct AlertSecretConfig {
     /// Allow `env:NAME` references for alert provider secrets.
     #[serde(default = "default_true")]
+    /// Allow env refs value.
     pub allow_env_refs: bool,
     /// Prefix that env secret names should use in production deployments.
     #[serde(default = "default_alert_secret_env_prefix")]
+    /// Env prefix value.
     pub env_prefix: String,
 }
 
@@ -381,18 +404,23 @@ impl Default for AlertSecretConfig {
 pub struct AlertRetryConfig {
     /// Run the background alert retry worker.
     #[serde(default = "default_true")]
+    /// Boolean state flag.
     pub enabled: bool,
     /// Interval between due-attempt scans.
     #[serde(default = "default_alert_retry_interval_seconds")]
+    /// Interval seconds value.
     pub interval_seconds: u64,
     /// Maximum due attempts scanned per iteration.
     #[serde(default = "default_alert_retry_batch_size")]
+    /// Batch size value.
     pub batch_size: u64,
     /// Maximum delivery attempts before dead-lettering.
     #[serde(default = "default_alert_retry_max_attempts")]
+    /// Max attempts value.
     pub max_attempts: i32,
     /// Backoff before the next retry attempt.
     #[serde(default = "default_alert_retry_backoff_seconds")]
+    /// Backoff seconds value.
     pub backoff_seconds: i64,
 }
 
@@ -413,21 +441,27 @@ impl Default for AlertRetryConfig {
 pub struct NotificationDeliveryConfig {
     /// Run the background Notification Center delivery worker.
     #[serde(default = "default_true")]
+    /// Boolean state flag.
     pub enabled: bool,
     /// Optional externally reachable Web base URL used for notification card public-console links.
     #[serde(default)]
+    /// Public console base url value.
     pub public_console_base_url: Option<String>,
     /// Interval between due-attempt scans.
     #[serde(default = "default_notification_delivery_interval_seconds")]
+    /// Interval seconds value.
     pub interval_seconds: u64,
     /// Maximum due attempts scanned per iteration.
     #[serde(default = "default_notification_delivery_batch_size")]
+    /// Batch size value.
     pub batch_size: u64,
     /// Maximum delivery attempts before dead-lettering.
     #[serde(default = "default_notification_delivery_max_attempts")]
+    /// Max attempts value.
     pub max_attempts: i32,
     /// Backoff before the next retry attempt.
     #[serde(default = "default_notification_delivery_backoff_seconds")]
+    /// Backoff seconds value.
     pub backoff_seconds: i64,
 }
 
@@ -449,9 +483,11 @@ impl Default for NotificationDeliveryConfig {
 pub struct ObservabilityConfig {
     /// Local process logging settings for console and optional file output.
     #[serde(default)]
+    /// Logging value.
     pub logging: LoggingConfig,
     /// Distributed tracing export settings.
     #[serde(default)]
+    /// Tracing value.
     pub tracing: TracingConfig,
 }
 
@@ -466,9 +502,11 @@ pub struct LoggingConfig {
     /// Minimum log level used when `RUST_LOG` is not provided. Supported values are
     /// `debug`, `info`, `warn`, and `error`.
     #[serde(default = "default_log_level")]
+    /// Level value.
     pub level: String,
     /// Optional directory where the server writes `tikeo.log` in addition to console output.
     #[serde(default)]
+    /// Log dir value.
     pub log_dir: Option<String>,
 }
 
@@ -486,12 +524,15 @@ impl Default for LoggingConfig {
 pub struct TracingConfig {
     /// Enable trace exporting beyond local spans and trace-id propagation.
     #[serde(default)]
+    /// Boolean state flag.
     pub enabled: bool,
     /// OTLP HTTP/gRPC collector endpoint. Redacted from status APIs.
     #[serde(default)]
+    /// Otlp endpoint value.
     pub otlp_endpoint: Option<String>,
     /// Optional header names configured for exporter authentication/tenancy. Values live outside status APIs.
     #[serde(default)]
+    /// Headers value.
     pub headers: Vec<String>,
 }
 
@@ -500,9 +541,11 @@ pub struct TracingConfig {
 pub struct TransportSecurityConfig {
     /// HTTP management listener TLS settings.
     #[serde(default)]
+    /// Http value.
     pub http: TlsEndpointConfig,
     /// Worker Tunnel listener TLS/mTLS settings.
     #[serde(default)]
+    /// Worker tunnel value.
     pub worker_tunnel: TlsEndpointConfig,
 }
 
@@ -511,18 +554,23 @@ pub struct TransportSecurityConfig {
 pub struct TlsEndpointConfig {
     /// Enable TLS for this endpoint.
     #[serde(default)]
+    /// Tls enabled value.
     pub tls_enabled: bool,
     /// Require client certificates.
     #[serde(default)]
+    /// Mtls required value.
     pub mtls_required: bool,
     /// Server certificate path.
     #[serde(default)]
+    /// Cert path value.
     pub cert_path: Option<String>,
     /// Server private key path.
     #[serde(default)]
+    /// Key path value.
     pub key_path: Option<String>,
     /// Client CA bundle path for mTLS verification.
     #[serde(default)]
+    /// Client ca path value.
     pub client_ca_path: Option<String>,
 }
 
@@ -610,7 +658,7 @@ pub enum ConfigError {
     Load(#[from] config::ConfigError),
 }
 
-/// Load configuration from an optional TOML file plus `TIKEO__*` environment overrides.
+/// Load configuration from an optional YAML file plus `TIKEO__*` environment overrides.
 ///
 /// File values override defaults; environment variables override file values.
 ///
@@ -729,12 +777,12 @@ mod tests {
     #[test]
     fn file_config_overrides_scheduler_shard_policy() {
         let path =
-            std::env::temp_dir().join(format!("tikeo-shard-policy-{}.toml", std::process::id()));
+            std::env::temp_dir().join(format!("tikeo-shard-policy-{}.yml", std::process::id()));
         std::fs::write(
             &path,
-            "[cluster]
-scheduler_shard_map_version = 7
-scheduler_shard_count = 128
+            "cluster:
+  scheduler_shard_map_version: 7
+  scheduler_shard_count: 128
 ",
         )
         .unwrap_or_else(|error| panic!("temp config should write: {error}"));
@@ -750,21 +798,21 @@ scheduler_shard_count = 128
     #[test]
     fn structured_postgres_database_config_percent_encodes_special_password_chars() {
         let path = std::env::temp_dir().join(format!(
-            "tikeo-structured-postgres-{}.toml",
+            "tikeo-structured-postgres-{}.yml",
             std::process::id()
         ));
         std::fs::write(
             &path,
-            r#"[storage.database]
-type = "postgres"
-host = "postgres"
-port = 5432
-username = "tikeo"
-password = "p@ss/word:with#chars"
-database = "tikeo"
-
-[storage.database.params]
-sslmode = "disable"
+            r#"storage:
+  database:
+    type: postgres
+    host: postgres
+    port: 5432
+    username: tikeo
+    password: "p@ss/word:with#chars"
+    database: tikeo
+    params:
+      sslmode: disable
 "#,
         )
         .unwrap_or_else(|error| panic!("temp config should write: {error}"));
@@ -782,18 +830,19 @@ sslmode = "disable"
     #[test]
     fn structured_network_database_config_does_not_inherit_sqlite_params() {
         let path = std::env::temp_dir().join(format!(
-            "tikeo-structured-network-no-sqlite-params-{}.toml",
+            "tikeo-structured-network-no-sqlite-params-{}.yml",
             std::process::id()
         ));
         std::fs::write(
             &path,
-            r#"[storage.database]
-type = "mysql"
-host = "mysql"
-port = 3306
-username = "tikeo"
-password = "p@ss/word:with#chars"
-database = "tikeo"
+            r#"storage:
+  database:
+    type: mysql
+    host: mysql
+    port: 3306
+    username: tikeo
+    password: "p@ss/word:with#chars"
+    database: tikeo
 "#,
         )
         .unwrap_or_else(|error| panic!("temp config should write: {error}"));
@@ -864,7 +913,7 @@ database = "tikeo"
     #[test]
     fn dev_config_sets_public_console_base_url_for_local_notification_cards() {
         let dev_config =
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../config/dev.toml");
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../config/dev.yml");
         let config = load_config(Some(&dev_config))
             .unwrap_or_else(|error| panic!("dev config should load: {error}"));
 

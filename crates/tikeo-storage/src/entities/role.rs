@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     /// Stable role identifier, for example `role-owner`.
     #[sea_orm(primary_key, auto_increment = false)]
+    /// Identifier value.
     pub id: String,
     /// Role key used by users and API clients, for example `owner`.
     pub name: String,

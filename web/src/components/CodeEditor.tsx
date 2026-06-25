@@ -1,7 +1,7 @@
 import { linter, lintGutter } from '@codemirror/lint';
 import { javascript } from '@codemirror/lang-javascript';
 import { python } from '@codemirror/lang-python';
-import { StreamLanguage } from '@codemirror/language';
+import { StreamLanguage, syntaxTree } from '@codemirror/language';
 import { shell } from '@codemirror/legacy-modes/mode/shell';
 import { EditorState } from '@codemirror/state';
 import { oneDark } from '@codemirror/theme-one-dark';
@@ -66,8 +66,7 @@ function shellLinter() {
 function parseErrorLinter() {
   return linter((view) => {
     const diagnostics: Array<{ from: number; to: number; severity: 'error'; message: string }> = [];
-    // @ts-expect-error CM6 internal tree access
-    const tree = view.state.parseResult?.tree ?? view.state.tree;
+    const tree = syntaxTree(view.state);
     if (!tree) return diagnostics;
     tree.iterate({
       enter(node: { type: { isError: boolean }; from: number; to: number }) {

@@ -29,6 +29,7 @@ pub struct SrtScriptRunner {
 impl SrtScriptRunner {
     /// Create a runner with the provided SRT runtime and interpreter command.
     #[must_use]
+    /// New.
     pub fn new(
         kind: ScriptRunnerKind,
         runtime_command: impl Into<PathBuf>,

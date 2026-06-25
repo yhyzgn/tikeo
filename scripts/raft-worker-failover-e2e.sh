@@ -271,51 +271,48 @@ build_server_binary() {
   fi
 }
 
-peers_toml() {
+peers_yaml() {
   for ((i=0; i<NODE_COUNT; i++)); do
-    printf '  { node_id = "%s-%d", endpoint = "http://127.0.0.1:%s" }' "$RUN_ID" "$i" "${HTTP_PORTS[$i]}"
-    if (( i + 1 < NODE_COUNT )); then printf ',\n'; else printf '\n'; fi
+    printf '    - node_id: "%s-%d"\n      endpoint: "http://127.0.0.1:%s"\n' "$RUN_ID" "$i" "${HTTP_PORTS[$i]}"
   done
 }
 
 write_node_config() {
   local i="$1"
   local node="$RUN_ID-$i"
-  local config="$REPORT_DIR/$node.toml"
+  local config="$REPORT_DIR/$node.yml"
   cat > "$config" <<CONFIG
-[server]
-listen_addr = "0.0.0.0:${HTTP_PORTS[$i]}"
-worker_tunnel_addr = "0.0.0.0:${TUNNEL_PORTS[$i]}"
+server:
+  listen_addr: "0.0.0.0:${HTTP_PORTS[$i]}"
+  worker_tunnel_addr: "0.0.0.0:${TUNNEL_PORTS[$i]}"
 
-[storage]
+storage:
+  database:
+    type: postgres
+    host: "127.0.0.1"
+    port: ${POSTGRES_PORT}
+    username: "tikeo"
+    password: "tikeo"
+    database: "tikeo"
 
-[storage.database]
-type = "postgres"
-host = "127.0.0.1"
-port = ${POSTGRES_PORT}
-username = "tikeo"
-password = "tikeo"
-database = "tikeo"
+cluster:
+  mode: raft
+  node_id: "${node}"
+  peers:
+$(peers_yaml)
 
-[cluster]
-mode = "raft"
-node_id = "${node}"
-peers = [
-$(peers_toml)
-]
+alert_retry:
+  enabled: false
 
-[alert_retry]
-enabled = false
-
-[notification_delivery]
-enabled = false
+notification_delivery:
+  enabled: false
 CONFIG
 }
 
 start_node() {
   local i="$1"
   local node="$RUN_ID-$i"
-  local config="$REPORT_DIR/$node.toml"
+  local config="$REPORT_DIR/$node.yml"
   local log_file="$REPORT_DIR/$node-server.log"
   write_node_config "$i"
   : > "$log_file"

@@ -61,14 +61,9 @@ log "creating bridge network $NETWORK"
 docker network rm "$NETWORK" >/dev/null 2>&1 || true
 docker network create --driver bridge "$NETWORK" >/dev/null
 
-peers_toml() {
+peers_yaml() {
   for ((i=0; i<NODE_COUNT; i++)); do
-    printf '  { node_id = "tikeo-%d", endpoint = "http://tikeo-%d:%d" }' "$i" "$i" "$HTTP_PORT"
-    if (( i + 1 < NODE_COUNT )); then
-      printf ',\n'
-    else
-      printf '\n'
-    fi
+    printf '    - node_id: "tikeo-%d"\n      endpoint: "http://tikeo-%d:%d"\n' "$i" "$i" "$HTTP_PORT"
   done
 }
 
@@ -76,26 +71,23 @@ for ((i=0; i<NODE_COUNT; i++)); do
   node="tikeo-$i"
   node_dir="$TMP_DIR/$node"
   mkdir -p "$node_dir/data" "$node_dir/config"
-  cat > "$node_dir/config/raft-e2e.toml" <<CONFIG
-[server]
-listen_addr = "0.0.0.0:${HTTP_PORT}"
-worker_tunnel_addr = "0.0.0.0:${TUNNEL_PORT}"
+  cat > "$node_dir/config/raft-e2e.yml" <<CONFIG
+server:
+  listen_addr: "0.0.0.0:${HTTP_PORT}"
+  worker_tunnel_addr: "0.0.0.0:${TUNNEL_PORT}"
 
-[storage]
+storage:
+  database:
+    type: sqlite
+    path: "/data/tikeo.db"
+    params:
+      mode: rwc
 
-[storage.database]
-type = "sqlite"
-path = "/data/tikeo.db"
-
-[storage.database.params]
-mode = "rwc"
-
-[cluster]
-mode = "raft"
-node_id = "${node}"
-peers = [
-$(peers_toml)
-]
+cluster:
+  mode: raft
+  node_id: "${node}"
+  peers:
+$(peers_yaml)
 CONFIG
   log "starting $node on bridge network (API :$HTTP_PORT, tunnel :$TUNNEL_PORT)"
   docker rm -f "$node" >/dev/null 2>&1 || true
@@ -104,8 +96,8 @@ CONFIG
     --network "$NETWORK" \
     -e TIKEO__CLUSTER__TRANSPORT_TOKEN="$TOKEN" \
     -v "$node_dir/data:/data" \
-    -v "$node_dir/config/raft-e2e.toml:/app/config/raft-e2e.toml:ro" \
-    "$IMAGE" serve --config /app/config/raft-e2e.toml >/dev/null
+    -v "$node_dir/config/raft-e2e.yml:/app/config/raft-e2e.yml:ro" \
+    "$IMAGE" serve --config /app/config/raft-e2e.yml >/dev/null
 done
 
 curl_in_bridge() {

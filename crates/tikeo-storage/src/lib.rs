@@ -2,8 +2,11 @@
 
 #![forbid(unsafe_code)]
 
+/// `Entities` module.
 pub mod entities;
+/// `Migration` module.
 pub mod migration;
+/// `Repository` module.
 pub mod repository;
 
 use sea_orm::{ConnectOptions, Database, DatabaseConnection};

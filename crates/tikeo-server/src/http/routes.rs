@@ -1,34 +1,62 @@
 //! HTTP route handlers for the management API.
-#![allow(clippy::redundant_pub_crate)]
 
+/// `Alerts` module.
 pub(crate) mod alerts;
+/// `Audit` module.
 pub(crate) mod audit;
+/// `Calendars` module.
 pub(crate) mod calendars;
+/// `Common` module.
 pub(crate) mod common;
+/// Event sources module.
 pub(crate) mod event_sources;
+/// `Gitops` module.
 pub(crate) mod gitops;
+/// Job notifications module.
 pub(crate) mod job_notifications;
+/// `Jobs` module.
 pub(crate) mod jobs;
+/// `Metrics` module.
 pub(crate) mod metrics;
+/// Notification providers module.
 pub(crate) mod notification_providers;
+/// Notification templates module.
 pub(crate) mod notification_templates;
+/// Notification trace module.
 pub(crate) mod notification_trace;
+/// `Notifications` module.
 pub(crate) mod notifications;
+/// `Observability` module.
 pub(crate) mod observability;
+/// Oidc identity module.
 pub(crate) mod oidc_identity;
+/// `Plugins` module.
 pub(crate) mod plugins;
+/// `Raft` module.
 pub(crate) mod raft;
+/// `Roles` module.
 pub(crate) mod roles;
+/// `Scheduling` module.
 pub(crate) mod scheduling;
+/// `Scope` module.
 pub(crate) mod scope;
+/// `Scripts` module.
 pub(crate) mod scripts;
+/// `Security` module.
 pub(crate) mod security;
+/// Service accounts module.
 pub(crate) mod service_accounts;
+/// `System` module.
 pub(crate) mod system;
+/// `Topology` module.
 pub(crate) mod topology;
+/// `Users` module.
 pub(crate) mod users;
+/// Worker relay module.
 pub(crate) mod worker_relay;
+/// `Workers` module.
 pub(crate) mod workers;
+/// `Workflows` module.
 pub(crate) mod workflows;
 
 pub use alerts::{

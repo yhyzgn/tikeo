@@ -172,25 +172,23 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
         ),
         async {
             tikeo::run_tick_loop(jobs, tikeo_instances, tick_cluster).await;
-            #[allow(unreachable_code)]
             Ok::<(), anyhow::Error>(())
         },
         async {
-            tunnel::dispatcher::run(
-                dispatcher_jobs,
-                dispatcher_instances,
-                dispatcher_attempts,
-                dispatcher_outbox,
-                dispatcher_workflows,
-                scripts.clone(),
-                logs.clone(),
+            tunnel::dispatcher::run(tunnel::dispatcher::DispatcherContext {
+                jobs: dispatcher_jobs,
+                instances: dispatcher_instances,
+                attempts: dispatcher_attempts,
+                outbox: dispatcher_outbox,
+                workflows: dispatcher_workflows,
+                scripts: scripts.clone(),
+                logs: logs.clone(),
                 audit,
                 registry,
-                dispatch_cluster,
-                notification_center.clone(),
-            )
+                cluster: dispatch_cluster,
+                notifications: notification_center.clone(),
+            })
             .await;
-            #[allow(unreachable_code)]
             Ok::<(), anyhow::Error>(())
         },
         async {
@@ -200,7 +198,6 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
                 outbox_delivery_node_id,
             )
             .await;
-            #[allow(unreachable_code)]
             Ok::<(), anyhow::Error>(())
         },
         run_alert_retry_worker(alerts, alert_retry_cluster, alert_retry_config),
@@ -241,18 +238,18 @@ struct HttpRouterParts {
 
 fn build_http_router(parts: HttpRouterParts) -> axum::Router {
     http::router_with_state(
-        http::AppState::new(
-            parts.jobs,
-            parts.instances,
-            parts.logs,
-            parts.attempts,
-            parts.users,
-            parts.scripts,
-            parts.workflows,
-            parts.audit,
-            parts.registry,
-            parts.cluster,
-        )
+        http::AppState::new(http::AppStateParts {
+            jobs: parts.jobs,
+            instances: parts.instances,
+            logs: parts.logs,
+            attempts: parts.attempts,
+            users: parts.users,
+            scripts: parts.scripts,
+            workflows: parts.workflows,
+            audit: parts.audit,
+            registry: parts.registry,
+            cluster: parts.cluster,
+        })
         .with_auth_config(parts.auth_config)
         .with_transport_security_config(parts.transport_security)
         .with_observability_config(parts.observability)
@@ -265,7 +262,6 @@ fn build_http_router(parts: HttpRouterParts) -> axum::Router {
 
 async fn run_worker_lease_scanner(lifecycle: WorkerLifecycleRepository) -> Result<()> {
     tunnel::lifecycle::run_lease_scanner(lifecycle, std::time::Duration::from_secs(10)).await;
-    #[allow(unreachable_code)]
     Ok(())
 }
 
@@ -300,7 +296,6 @@ async fn run_alert_retry_worker(
     } else {
         std::future::pending::<()>().await;
     }
-    #[allow(unreachable_code)]
     Ok(())
 }
 
@@ -313,10 +308,11 @@ async fn run_notification_delivery_worker(
     trigger: Option<crate::notification::NotificationDeliveryTrigger>,
 ) -> Result<()> {
     if config.enabled {
-        crate::notification::run_delivery_loop_with_trigger(
-            channels,
-            messages,
-            attempts,
+        let repositories = crate::notification::NotificationDeliveryRepositories::new(
+            channels, messages, attempts,
+        );
+        let context = crate::notification::NotificationDeliveryLoopContext::new(
+            repositories,
             cluster,
             std::time::Duration::from_secs(config.interval_seconds.max(1)),
             config.batch_size.min(500),
@@ -325,11 +321,10 @@ async fn run_notification_delivery_worker(
                 backoff_seconds: config.backoff_seconds.clamp(1, 86_400),
             },
             trigger,
-        )
-        .await;
+        );
+        crate::notification::run_delivery_loop(context).await;
     } else {
         std::future::pending::<()>().await;
     }
-    #[allow(unreachable_code)]
     Ok(())
 }

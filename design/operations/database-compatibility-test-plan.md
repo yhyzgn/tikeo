@@ -57,9 +57,9 @@ Alternatively set comma-separated `TIKEO_TEST_CONNECTION_URLS` to run additional
 
 ## Configuration assets
 
-- SQLite default: `config/dev.toml`.
-- PostgreSQL example: `config/postgres.toml`.
-- MySQL example: `config/mysql.toml`.
+- SQLite default: `config/dev.yml`.
+- PostgreSQL example: switch `config/tikeo.yml` `storage.database.type` to `postgres` and fill the structured database fields.
+- MySQL example: switch `config/tikeo.yml` `storage.database.type` to `mysql` and fill the structured database fields.
 - Compose DB matrix: `deploy/compose/database-compat-compose.yml`.
 
 ## Release gate

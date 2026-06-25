@@ -130,6 +130,11 @@ pub async fn require_admin(headers: &HeaderMap, state: &AppState) -> Result<MeRe
     tag = "auth",
     responses((status = 200, description = "Bootstrap registration state", body = super::dto::BootstrapStatusApiResponse))
 )]
+/// Bootstrap status.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn bootstrap_status(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<ApiResponse<BootstrapStatusResponse>>, ApiError> {
@@ -165,6 +170,11 @@ pub async fn bootstrap_status(
         (status = 403, description = "Registration already closed", body = super::dto::ErrorResponse)
     )
 )]
+/// Register bootstrap admin.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn register_bootstrap_admin(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -275,6 +285,11 @@ fn is_valid_email(email: &str) -> bool {
         (status = 401, description = "Invalid credentials", body = super::dto::ErrorResponse)
     )
 )]
+/// Login.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn login(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -365,6 +380,11 @@ async fn resolve_login_user(
     tag = "auth",
     request_body = CreateApiTokenRequest
 )]
+/// Create api token.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn create_api_token(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -421,6 +441,11 @@ pub async fn create_api_token(
 ///
 /// Returns unauthorized or storage errors.
 #[utoipa::path(get, path = "/api/v1/auth/api-tokens", tag = "auth")]
+/// List api tokens.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn list_api_tokens(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -441,6 +466,11 @@ pub async fn list_api_tokens(
     tag = "auth",
     request_body = RotateApiTokenRequest
 )]
+/// Rotate api token.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn rotate_api_token(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -514,6 +544,11 @@ pub async fn rotate_api_token(
 ///
 /// Returns unauthorized, not found, or storage errors.
 #[utoipa::path(delete, path = "/api/v1/auth/api-tokens/{id}", tag = "auth")]
+/// Revoke api token.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn revoke_api_token(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -546,6 +581,7 @@ pub async fn revoke_api_token(
     tag = "auth",
     responses((status = 200, description = "Authentication mode/status", body = super::dto::AuthStatusApiResponse))
 )]
+/// Status.
 pub async fn status(State(state): State<Arc<AppState>>) -> Json<ApiResponse<AuthStatusResponse>> {
     let oidc = &state.auth_config.oidc;
     let oidc_ready = oidc.enabled
@@ -593,6 +629,11 @@ pub async fn status(State(state): State<Arc<AppState>>) -> Json<ApiResponse<Auth
     tag = "auth",
     responses((status = 200, description = "OIDC authorization bootstrap", body = super::dto::OidcAuthorizeApiResponse))
 )]
+/// Oidc authorize.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn oidc_authorize(
     State(state): State<Arc<AppState>>,
     Query(query): Query<super::oidc::OidcAuthorizeQuery>,
@@ -647,6 +688,11 @@ pub async fn oidc_authorize(
 /// Returns a bad request when OIDC is disabled, callback data is malformed, token exchange fails,
 /// or until external identity is mapped to a local opaque session.
 #[utoipa::path(get, path = "/api/v1/auth/oidc/callback", tag = "auth")]
+/// Oidc callback.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn oidc_callback(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -677,6 +723,11 @@ fn configured_value<'a>(value: Option<&'a String>, field: &str) -> Result<&'a st
         (status = 401, description = "Missing or invalid bearer token", body = super::dto::ErrorResponse)
     )
 )]
+/// Me.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn me(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -696,6 +747,11 @@ pub async fn me(
     tag = "auth",
     responses((status = 200, description = "Logout acknowledged", body = super::dto::EmptyApiResponse))
 )]
+/// Logout.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn logout(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -737,6 +793,7 @@ pub async fn logout(
     Ok(Json(ApiResponse::success(super::dto::EmptyData {})))
 }
 
+/// Redact token for audit.
 pub(super) fn redact_token_for_audit(token: &str) -> String {
     let prefix: String = token.chars().take(8).collect();
     format!("{prefix}…redacted")

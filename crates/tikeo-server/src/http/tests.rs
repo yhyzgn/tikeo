@@ -25,6 +25,34 @@ use tower::ServiceExt;
 
 use crate::http::{AppState, router_with_state, serve_listener_with_state};
 
+macro_rules! app_state {
+    (
+        $jobs:expr,
+        $instances:expr,
+        $logs:expr,
+        $attempts:expr,
+        $users:expr,
+        $scripts:expr,
+        $workflows:expr,
+        $audit:expr,
+        $registry:expr,
+        $cluster:expr $(,)?
+    ) => {
+        AppState::new(crate::http::AppStateParts {
+            jobs: $jobs,
+            instances: $instances,
+            logs: $logs,
+            attempts: $attempts,
+            users: $users,
+            scripts: $scripts,
+            workflows: $workflows,
+            audit: $audit,
+            registry: $registry,
+            cluster: $cluster,
+        })
+    };
+}
+
 include!("tests/part_01.rs");
 include!("tests/part_02.rs");
 include!("tests/part_03_a.rs");

@@ -46,7 +46,7 @@ impl Cli {
 pub enum Command {
     /// Run the tikeo server.
     Serve {
-        /// Path to a TOML configuration file.
+        /// Path to a YAML configuration file.
         #[arg(long, env = "TIKEO_CONFIG")]
         config: Option<PathBuf>,
     },

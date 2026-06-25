@@ -17,6 +17,11 @@ use super::{
     session::SessionCreate,
 };
 
+/// Complete oidc callback.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub(super) async fn complete_oidc_callback(
     state: &AppState,
     headers: &HeaderMap,

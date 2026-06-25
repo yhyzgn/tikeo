@@ -43,90 +43,85 @@ fi
 write_config() {
   local name="$1" url="$2" api_port="$3" tunnel_port="$4" output="$5"
   cat >"$output" <<EOF
-[server]
-listen_addr = "127.0.0.1:$api_port"
-worker_tunnel_addr = "127.0.0.1:$tunnel_port"
+server:
+  listen_addr: "127.0.0.1:$api_port"
+  worker_tunnel_addr: "127.0.0.1:$tunnel_port"
 
-[storage]
-timestamp_offset = "+08:00"
-
+storage:
+  timestamp_offset: "+08:00"
+  database:
 $(case "$url" in
   sqlite://*)
     db_path="${url#sqlite://}"; db_path="${db_path%%\?*}"
-    printf '[storage.database]
-type = "sqlite"
-path = "%s"
-
-[storage.database.params]
-mode = "rwc"
+    printf '    type: sqlite
+    path: "%s"
+    params:
+      mode: rwc
 ' "$db_path"
     ;;
   postgres://*)
-    printf '[storage.database]
-type = "postgres"
-host = "127.0.0.1"
-port = %s
-username = "tikeo"
-password = "tikeo"
-database = "tikeo"
+    printf '    type: postgres
+    host: "127.0.0.1"
+    port: %s
+    username: "tikeo"
+    password: "tikeo"
+    database: "tikeo"
 ' "${TIKEO_TEST_POSTGRES_PORT:-15432}"
     ;;
   mysql://*)
-    printf '[storage.database]
-type = "mysql"
-host = "127.0.0.1"
-port = %s
-username = "tikeo"
-password = "tikeo"
-database = "tikeo"
+    printf '    type: mysql
+    host: "127.0.0.1"
+    port: %s
+    username: "tikeo"
+    password: "tikeo"
+    database: "tikeo"
 ' "${TIKEO_TEST_MYSQL_PORT:-13306}"
     ;;
   *) echo "unsupported connection URL: $url" >&2; exit 2 ;;
 esac)
 
-[cluster]
-mode = "standalone"
-node_id = "$name-seed-compat"
-peers = []
+cluster:
+  mode: standalone
+  node_id: "$name-seed-compat"
+  peers: []
 
-[auth]
-local_login_enabled = true
+auth:
+  local_login_enabled: true
+  api_tokens:
+    default_ttl_seconds: 43200
+    min_ttl_seconds: 300
+    max_ttl_seconds: 2592000
+  oidc:
+    enabled: false
+    scopes: ["openid", "profile", "email"]
 
-[auth.api_tokens]
-default_ttl_seconds = 43200
-min_ttl_seconds = 300
-max_ttl_seconds = 2592000
+transport_security:
+  http:
+    tls_enabled: false
+    mtls_required: false
+  worker_tunnel:
+    tls_enabled: false
+    mtls_required: false
 
-[auth.oidc]
-enabled = false
-scopes = ["openid", "profile", "email"]
+observability:
+  tracing:
+    enabled: false
+    headers: []
 
-[transport_security.http]
-tls_enabled = false
-mtls_required = false
+alert_retry:
+  enabled: true
+  interval_seconds: 60
+  batch_size: 50
+  max_attempts: 3
+  backoff_seconds: 300
 
-[transport_security.worker_tunnel]
-tls_enabled = false
-mtls_required = false
-
-[observability.tracing]
-enabled = false
-headers = []
-
-[alert_retry]
-enabled = true
-interval_seconds = 60
-batch_size = 50
-max_attempts = 3
-backoff_seconds = 300
-
-[script_governance]
+script_governance: {}
 EOF
 }
 
 run_one() {
   local name="$1" url="$2" api_port="$3" tunnel_port="$4"
-  local config="$REPORT_DIR/$name.toml" log="$REPORT_DIR/$name-server.log"
+  local config="$REPORT_DIR/$name.yml" log="$REPORT_DIR/$name-server.log"
   write_config "$name" "$url" "$api_port" "$tunnel_port" "$config"
   (cd "$ROOT_DIR" && setsid cargo run --bin tikeo -- serve --config "$config" >"$log" 2>&1 & echo $! >"$REPORT_DIR/$name-server.pid")
   SERVER_PID="$(cat "$REPORT_DIR/$name-server.pid")"

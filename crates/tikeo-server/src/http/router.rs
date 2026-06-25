@@ -60,22 +60,27 @@ pub fn router_with_state(state: AppState) -> Router {
         .with_state(Arc::new(state))
 }
 
+/// Router for database.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub(super) async fn router_for_database(connection_url: &str) -> Result<Router> {
     let db = connect_and_migrate(connection_url)
         .await
         .with_context(|| format!("failed to initialize storage at {connection_url}"))?;
-    Ok(router_with_state(AppState::new(
-        JobRepository::new(db.clone()),
-        JobInstanceRepository::new(db.clone()),
-        JobInstanceLogRepository::new(db.clone()),
-        JobInstanceAttemptRepository::new(db.clone()),
-        UserRepository::new(db.clone()),
-        ScriptRepository::new(db.clone()),
-        WorkflowRepository::new(db.clone()),
-        AuditLogRepository::new(db),
-        crate::tunnel::WorkerRegistry::default(),
-        StandaloneCoordinator::shared("standalone-http"),
-    )))
+    Ok(router_with_state(AppState::new(super::AppStateParts {
+        jobs: JobRepository::new(db.clone()),
+        instances: JobInstanceRepository::new(db.clone()),
+        logs: JobInstanceLogRepository::new(db.clone()),
+        attempts: JobInstanceAttemptRepository::new(db.clone()),
+        users: UserRepository::new(db.clone()),
+        scripts: ScriptRepository::new(db.clone()),
+        workflows: WorkflowRepository::new(db.clone()),
+        audit: AuditLogRepository::new(db),
+        registry: crate::tunnel::WorkerRegistry::default(),
+        cluster: StandaloneCoordinator::shared("standalone-http"),
+    })))
 }
 
 async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
@@ -117,8 +122,22 @@ async fn attach_node_id_header(
     response
 }
 
-#[allow(clippy::too_many_lines)]
+/// Api router.
 pub(super) fn api_router() -> Router<Arc<AppState>> {
+    Router::new()
+        .merge(platform_routes())
+        .merge(auth_routes())
+        .merge(identity_management_routes())
+        .merge(script_routes())
+        .merge(workflow_routes())
+        .merge(resource_routes())
+        .merge(job_routes())
+        .merge(worker_routes())
+        .merge(notification_routes())
+        .merge(alert_routes())
+}
+
+fn platform_routes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/system/info", get(routes::system_info))
         .route("/metrics/summary", get(routes::metrics_summary))
@@ -142,6 +161,23 @@ pub(super) fn api_router() -> Router<Arc<AppState>> {
             "/internal/worker-tunnel/dispatch/{worker_id}",
             axum::routing::post(routes::relay_dispatch_to_worker),
         )
+        .route(
+            "/plugins",
+            get(routes::list_plugins).post(routes::create_plugin),
+        )
+        .route(
+            "/plugins/{id}",
+            axum::routing::patch(routes::update_plugin).delete(routes::delete_plugin),
+        )
+        .route("/gitops/manifest", get(routes::export_gitops_manifest))
+        .route(
+            "/gitops/diff",
+            axum::routing::post(routes::diff_gitops_manifest),
+        )
+}
+
+fn auth_routes() -> Router<Arc<AppState>> {
+    Router::new()
         .route("/auth/bootstrap", get(auth::bootstrap_status))
         .route(
             "/auth/bootstrap/register",
@@ -173,19 +209,10 @@ pub(super) fn api_router() -> Router<Arc<AppState>> {
             "/auth/api-tokens/{id}/rotate",
             axum::routing::post(auth::rotate_api_token),
         )
-        .route(
-            "/plugins",
-            get(routes::list_plugins).post(routes::create_plugin),
-        )
-        .route(
-            "/plugins/{id}",
-            axum::routing::patch(routes::update_plugin).delete(routes::delete_plugin),
-        )
-        .route("/gitops/manifest", get(routes::export_gitops_manifest))
-        .route(
-            "/gitops/diff",
-            axum::routing::post(routes::diff_gitops_manifest),
-        )
+}
+
+fn identity_management_routes() -> Router<Arc<AppState>> {
+    Router::new()
         .route(
             "/management/service-accounts",
             get(routes::list_service_accounts).post(routes::create_service_account),
@@ -226,6 +253,10 @@ pub(super) fn api_router() -> Router<Arc<AppState>> {
             "/users/{id}",
             axum::routing::patch(routes::update_user).delete(routes::delete_user),
         )
+}
+
+fn script_routes() -> Router<Arc<AppState>> {
+    Router::new()
         .route(
             "/scripts",
             get(routes::list_scripts).post(routes::create_script),
@@ -250,6 +281,10 @@ pub(super) fn api_router() -> Router<Arc<AppState>> {
             axum::routing::post(routes::rollback_script),
         )
         .route("/scripts/{id}/diff", get(routes::diff_script_versions))
+}
+
+fn workflow_routes() -> Router<Arc<AppState>> {
+    Router::new()
         .route(
             "/workflows",
             get(routes::list_workflows).post(routes::create_workflow),
@@ -314,6 +349,10 @@ pub(super) fn api_router() -> Router<Arc<AppState>> {
             "/public/job-instances/{id}/trace",
             get(routes::get_public_job_instance_trace),
         )
+}
+
+fn resource_routes() -> Router<Arc<AppState>> {
+    Router::new()
         .route(
             "/namespaces",
             get(routes::list_namespaces).post(routes::create_namespace),
@@ -340,18 +379,10 @@ pub(super) fn api_router() -> Router<Arc<AppState>> {
             "/calendars/{id}",
             axum::routing::delete(routes::delete_calendar),
         )
-        .route(
-            "/worker-pools",
-            get(routes::list_worker_pools).post(routes::create_worker_pool),
-        )
-        .route(
-            "/worker-pools/{id}",
-            axum::routing::delete(routes::delete_worker_pool),
-        )
-        .route(
-            "/worker-pools/{id}/quota",
-            axum::routing::patch(routes::update_worker_pool_quota),
-        )
+}
+
+fn job_routes() -> Router<Arc<AppState>> {
+    Router::new()
         .route("/jobs", get(routes::list_jobs).post(routes::create_job))
         .route("/jobs/topology", get(routes::job_topology))
         .route("/jobs/{job}/impact", get(routes::job_impact))
@@ -408,6 +439,22 @@ pub(super) fn api_router() -> Router<Arc<AppState>> {
             "/instances/{instance}/attempts",
             get(routes::list_instance_attempts),
         )
+}
+
+fn worker_routes() -> Router<Arc<AppState>> {
+    Router::new()
+        .route(
+            "/worker-pools",
+            get(routes::list_worker_pools).post(routes::create_worker_pool),
+        )
+        .route(
+            "/worker-pools/{id}",
+            axum::routing::delete(routes::delete_worker_pool),
+        )
+        .route(
+            "/worker-pools/{id}/quota",
+            axum::routing::patch(routes::update_worker_pool_quota),
+        )
         .route("/workers", get(routes::list_workers))
         .route("/workers/stream", get(routes::stream_workers))
         .route("/workers/history", get(routes::worker_lifecycle_history))
@@ -419,6 +466,10 @@ pub(super) fn api_router() -> Router<Arc<AppState>> {
         )
         .route("/audit-logs", get(routes::list_audit_logs))
         .route("/audit-logs:export", get(routes::export_audit_logs))
+}
+
+fn notification_routes() -> Router<Arc<AppState>> {
+    Router::new()
         .route(
             "/notification-channel-types",
             get(routes::list_notification_channel_types),
@@ -483,6 +534,10 @@ pub(super) fn api_router() -> Router<Arc<AppState>> {
             "/notification-delivery-attempts:retry-due",
             axum::routing::post(routes::retry_due_notification_delivery_attempts),
         )
+}
+
+fn alert_routes() -> Router<Arc<AppState>> {
+    Router::new()
         .route(
             "/alert-rules",
             get(routes::list_alert_rules).post(routes::create_alert_rule),

@@ -133,6 +133,7 @@ fn notification_center_from_audit(audit: &AuditLogRepository) -> NotificationCen
 
 /// Build the canonical governance event payload shared by instance logs and audit rows.
 #[must_use]
+/// Script governance payload.
 pub fn script_governance_payload(failure_class: &str, message: &str) -> serde_json::Value {
     serde_json::json!({
         "event": GOVERNANCE_EVENT,

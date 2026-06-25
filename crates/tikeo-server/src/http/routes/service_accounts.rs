@@ -23,6 +23,7 @@ pub struct CreateServiceAccountRequest {
     pub description: Option<String>,
     pub namespace: String,
     pub app: String,
+    /// Worker pool value.
     pub worker_pool: Option<String>,
 }
 
@@ -33,11 +34,14 @@ pub struct UpdateServiceAccountRequest {
     pub description: Option<String>,
     pub namespace: String,
     pub app: String,
+    /// Worker pool value.
     pub worker_pool: Option<String>,
     pub status: String,
 }
 
+/// `ServiceAccountApiResponse` type alias.
 pub type ServiceAccountApiResponse = ApiResponse<tikeo_storage::ServiceAccountSummary>;
+/// `ServiceAccountListApiResponse` type alias.
 pub type ServiceAccountListApiResponse = ApiResponse<Vec<tikeo_storage::ServiceAccountSummary>>;
 
 /// List service accounts.
@@ -46,6 +50,11 @@ pub type ServiceAccountListApiResponse = ApiResponse<Vec<tikeo_storage::ServiceA
 ///
 /// Returns authorization or storage errors.
 #[utoipa::path(get, path = "/api/v1/management/service-accounts", tag = "management")]
+/// List service accounts.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn list_service_accounts(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -69,6 +78,11 @@ pub async fn list_service_accounts(
     tag = "management",
     request_body = CreateServiceAccountRequest
 )]
+/// Create service account.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn create_service_account(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -111,6 +125,11 @@ pub async fn create_service_account(
     tag = "management",
     request_body = UpdateServiceAccountRequest
 )]
+/// Update service account.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn update_service_account(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -172,6 +191,11 @@ pub async fn update_service_account(
     path = "/api/v1/management/service-accounts/{id}",
     tag = "management"
 )]
+/// Disable service account.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn disable_service_account(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,

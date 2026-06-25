@@ -58,6 +58,7 @@ pub fn validate_scope_bindings(
 
 /// Return true when a principal binding list allows one resource tuple.
 #[must_use]
+/// Allows resource.
 pub fn allows_resource(
     bindings: &[AccessScopeBinding],
     namespace: &str,

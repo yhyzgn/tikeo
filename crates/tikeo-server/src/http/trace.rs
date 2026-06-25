@@ -13,6 +13,7 @@ const TRACE_ID_HEADER: &str = "x-trace-id";
 
 /// Resolve a trace id from incoming headers or create a local deterministic shape.
 #[must_use]
+/// Resolve trace id.
 pub fn resolve_trace_id(headers: &HeaderMap) -> String {
     explicit_trace_header(headers)
         .or_else(|| traceparent_id(headers))

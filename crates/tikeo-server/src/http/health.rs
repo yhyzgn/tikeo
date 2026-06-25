@@ -14,10 +14,12 @@ struct HealthResponse {
     uptime_seconds: u64,
 }
 
+/// Healthz.
 pub(super) async fn healthz(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     health_response(&state)
 }
 
+/// Readyz.
 pub(super) async fn readyz(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     health_response(&state)
 }

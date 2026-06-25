@@ -189,11 +189,16 @@ pub struct WorkerLifecycleRepository {
 impl WorkerLifecycleRepository {
     /// Create a repository using the provided database connection.
     #[must_use]
+    /// New.
     pub const fn new(db: DatabaseConnection) -> Self {
         Self { db }
     }
 
     /// Register a fresh session, replacing active older generations for the same logical key.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn register_session(
         &self,
         input: RegisterWorkerSession,
@@ -224,6 +229,10 @@ impl WorkerLifecycleRepository {
     }
 
     /// Renew a session lease only when generation and fencing token still match the current session.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn heartbeat(
         &self,
         input: WorkerHeartbeat,
@@ -276,6 +285,10 @@ impl WorkerLifecycleRepository {
     }
 
     /// Mark a current fenced session as gracefully stopped.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn graceful_unregister(
         &self,
         worker_id: &str,
@@ -335,6 +348,10 @@ impl WorkerLifecycleRepository {
     }
 
     /// Mark a server-observed stream close/error as offline with high-confidence transport evidence.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn mark_transport_error(
         &self,
         worker_id: &str,
@@ -369,6 +386,10 @@ impl WorkerLifecycleRepository {
     }
 
     /// Mark expired online sessions as offline with evidence-limited unknown lease expiry reason.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn mark_expired_online_sessions(
         &self,
         limit: u64,
@@ -404,6 +425,10 @@ impl WorkerLifecycleRepository {
     }
 
     /// Load a persisted session by worker id.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn get_session(
         &self,
         worker_id: &str,
@@ -415,6 +440,10 @@ impl WorkerLifecycleRepository {
     }
 
     /// List persisted online sessions whose lease has not expired, joined with logical instance metadata.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn list_online_workers(
         &self,
         limit: u64,
@@ -467,6 +496,10 @@ impl WorkerLifecycleRepository {
     }
 
     /// Load one persisted worker only when it is online, lease-valid, and current for its logical instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn get_online_current_worker(
         &self,
         worker_id: &str,
@@ -545,6 +578,10 @@ impl WorkerLifecycleRepository {
     }
 
     /// Update persisted worker capability/label/master snapshots for currently known online sessions.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn update_session_snapshots(
         &self,
         snapshots: Vec<WorkerSessionSnapshotUpdate>,
@@ -568,6 +605,10 @@ impl WorkerLifecycleRepository {
     }
 
     /// List persisted worker sessions ordered by most recently updated first.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn list_sessions(
         &self,
         limit: u64,
@@ -584,6 +625,10 @@ impl WorkerLifecycleRepository {
     }
 
     /// List recent lifecycle events across all worker sessions.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn list_recent_events(
         &self,
         limit: u64,
@@ -600,6 +645,10 @@ impl WorkerLifecycleRepository {
     }
 
     /// List lifecycle events for one worker session.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn list_session_events(
         &self,
         worker_id: &str,

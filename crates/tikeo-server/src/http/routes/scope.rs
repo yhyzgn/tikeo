@@ -1,5 +1,3 @@
-#![allow(missing_docs, clippy::missing_errors_doc)]
-
 use std::sync::Arc;
 
 use axum::{
@@ -32,7 +30,9 @@ pub struct CreateWorkerPoolRequest {
 
 #[derive(Debug, Clone, Deserialize, utoipa::ToSchema)]
 pub struct UpdateWorkerPoolQuotaRequest {
+    /// Max queue depth value.
     pub max_queue_depth: i32,
+    /// Max concurrency value.
     pub max_concurrency: i32,
 }
 
@@ -43,6 +43,11 @@ pub struct ScopeQuery {
 }
 
 #[utoipa::path(get, path = "/api/v1/namespaces", tag = "tenancy")]
+/// List namespaces.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn list_namespaces(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -57,6 +62,11 @@ pub async fn list_namespaces(
 }
 
 #[utoipa::path(post, path = "/api/v1/namespaces", tag = "tenancy", request_body = CreateNamespaceRequest)]
+/// Create namespace.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn create_namespace(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -83,6 +93,11 @@ pub async fn create_namespace(
 }
 
 #[utoipa::path(get, path = "/api/v1/apps", tag = "tenancy", params(ScopeQuery))]
+/// List apps.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn list_apps(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -98,6 +113,11 @@ pub async fn list_apps(
 }
 
 #[utoipa::path(post, path = "/api/v1/apps", tag = "tenancy", request_body = CreateAppRequest)]
+/// Create app.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn create_app(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -130,6 +150,11 @@ pub async fn create_app(
     tag = "tenancy",
     params(ScopeQuery)
 )]
+/// List worker pools.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn list_worker_pools(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -145,6 +170,11 @@ pub async fn list_worker_pools(
 }
 
 #[utoipa::path(post, path = "/api/v1/worker-pools", tag = "tenancy", request_body = CreateWorkerPoolRequest)]
+/// Create worker pool.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn create_worker_pool(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -173,6 +203,11 @@ pub async fn create_worker_pool(
 }
 
 #[utoipa::path(patch, path = "/api/v1/worker-pools/{id}/quota", tag = "tenancy", request_body = UpdateWorkerPoolQuotaRequest, params(("id" = String, Path, description = "Worker pool id")))]
+/// Update worker pool quota.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn update_worker_pool_quota(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -209,6 +244,11 @@ pub async fn update_worker_pool_quota(
 }
 
 #[utoipa::path(delete, path = "/api/v1/namespaces/{id}", tag = "tenancy", params(("id" = String, Path, description = "Namespace id")))]
+/// Delete namespace.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn delete_namespace(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -239,6 +279,11 @@ pub async fn delete_namespace(
 }
 
 #[utoipa::path(delete, path = "/api/v1/apps/{id}", tag = "tenancy", params(("id" = String, Path, description = "App id")))]
+/// Delete app.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn delete_app(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -269,6 +314,11 @@ pub async fn delete_app(
 }
 
 #[utoipa::path(delete, path = "/api/v1/worker-pools/{id}", tag = "tenancy", params(("id" = String, Path, description = "Worker pool id")))]
+/// Delete worker pool.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn delete_worker_pool(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -331,6 +381,11 @@ pub enum SecretReferenceRequest {
 }
 
 #[utoipa::path(get, path = "/api/v1/secrets", tag = "tenancy", params(ScopeQuery))]
+/// List secrets.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn list_secrets(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -369,6 +424,11 @@ pub async fn list_secrets(
 }
 
 #[utoipa::path(post, path = "/api/v1/secrets", tag = "tenancy", request_body = CreateSecretRequest)]
+/// Create secret.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn create_secret(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -414,6 +474,11 @@ pub async fn create_secret(
 }
 
 #[utoipa::path(delete, path = "/api/v1/secrets/{id}", tag = "tenancy", params(("id" = String, Path, description = "Secret id")))]
+/// Delete secret.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn delete_secret(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,

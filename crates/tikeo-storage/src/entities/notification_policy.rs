@@ -8,6 +8,7 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     /// Stable policy identifier.
     #[sea_orm(primary_key, auto_increment = false)]
+    /// Identifier value.
     pub id: String,
     /// Operator-facing policy name.
     pub name: String,

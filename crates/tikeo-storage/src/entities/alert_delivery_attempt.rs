@@ -8,6 +8,7 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     /// Attempt identifier.
     #[sea_orm(primary_key, auto_increment = false)]
+    /// Identifier value.
     pub id: String,
     /// Soft-linked alert event id.
     pub event_id: String,

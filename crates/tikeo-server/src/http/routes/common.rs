@@ -7,7 +7,8 @@ use tracing::warn;
 
 use crate::http::{AppState, error::ApiError, trace};
 
-pub(crate) fn trace_id(headers: &HeaderMap) -> String {
+/// Trace id.
+pub fn trace_id(headers: &HeaderMap) -> String {
     trace::resolve_trace_id(headers)
 }
 
@@ -18,6 +19,11 @@ pub struct StreamAuthQuery {
     pub token: Option<String>,
 }
 
+/// Apply stream token.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub(super) fn apply_stream_token(
     headers: &mut HeaderMap,
     query: &StreamAuthQuery,
@@ -33,7 +39,8 @@ pub(super) fn apply_stream_token(
     Ok(())
 }
 
-pub(crate) fn client_ip(headers: &HeaderMap) -> Option<String> {
+/// Client ip.
+pub fn client_ip(headers: &HeaderMap) -> Option<String> {
     headers
         .get("x-forwarded-for")
         .or_else(|| headers.get("x-real-ip"))
@@ -41,6 +48,7 @@ pub(crate) fn client_ip(headers: &HeaderMap) -> Option<String> {
         .map(|v| v.split(',').next().unwrap_or(v).trim().to_owned())
 }
 
+/// Audit.
 pub(super) async fn audit(
     state: &AppState,
     actor: &str,
@@ -72,24 +80,45 @@ pub(super) async fn audit(
     }
 }
 
+/// Defaulted.
 pub(super) fn defaulted(value: Option<String>, default: &str) -> String {
     value
         .filter(|item| !item.trim().is_empty())
         .unwrap_or_else(|| default.to_owned())
 }
 
+/// Parse schedule type.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub(super) fn parse_schedule_type(value: &str) -> Result<ScheduleType, ApiError> {
     ScheduleType::from_str(value).map_err(|error| ApiError::bad_request(error.to_string()))
 }
 
+/// Parse trigger type.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub(super) fn parse_trigger_type(value: &str) -> Result<TriggerType, ApiError> {
     TriggerType::from_str(value).map_err(|error| ApiError::bad_request(error.to_string()))
 }
 
+/// Parse execution mode.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub(super) fn parse_execution_mode(value: &str) -> Result<ExecutionMode, ApiError> {
     ExecutionMode::from_str(value).map_err(|error| ApiError::bad_request(error.to_string()))
 }
 
+/// Parse trigger path.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub(super) fn parse_trigger_path(value: &str) -> Result<String, ApiError> {
     value
         .strip_suffix(":trigger")

@@ -45,6 +45,9 @@ const CLUSTER_ID: &str = "default";
 const TICK_INTERVAL: Duration = Duration::from_millis(100);
 const INBOX_CAPACITY: usize = 256;
 
+mod wire;
+use wire::{raft_append_entries_url, raft_message_to_wire_request};
+
 /// Safe bootstrap status produced by constructing a raft-rs `RawNode` without driving it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RaftRsBootstrapStatus {
@@ -67,33 +70,6 @@ struct RaftPeerTransport {
     client: reqwest::Client,
     endpoints: Arc<BTreeMap<u64, String>>,
     token: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct RaftWireMessage {
-    from: u64,
-    to: u64,
-    term: i64,
-    message_type: String,
-    index: i64,
-    log_term: i64,
-    commit: i64,
-    snapshot_index: Option<i64>,
-    snapshot_term: Option<i64>,
-    entries: Vec<RaftWireLogEntry>,
-    context: Option<String>,
-    reject: bool,
-    reject_hint: Option<i64>,
-    leader_fencing_token: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct RaftWireLogEntry {
-    entry_type: String,
-    index: i64,
-    term: i64,
-    data: String,
-    context: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -490,7 +466,23 @@ fn spawn_runtime_loop(
     });
 }
 
-#[allow(clippy::significant_drop_tightening)]
+async fn process_tick(
+    config: &ClusterConfig,
+    repository: &RaftRepository,
+    node: &Arc<Mutex<RawNode<MemStorage>>>,
+    status: &Arc<RwLock<ClusterStatus>>,
+    transport: &RaftPeerTransport,
+) {
+    let mut guard = node.lock().await;
+    guard.tick();
+    trigger_autonomous_campaign(&mut guard);
+    let ready_result = process_ready(config, repository, &mut guard, status, transport).await;
+    drop(guard);
+    if let Err(error) = ready_result {
+        warn!(%error, "raft-rs Ready processing failed");
+    }
+}
+
 async fn run_runtime_loop(
     config: ClusterConfig,
     status: Arc<RwLock<ClusterStatus>>,
@@ -503,12 +495,7 @@ async fn run_runtime_loop(
     loop {
         tokio::select! {
             _ = ticker.tick() => {
-                let mut guard = node.lock().await;
-                guard.tick();
-                trigger_autonomous_campaign(&mut guard);
-                if let Err(error) = process_ready(&config, &repository, &mut guard, &status, &transport).await {
-                    warn!(%error, "raft-rs Ready processing failed");
-                }
+                process_tick(&config, &repository, &node, &status, &transport).await;
             }
             command = inbox.recv() => {
                 let Some(command) = command else { break; };
@@ -521,6 +508,7 @@ async fn run_runtime_loop(
                         if let Err(error) = process_ready(&config, &repository, &mut guard, &status, &transport).await {
                             warn!(%error, "raft-rs Ready processing failed");
                         }
+                        drop(guard);
                     }
                     RaftRuntimeCommand::MembershipProposal { proposal, respond_to } => {
                         let mut guard = node.lock().await;
@@ -533,6 +521,7 @@ async fn run_runtime_loop(
                             proposal,
                         )
                         .await;
+                        drop(guard);
                         let _ = respond_to.send(response);
                     }
                 }
@@ -1323,6 +1312,7 @@ async fn project_balanced_shard_ownership(
     Ok(())
 }
 
+/// Plan minimal movement shard ownership.
 pub(super) fn plan_minimal_movement_shard_ownership(
     existing: &[tikeo_storage::ClusterShardOwnershipSummary],
     owners: &[String],
@@ -1411,6 +1401,7 @@ pub(super) fn plan_minimal_movement_shard_ownership(
     assignment
 }
 
+/// Balanced owner targets.
 pub(super) fn balanced_owner_targets(
     owners: &[String],
     shard_count: usize,
@@ -1488,62 +1479,6 @@ fn peer_endpoints(config: &ClusterConfig) -> BTreeMap<u64, String> {
         .iter()
         .map(|peer| (raft_numeric_id(&peer.node_id), peer.endpoint.clone()))
         .collect()
-}
-
-fn raft_append_entries_url(endpoint: &str) -> String {
-    const PATH: &str = "/api/v1/raft/append-entries";
-    if endpoint.ends_with(PATH) {
-        endpoint.to_owned()
-    } else {
-        format!("{}{}", endpoint.trim_end_matches('/'), PATH)
-    }
-}
-
-fn raft_message_to_wire_request(message: &Message) -> RaftWireMessage {
-    let snapshot = message.get_snapshot();
-    let snapshot_metadata = snapshot.get_metadata();
-    RaftWireMessage {
-        from: message.from,
-        to: message.to,
-        term: u64_to_i64(message.term),
-        message_type: format!("{:?}", message.get_msg_type()),
-        index: u64_to_i64(message.index),
-        log_term: u64_to_i64(message.log_term),
-        commit: u64_to_i64(message.commit),
-        snapshot_index: (!snapshot.is_empty()).then_some(u64_to_i64(snapshot_metadata.index)),
-        snapshot_term: (!snapshot.is_empty()).then_some(u64_to_i64(snapshot_metadata.term)),
-        entries: message
-            .get_entries()
-            .iter()
-            .map(raft_entry_to_wire_entry)
-            .collect(),
-        context: if message.get_context().is_empty() {
-            None
-        } else {
-            Some(STANDARD.encode(message.get_context()))
-        },
-        reject: message.reject,
-        reject_hint: (message.reject_hint != 0).then_some(u64_to_i64(message.reject_hint)),
-        leader_fencing_token: None,
-    }
-}
-
-fn raft_entry_to_wire_entry(entry: &Entry) -> RaftWireLogEntry {
-    RaftWireLogEntry {
-        entry_type: format!("{:?}", entry.get_entry_type()),
-        index: u64_to_i64(entry.get_index()),
-        term: u64_to_i64(entry.get_term()),
-        data: STANDARD.encode(entry.get_data()),
-        context: if entry.get_context().is_empty() {
-            None
-        } else {
-            Some(STANDARD.encode(entry.get_context()))
-        },
-    }
-}
-
-fn u64_to_i64(value: u64) -> i64 {
-    i64::try_from(value).unwrap_or(i64::MAX)
 }
 
 fn leader_fencing_token_for_role(role: ClusterRole, node_id: &str, term: u64) -> Option<String> {

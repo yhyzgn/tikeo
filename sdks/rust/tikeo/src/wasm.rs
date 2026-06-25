@@ -1,8 +1,7 @@
-#![allow(clippy::redundant_pub_crate)]
-
 use crate::{proto::worker::v1::DispatchTask, task::TaskOutcome};
 
 #[cfg(feature = "wasm")]
+/// Process wasm binding.
 pub(crate) fn process_wasm_binding(
     binding: &crate::proto::worker::v1::WasmProcessorBinding,
     _task: &DispatchTask,
@@ -14,6 +13,7 @@ pub(crate) fn process_wasm_binding(
 }
 
 #[cfg(not(feature = "wasm"))]
+/// Process wasm binding.
 pub(crate) fn process_wasm_binding(
     binding: &crate::proto::worker::v1::WasmProcessorBinding,
     _task: &DispatchTask,
@@ -33,6 +33,11 @@ mod wasm_runtime {
 
     use crate::proto::worker::v1::WasmProcessorBinding;
 
+    /// Execute.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub fn execute(binding: &WasmProcessorBinding) -> Result<(), String> {
         validate(binding)?;
         let mut config = Config::new();

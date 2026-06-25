@@ -10,7 +10,7 @@ Use this path when you want the smallest possible Tikeo deployment: one `tikeo` 
 ## One-command local evaluation
 
 ```bash
-cargo run --bin tikeo -- serve --config config/dev.toml
+cargo run --bin tikeo -- serve --config config/dev.yml
 ```
 
 In another terminal:
@@ -20,18 +20,18 @@ curl -fsS http://127.0.0.1:9090/healthz
 curl -fsS http://127.0.0.1:9090/readyz
 ```
 
-`config/dev.toml` listens on HTTP `9090`, Worker Tunnel `9998`, and uses `sqlite://.dev/tikeo-dev.db?mode=rwc` in the repository working directory.
+`config/dev.yml` listens on HTTP `9090`, Worker Tunnel `9998`, and uses `sqlite://.dev/tikeo-dev.db?mode=rwc` in the repository working directory.
 
 ## Build a release binary
 
 ```bash
 cargo build --release --bin tikeo
 install -d ./var/lib/tikeo ./logs
-cp config/dev.toml ./tikeo.toml
-./target/release/tikeo serve --config ./tikeo.toml
+cp config/dev.yml ./tikeo.yml
+./target/release/tikeo serve --config ./tikeo.yml
 ```
 
-For a VM, edit `./tikeo.toml` before exposing it outside localhost. At minimum choose a durable database path or external database URL, set log retention, and enable TLS/mTLS before putting the Worker Tunnel on an untrusted network.
+For a VM, edit `./tikeo.yml` before exposing it outside localhost. At minimum choose a durable database path or external database URL, set log retention, and enable TLS/mTLS before putting the Worker Tunnel on an untrusted network.
 
 ## Copy-paste systemd install
 
@@ -42,7 +42,7 @@ cargo build --release --bin tikeo
 sudo useradd --system --home /var/lib/tikeo --shell /usr/sbin/nologin tikeo || true
 sudo install -d -o tikeo -g tikeo /opt/tikeo/bin /var/lib/tikeo /var/log/tikeo /etc/tikeo
 sudo install -m 0755 target/release/tikeo /opt/tikeo/bin/tikeo
-sudo install -m 0644 config/tikeo.toml /etc/tikeo/tikeo.toml
+sudo install -m 0644 config/tikeo.yml /etc/tikeo/tikeo.yml
 sudo install -m 0644 deploy/systemd/tikeo.env /etc/tikeo/tikeo.env
 sudo install -m 0644 deploy/systemd/tikeo.service /etc/systemd/system/tikeo.service
 sudo systemctl daemon-reload

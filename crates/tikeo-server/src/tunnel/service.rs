@@ -64,6 +64,7 @@ pub struct WorkerTunnel {
 impl WorkerTunnel {
     /// Create a Worker Tunnel service backed by an in-memory registry.
     #[must_use]
+    /// New.
     pub fn new(runtime: super::WorkerTunnelRuntime) -> Self {
         Self {
             registry: runtime.registry,

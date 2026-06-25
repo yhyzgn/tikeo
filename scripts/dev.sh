@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CONFIG_FILE="${TIKEO_CONFIG:-$ROOT_DIR/config/dev.toml}"
+CONFIG_FILE="${TIKEO_CONFIG:-$ROOT_DIR/config/dev.yml}"
 API_PORT="${TIKEO_API_PORT:-9090}"
 WEB_PORT="${TIKEO_WEB_PORT:-5173}"
 API_URL="${TIKEO_API_URL:-http://localhost:$API_PORT}"

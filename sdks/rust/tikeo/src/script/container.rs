@@ -1,5 +1,3 @@
-#![allow(clippy::redundant_pub_crate)]
-
 use std::path::{Component, Path, PathBuf};
 
 use async_trait::async_trait;
@@ -31,12 +29,14 @@ pub struct ContainerScriptRunner {
 impl ContainerScriptRunner {
     /// Create a Docker-compatible runner using the provided image.
     #[must_use]
+    /// New.
     pub fn new(kind: ScriptRunnerKind, image: impl Into<String>) -> Self {
         Self::with_runtime(kind, "docker", image, std::iter::empty::<String>())
     }
 
     /// Create a runner with an explicit container runtime command and extra runtime args.
     #[must_use]
+    /// With runtime.
     pub fn with_runtime(
         kind: ScriptRunnerKind,
         runtime_command: impl Into<PathBuf>,
@@ -51,6 +51,11 @@ impl ContainerScriptRunner {
         }
     }
 
+    /// Docker args.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub(crate) fn docker_args(
         &self,
         task: &ScriptRunnerTask,

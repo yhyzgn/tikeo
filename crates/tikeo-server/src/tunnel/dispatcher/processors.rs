@@ -13,6 +13,7 @@ pub(super) struct SqlProcessorOutcome {
     pub(super) message: String,
 }
 
+/// Execute sql processor.
 pub(super) async fn execute_sql_processor(config: &serde_json::Value) -> SqlProcessorOutcome {
     let Some(connection_url) = config
         .get("databaseUrl")
@@ -127,6 +128,7 @@ pub(super) struct GrpcProcessorOutcome {
     pub(super) message: String,
 }
 
+/// Execute grpc processor.
 pub(super) async fn execute_grpc_processor(config: &serde_json::Value) -> GrpcProcessorOutcome {
     let Some(endpoint) = config
         .get("endpoint")
@@ -296,6 +298,7 @@ pub(super) struct FileCleanupOutcome {
     pub(super) message: String,
 }
 
+/// Execute file cleanup processor.
 pub(super) async fn execute_file_cleanup_processor(
     config: &serde_json::Value,
 ) -> FileCleanupOutcome {
@@ -429,6 +432,7 @@ pub(super) struct HttpProcessorOutcome {
     pub(super) message: String,
 }
 
+/// Execute http processor.
 pub(super) async fn execute_http_processor(config: &serde_json::Value) -> HttpProcessorOutcome {
     let Some(url) = config
         .get("url")

@@ -26,10 +26,10 @@ cd examples/nodejs/worker-demo && bun install --frozen-lockfile && cd ../../..
 ## 阶段 1：启动 Server
 
 ```bash
-cargo run --bin tikeo -- serve --config config/dev.toml
+cargo run --bin tikeo -- serve --config config/dev.yml
 ```
 
-`config/dev.toml` 默认 HTTP 是 `0.0.0.0:9090`，Worker Tunnel 是 `0.0.0.0:9998`，存储是 `sqlite://.dev/tikeo-dev.db?mode=rwc`。另一个终端检查：
+`config/dev.yml` 默认 HTTP 是 `0.0.0.0:9090`，Worker Tunnel 是 `0.0.0.0:9998`，存储是 `sqlite://.dev/tikeo-dev.db?mode=rwc`。另一个终端检查：
 
 ```bash
 curl -fsS http://127.0.0.1:9090/healthz
@@ -217,7 +217,7 @@ Tikeo 的价值不在于 Server 单独能启动，而在于 Server、scope、SDK
 
 ## 前置条件
 
-执行本页命令前，请先满足页面列出的安装、认证和权限要求。本地示例默认 Server 使用 `config/dev.toml`，客户端访问 `127.0.0.1`，令牌保存在 shell 变量中，不写入文件或截图。
+执行本页命令前，请先满足页面列出的安装、认证和权限要求。本地示例默认 Server 使用 `config/dev.yml`，客户端访问 `127.0.0.1`，令牌保存在 shell 变量中，不写入文件或截图。
 
 ## 故障排查
 

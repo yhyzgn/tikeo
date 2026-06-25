@@ -35,6 +35,11 @@ use crate::http::{
         (status = 500, description = "Storage error", body = ErrorResponse)
     )
 )]
+/// Trigger inbound webhook.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn trigger_inbound_webhook(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,

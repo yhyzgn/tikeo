@@ -21,11 +21,16 @@ pub struct ScheduleCursorRepository {
 impl ScheduleCursorRepository {
     /// Create a repository using the provided database connection.
     #[must_use]
+    /// New.
     pub const fn new(db: DatabaseConnection) -> Self {
         Self { db }
     }
 
     /// Return the latest claimed fire timestamp for one job.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn latest_fire_at(&self, job_id: &str) -> Result<Option<String>, sea_orm::DbErr> {
         let row = schedule_cursor::Entity::find()
             .filter(schedule_cursor::Column::JobId.eq(job_id.to_owned()))
@@ -39,6 +44,10 @@ impl ScheduleCursorRepository {
     ///
     /// Returns `Ok(None)` when either the parent job is missing or another tick loop has
     /// already claimed the same `(job_id, trigger_type, fire_at)` window.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn create_pending_once(
         &self,
         input: CreateJobInstance,

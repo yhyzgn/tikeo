@@ -1,5 +1,3 @@
-#![allow(missing_docs, clippy::missing_errors_doc)]
-
 use std::sync::Arc;
 
 use axum::{
@@ -14,7 +12,7 @@ use crate::{
     alert::AlertDeliveryPolicy,
     http::{
         AppState, auth,
-        dto::{ApiResponse, EmptyData},
+        dto::{ApiResponse, EmptyData, NullableJsonUpdate, NullableStringUpdate},
         error::ApiError,
     },
     notification::{
@@ -31,101 +29,143 @@ use super::notification_providers::{
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateNotificationChannelRequest {
+    /// Scope type value.
     pub scope_type: String,
     pub namespace: Option<String>,
     pub app: Option<String>,
+    /// Worker pool value.
     pub worker_pool: Option<String>,
     pub name: String,
     pub provider: String,
     #[serde(default = "default_enabled")]
+    /// Boolean state flag.
     pub enabled: bool,
     #[serde(default)]
+    /// Serialized data value.
     pub config: serde_json::Value,
     #[serde(default)]
+    /// Secret refs value.
     pub secret_refs: serde_json::Value,
+    /// Safety policy value.
     pub safety_policy: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, ToSchema)]
-#[allow(clippy::option_option)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateNotificationChannelRequest {
+    /// Scope type value.
     pub scope_type: Option<String>,
-    pub namespace: Option<Option<String>>,
-    pub app: Option<Option<String>>,
-    pub worker_pool: Option<Option<String>>,
+    #[serde(default)]
+    pub namespace: NullableStringUpdate,
+    #[serde(default)]
+    pub app: NullableStringUpdate,
+    /// Worker pool value.
+    #[serde(default)]
+    pub worker_pool: NullableStringUpdate,
     pub name: Option<String>,
     pub provider: Option<String>,
+    /// Boolean state flag.
     pub enabled: Option<bool>,
+    /// Serialized data value.
     pub config: Option<serde_json::Value>,
+    /// Secret refs value.
     pub secret_refs: Option<serde_json::Value>,
-    pub safety_policy: Option<Option<serde_json::Value>>,
+    /// Safety policy value.
+    #[serde(default)]
+    pub safety_policy: NullableJsonUpdate,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, ToSchema, utoipa::IntoParams)]
 #[into_params(parameter_in = Query)]
 pub struct NotificationChannelQuery {
+    /// Scope type value.
     pub scope_type: Option<String>,
     pub namespace: Option<String>,
     pub app: Option<String>,
+    /// Worker pool value.
     pub worker_pool: Option<String>,
     pub provider: Option<String>,
+    /// Boolean state flag.
     pub enabled: Option<bool>,
 }
 
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateNotificationPolicyRequest {
+    /// Owner type value.
     pub owner_type: String,
     pub owner_id: Option<String>,
     pub name: String,
+    /// Event family value.
     pub event_family: String,
     #[serde(default)]
+    /// Event filter value.
     pub event_filter: serde_json::Value,
     #[serde(default)]
+    /// Channel refs value.
     pub channel_refs: Vec<serde_json::Value>,
+    /// Template ref value.
     pub template_ref: Option<String>,
     pub severity: String,
     #[serde(default = "default_enabled")]
+    /// Boolean state flag.
     pub enabled: bool,
     #[serde(default = "default_dedupe_seconds")]
+    /// Dedupe seconds value.
     pub dedupe_seconds: i64,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, ToSchema)]
-#[allow(clippy::option_option)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateNotificationPolicyRequest {
+    /// Owner type value.
     pub owner_type: Option<String>,
-    pub owner_id: Option<Option<String>>,
+    #[serde(default)]
+    pub owner_id: NullableStringUpdate,
     pub name: Option<String>,
+    /// Event family value.
     pub event_family: Option<String>,
+    /// Event filter value.
     pub event_filter: Option<serde_json::Value>,
+    /// Channel refs value.
     pub channel_refs: Option<Vec<serde_json::Value>>,
-    pub template_ref: Option<Option<String>>,
+    /// Template ref value.
+    #[serde(default)]
+    pub template_ref: NullableStringUpdate,
     pub severity: Option<String>,
+    /// Boolean state flag.
     pub enabled: Option<bool>,
+    /// Dedupe seconds value.
     pub dedupe_seconds: Option<i64>,
-    pub throttle: Option<Option<serde_json::Value>>,
-    pub quiet_hours: Option<Option<serde_json::Value>>,
-    pub escalation: Option<Option<serde_json::Value>>,
+    #[serde(default)]
+    pub throttle: NullableJsonUpdate,
+    /// Quiet hours value.
+    #[serde(default)]
+    pub quiet_hours: NullableJsonUpdate,
+    #[serde(default)]
+    pub escalation: NullableJsonUpdate,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, ToSchema, utoipa::IntoParams)]
 #[into_params(parameter_in = Query)]
 pub struct NotificationPolicyQuery {
+    /// Owner type value.
     pub owner_type: Option<String>,
     pub owner_id: Option<String>,
+    /// Event family value.
     pub event_family: Option<String>,
+    /// Boolean state flag.
     pub enabled: Option<bool>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, ToSchema, utoipa::IntoParams)]
 #[into_params(parameter_in = Query)]
 pub struct NotificationMessageQuery {
+    /// Source type value.
     pub source_type: Option<String>,
     pub source_id: Option<String>,
     pub policy_id: Option<String>,
+    /// Event type value.
     pub event_type: Option<String>,
     pub severity: Option<String>,
     pub status: Option<String>,
@@ -138,18 +178,24 @@ pub struct NotificationDeliveryAttemptQuery {
     pub policy_id: Option<String>,
     pub channel_id: Option<String>,
     pub provider: Option<String>,
+    /// Retry state value.
     pub retry_state: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationDeliveryQueueStatusResponse {
+    /// Total attempts value.
     pub total_attempts: u64,
     pub delivered: u64,
+    /// Retry pending value.
     pub retry_pending: u64,
+    /// Dead letter value.
     pub dead_letter: u64,
+    /// Retry consumed value.
     pub retry_consumed: u64,
     pub failed: u64,
+    /// Recent dead letters value.
     pub recent_dead_letters: Vec<tikeo_storage::NotificationDeliveryAttemptSummary>,
 }
 
@@ -158,11 +204,14 @@ pub struct NotificationDeliveryQueueStatusResponse {
 pub struct TestNotificationChannelRequest {
     pub subject: Option<String>,
     pub body: Option<String>,
+    /// Event type value.
     pub event_type: Option<String>,
+    /// Resource type value.
     pub resource_type: Option<String>,
     pub resource_id: Option<String>,
     pub severity: Option<String>,
     #[serde(default)]
+    /// Serialized data value.
     pub payload: serde_json::Value,
 }
 
@@ -173,11 +222,15 @@ pub struct TestNotificationChannelResponse {
     pub message_id: String,
     pub attempt_id: String,
     pub provider: String,
+    /// Target redacted value.
     pub target_redacted: String,
     pub delivered: bool,
+    /// Status code value.
     pub status_code: Option<u16>,
+    /// Retry state value.
     pub retry_state: String,
     pub error: Option<String>,
+    /// Rendered payload value.
     pub rendered_payload: Option<serde_json::Value>,
     pub created_at: String,
 }
@@ -186,7 +239,9 @@ pub struct TestNotificationChannelResponse {
 #[serde(rename_all = "camelCase")]
 pub struct NotificationDeliveryRetryRequest {
     pub limit: Option<u64>,
+    /// Max attempts value.
     pub max_attempts: Option<i32>,
+    /// Backoff seconds value.
     pub backoff_seconds: Option<i64>,
 }
 
@@ -195,6 +250,11 @@ pub struct NotificationDeliveryRetryRequest {
     path = "/api/v1/notification-channel-types",
     tag = "notifications"
 )]
+/// List notification channel types.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn list_notification_channel_types(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -234,6 +294,11 @@ pub async fn list_notification_channel_types(
     tag = "notifications",
     params(NotificationChannelQuery)
 )]
+/// List notification channels.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn list_notification_channels(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -256,6 +321,11 @@ pub async fn list_notification_channels(
 }
 
 #[utoipa::path(post, path = "/api/v1/notification-channels", tag = "notifications", request_body = CreateNotificationChannelRequest)]
+/// Create notification channel.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn create_notification_channel(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -313,6 +383,11 @@ pub async fn create_notification_channel(
     path = "/api/v1/notification-channels/{id}",
     tag = "notifications"
 )]
+/// Get notification channel.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn get_notification_channel(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -329,6 +404,11 @@ pub async fn get_notification_channel(
 }
 
 #[utoipa::path(patch, path = "/api/v1/notification-channels/{id}", tag = "notifications", request_body = UpdateNotificationChannelRequest)]
+/// Update notification channel.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn update_notification_channel(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -354,18 +434,9 @@ pub async fn update_notification_channel(
         .as_ref()
         .unwrap_or(&existing_secret_refs);
     let scope_type = request.scope_type.as_ref().unwrap_or(&existing.scope_type);
-    let namespace = request
-        .namespace
-        .as_ref()
-        .map_or(existing.namespace.as_deref(), Option::as_deref);
-    let app = request
-        .app
-        .as_ref()
-        .map_or(existing.app.as_deref(), Option::as_deref);
-    let worker_pool = request
-        .worker_pool
-        .as_ref()
-        .map_or(existing.worker_pool.as_deref(), Option::as_deref);
+    let namespace = request.namespace.resolve(existing.namespace.as_deref());
+    let app = request.app.resolve(existing.app.as_deref());
+    let worker_pool = request.worker_pool.resolve(existing.worker_pool.as_deref());
     validate_channel_request(
         &state,
         ChannelValidationInput {
@@ -386,17 +457,15 @@ pub async fn update_notification_channel(
             &id,
             tikeo_storage::UpdateNotificationChannel {
                 scope_type: request.scope_type,
-                namespace: request.namespace,
-                app: request.app,
-                worker_pool: request.worker_pool,
+                namespace: request.namespace.into_option_option(),
+                app: request.app.into_option_option(),
+                worker_pool: request.worker_pool.into_option_option(),
                 name: request.name,
                 provider: request.provider,
                 enabled: request.enabled,
                 config_json: request.config.map(|value| json_to_string(&value)),
                 secret_refs_json: request.secret_refs.map(|value| json_to_string(&value)),
-                safety_policy_json: request
-                    .safety_policy
-                    .map(|value| value.map(|inner| json_to_string(&inner))),
+                safety_policy_json: request.safety_policy.into_json_option_option(),
                 updated_by: Some(Some(principal.username.clone())),
             },
         )
@@ -424,6 +493,11 @@ pub async fn update_notification_channel(
     path = "/api/v1/notification-channels/{id}",
     tag = "notifications"
 )]
+/// Delete notification channel.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn delete_notification_channel(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -463,6 +537,11 @@ pub async fn delete_notification_channel(
     tag = "notifications",
     request_body = TestNotificationChannelRequest
 )]
+/// Test notification channel.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn test_notification_channel(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -500,18 +579,19 @@ pub async fn test_notification_channel(
             channel.id
         )
     });
-    let payload = test_notification_payload(
-        &request.payload,
-        &channel.id,
-        &channel.provider,
-        &event_type,
-        &resource_type,
-        &resource_id,
-        &severity,
-        &subject,
-        &body,
-        &principal.username,
-    );
+    let payload_input = TestNotificationPayload {
+        payload: &request.payload,
+        channel_id: &channel.id,
+        provider: &channel.provider,
+        event_type: &event_type,
+        resource_type: &resource_type,
+        resource_id: &resource_id,
+        severity: &severity,
+        subject: &subject,
+        body: &body,
+        requested_by: &principal.username,
+    };
+    let payload = test_notification_payload(&payload_input);
     let dedupe_key = format!(
         "notification-channel-test:{}:{}",
         channel.id,
@@ -610,6 +690,11 @@ pub async fn test_notification_channel(
 }
 
 #[utoipa::path(post, path = "/api/v1/notification-policies", tag = "notifications", request_body = CreateNotificationPolicyRequest)]
+/// Create notification policy.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn create_notification_policy(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -667,6 +752,11 @@ pub async fn create_notification_policy(
     tag = "notifications",
     params(NotificationPolicyQuery)
 )]
+/// List notification policies.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn list_notification_policies(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -691,6 +781,11 @@ pub async fn list_notification_policies(
     path = "/api/v1/notification-policies/{id}",
     tag = "notifications"
 )]
+/// Get notification policy.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn get_notification_policy(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -707,6 +802,11 @@ pub async fn get_notification_policy(
 }
 
 #[utoipa::path(patch, path = "/api/v1/notification-policies/{id}", tag = "notifications", request_body = UpdateNotificationPolicyRequest)]
+/// Update notification policy.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn update_notification_policy(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -745,8 +845,7 @@ pub async fn update_notification_policy(
     .await?;
     let next_template_ref = request
         .template_ref
-        .as_ref()
-        .map_or(existing.template_ref.as_deref(), |value| value.as_deref());
+        .resolve(existing.template_ref.as_deref());
     validate_policy_template_ref(
         &state,
         next_template_ref,
@@ -762,24 +861,18 @@ pub async fn update_notification_policy(
             &id,
             tikeo_storage::UpdateNotificationPolicy {
                 owner_type: request.owner_type,
-                owner_id: request.owner_id,
+                owner_id: request.owner_id.into_option_option(),
                 name: request.name,
                 event_family: request.event_family,
                 event_filter_json: request.event_filter.map(|value| json_to_string(&value)),
                 channel_refs_json: request.channel_refs.map(|value| json_to_string(&value)),
-                template_ref: request.template_ref,
+                template_ref: request.template_ref.into_option_option(),
                 severity: request.severity,
                 enabled: request.enabled,
                 dedupe_seconds: request.dedupe_seconds,
-                throttle_json: request
-                    .throttle
-                    .map(|value| value.map(|inner| json_to_string(&inner))),
-                quiet_hours_json: request
-                    .quiet_hours
-                    .map(|value| value.map(|inner| json_to_string(&inner))),
-                escalation_json: request
-                    .escalation
-                    .map(|value| value.map(|inner| json_to_string(&inner))),
+                throttle_json: request.throttle.into_json_option_option(),
+                quiet_hours_json: request.quiet_hours.into_json_option_option(),
+                escalation_json: request.escalation.into_json_option_option(),
                 updated_by: Some(Some(principal.username.clone())),
             },
         )
@@ -807,6 +900,11 @@ pub async fn update_notification_policy(
     path = "/api/v1/notification-policies/{id}",
     tag = "notifications"
 )]
+/// Delete notification policy.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn delete_notification_policy(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -839,6 +937,11 @@ pub async fn delete_notification_policy(
     path = "/api/v1/notification-policies/{id}:validate",
     tag = "notifications"
 )]
+/// Validate notification policy.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn validate_notification_policy(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -870,6 +973,11 @@ pub async fn validate_notification_policy(
     tag = "notifications",
     params(NotificationMessageQuery)
 )]
+/// List notification messages.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn list_notification_messages(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -897,6 +1005,11 @@ pub async fn list_notification_messages(
     tag = "notifications",
     params(NotificationDeliveryAttemptQuery)
 )]
+/// List notification delivery attempts.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn list_notification_delivery_attempts(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -922,6 +1035,11 @@ pub async fn list_notification_delivery_attempts(
     path = "/api/v1/notification-delivery-attempts:queue-status",
     tag = "notifications"
 )]
+/// Notification delivery queue status.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn notification_delivery_queue_status(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -964,6 +1082,11 @@ pub async fn notification_delivery_queue_status(
     tag = "notifications",
     request_body = NotificationDeliveryRetryRequest
 )]
+/// Retry due notification delivery attempts.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn retry_due_notification_delivery_attempts(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -991,20 +1114,22 @@ fn clean_string(value: Option<String>) -> Option<String> {
         .filter(|item| !item.is_empty())
 }
 
-#[allow(clippy::too_many_arguments)]
-fn test_notification_payload(
-    payload: &serde_json::Value,
-    channel_id: &str,
-    provider: &str,
-    event_type: &str,
-    resource_type: &str,
-    resource_id: &str,
-    severity: &str,
-    subject: &str,
-    body: &str,
-    requested_by: &str,
-) -> serde_json::Value {
-    let mut value = payload
+struct TestNotificationPayload<'a> {
+    payload: &'a serde_json::Value,
+    channel_id: &'a str,
+    provider: &'a str,
+    event_type: &'a str,
+    resource_type: &'a str,
+    resource_id: &'a str,
+    severity: &'a str,
+    subject: &'a str,
+    body: &'a str,
+    requested_by: &'a str,
+}
+
+fn test_notification_payload(input: &TestNotificationPayload<'_>) -> serde_json::Value {
+    let mut value = input
+        .payload
         .as_object()
         .cloned()
         .map_or_else(|| serde_json::json!({}), serde_json::Value::Object);
@@ -1014,27 +1139,36 @@ fn test_notification_payload(
             ("kind", serde_json::Value::String("channel_test".to_owned())),
             (
                 "channelId",
-                serde_json::Value::String(channel_id.to_owned()),
+                serde_json::Value::String(input.channel_id.to_owned()),
             ),
-            ("provider", serde_json::Value::String(provider.to_owned())),
+            (
+                "provider",
+                serde_json::Value::String(input.provider.to_owned()),
+            ),
             (
                 "eventType",
-                serde_json::Value::String(event_type.to_owned()),
+                serde_json::Value::String(input.event_type.to_owned()),
             ),
             (
                 "resourceType",
-                serde_json::Value::String(resource_type.to_owned()),
+                serde_json::Value::String(input.resource_type.to_owned()),
             ),
             (
                 "resourceId",
-                serde_json::Value::String(resource_id.to_owned()),
+                serde_json::Value::String(input.resource_id.to_owned()),
             ),
-            ("severity", serde_json::Value::String(severity.to_owned())),
-            ("subject", serde_json::Value::String(subject.to_owned())),
-            ("body", serde_json::Value::String(body.to_owned())),
+            (
+                "severity",
+                serde_json::Value::String(input.severity.to_owned()),
+            ),
+            (
+                "subject",
+                serde_json::Value::String(input.subject.to_owned()),
+            ),
+            ("body", serde_json::Value::String(input.body.to_owned())),
             (
                 "requestedBy",
-                serde_json::Value::String(requested_by.to_owned()),
+                serde_json::Value::String(input.requested_by.to_owned()),
             ),
         ] {
             map.insert(key.to_owned(), item);

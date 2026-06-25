@@ -474,58 +474,55 @@ start_server_if_needed() {
     return
   fi
   OWN_SERVER=1
-  local config="$REPORT_DIR/${RUN_ID}-config.toml"
+  local config="$REPORT_DIR/${RUN_ID}-config.yml"
   cat > "$config" <<CFG
-[server]
-listen_addr = "127.0.0.1:19090"
-worker_tunnel_addr = "127.0.0.1:19998"
+server:
+  listen_addr: "127.0.0.1:19090"
+  worker_tunnel_addr: "127.0.0.1:19998"
 
-[storage]
+storage:
+  database:
+    type: sqlite
+    path: "$REPORT_DIR/${RUN_ID}.db"
+    params:
+      mode: rwc
 
-[storage.database]
-type = "sqlite"
-path = "$REPORT_DIR/${RUN_ID}.db"
+cluster:
+  mode: standalone
+  node_id: standalone
+  peers: []
 
-[storage.database.params]
-mode = "rwc"
+auth:
+  local_login_enabled: true
+  api_tokens:
+    default_ttl_seconds: 43200
+    min_ttl_seconds: 300
+    max_ttl_seconds: 2592000
+  oidc:
+    enabled: false
+    scopes: ["openid", "profile", "email"]
 
-[cluster]
-mode = "standalone"
-node_id = "standalone"
-peers = []
+transport_security:
+  http:
+    tls_enabled: false
+    mtls_required: false
+  worker_tunnel:
+    tls_enabled: false
+    mtls_required: false
 
-[auth]
-local_login_enabled = true
+observability:
+  tracing:
+    enabled: false
+    headers: []
 
-[auth.api_tokens]
-default_ttl_seconds = 43200
-min_ttl_seconds = 300
-max_ttl_seconds = 2592000
+alert_retry:
+  enabled: false
+  interval_seconds: 60
+  batch_size: 50
+  max_attempts: 3
+  backoff_seconds: 300
 
-[auth.oidc]
-enabled = false
-scopes = ["openid", "profile", "email"]
-
-[transport_security.http]
-tls_enabled = false
-mtls_required = false
-
-[transport_security.worker_tunnel]
-tls_enabled = false
-mtls_required = false
-
-[observability.tracing]
-enabled = false
-headers = []
-
-[alert_retry]
-enabled = false
-interval_seconds = 60
-batch_size = 50
-max_attempts = 3
-backoff_seconds = 300
-
-[script_governance]
+script_governance: {}
 CFG
   (cd "$ROOT_DIR" && cargo run --bin tikeo -- serve --config "$config" >"$SERVER_LOG" 2>&1) &
   SERVER_PID=$!

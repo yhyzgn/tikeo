@@ -9,6 +9,7 @@ use super::delivery::{
     pagerduty_severity,
 };
 
+/// Email alert payload from message.
 pub(super) fn email_alert_payload_from_message(
     message: &NotificationMessageSummary,
     config: &serde_json::Map<String, serde_json::Value>,
@@ -26,6 +27,7 @@ pub(super) fn email_alert_payload_from_message(
     payload
 }
 
+/// Missing required template reason.
 pub(super) fn missing_required_template_reason(
     provider: &str,
     message: &NotificationMessageSummary,
@@ -63,6 +65,7 @@ pub(super) fn missing_required_template_reason(
     })
 }
 
+/// Webhook payload.
 pub(super) fn webhook_payload(
     message: &NotificationMessageSummary,
     config: &serde_json::Map<String, serde_json::Value>,
@@ -81,6 +84,7 @@ pub(super) fn webhook_payload(
     render_template_jsonish(body, message)
 }
 
+/// Slack payload.
 pub(super) fn slack_payload(
     message: &NotificationMessageSummary,
     config: &serde_json::Map<String, serde_json::Value>,
@@ -126,6 +130,7 @@ pub(super) fn slack_payload(
     body
 }
 
+/// Dingtalk payload.
 pub(super) fn dingtalk_payload(
     message: &NotificationMessageSummary,
     config: &serde_json::Map<String, serde_json::Value>,
@@ -166,6 +171,7 @@ pub(super) fn dingtalk_payload(
     body
 }
 
+/// Feishu payload.
 pub(super) fn feishu_payload(
     message: &NotificationMessageSummary,
     config: &serde_json::Map<String, serde_json::Value>,
@@ -205,6 +211,7 @@ pub(super) fn feishu_payload(
     body
 }
 
+/// Wechat work payload.
 pub(super) fn wechat_work_payload(
     message: &NotificationMessageSummary,
     config: &serde_json::Map<String, serde_json::Value>,
@@ -253,6 +260,7 @@ pub(super) fn wechat_work_payload(
     body
 }
 
+/// Pagerduty payload.
 pub(super) fn pagerduty_payload(
     message: &NotificationMessageSummary,
     routing_key: &str,
@@ -525,6 +533,7 @@ fn with_optional_slack_thread(
     body
 }
 
+/// Render template value.
 pub(super) fn render_template_value(
     value: &mut serde_json::Value,
     message: &NotificationMessageSummary,
@@ -545,6 +554,11 @@ pub(super) fn render_template_value(
     }
 }
 
+/// Validate template tokens.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub(super) fn validate_template_tokens(value: &serde_json::Value) -> Result<(), String> {
     match value {
         serde_json::Value::String(item) => validate_template_string(item),

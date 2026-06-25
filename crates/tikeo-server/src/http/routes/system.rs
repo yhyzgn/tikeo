@@ -23,6 +23,7 @@ use crate::http::{
     tag = "system",
     responses((status = 200, description = "System info", body = SystemInfoApiResponse))
 )]
+/// System info.
 pub async fn system_info() -> Json<SystemInfoApiResponse> {
     Json(ApiResponse::success(SystemInfoResponse {
         name: "tikeo",
@@ -42,6 +43,7 @@ pub async fn system_info() -> Json<SystemInfoApiResponse> {
     tag = "system",
     responses((status = 200, description = "Cluster status", body = ClusterApiResponse))
 )]
+/// Cluster status.
 pub async fn cluster_status(State(state): State<Arc<AppState>>) -> Json<ClusterApiResponse> {
     let status = state.cluster.status().await;
     Json(ApiResponse::success(cluster_response(status)))
@@ -58,6 +60,11 @@ pub async fn cluster_status(State(state): State<Arc<AppState>>) -> Json<ClusterA
     tag = "system",
     responses((status = 200, description = "Cluster diagnostics", body = ClusterDiagnosticsApiResponse))
 )]
+/// Cluster diagnostics.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn cluster_diagnostics(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<ClusterDiagnosticsApiResponse>, ApiError> {

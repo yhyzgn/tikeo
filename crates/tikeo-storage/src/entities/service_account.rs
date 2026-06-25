@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     /// Stable service account id.
     #[sea_orm(primary_key, auto_increment = false)]
+    /// Identifier value.
     pub id: String,
     /// Human-readable service account name unique within namespace/app.
     pub name: String,

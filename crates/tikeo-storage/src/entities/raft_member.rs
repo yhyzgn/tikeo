@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     /// Member row identifier.
     #[sea_orm(primary_key, auto_increment = false)]
+    /// Identifier value.
     pub id: String,
     /// Stable member node id.
     pub node_id: String,

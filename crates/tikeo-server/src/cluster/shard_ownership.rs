@@ -15,6 +15,7 @@ pub struct SchedulerShardId(u32);
 impl SchedulerShardId {
     /// Build a shard id if it is inside `0..shard_count`.
     #[must_use]
+    /// New.
     pub const fn new(value: u32, shard_count: u32) -> Option<Self> {
         if shard_count > 0 && value < shard_count {
             Some(Self(value))
@@ -25,6 +26,7 @@ impl SchedulerShardId {
 
     /// Raw shard id value.
     #[must_use]
+    /// Value.
     pub const fn value(self) -> u32 {
         self.0
     }
@@ -41,6 +43,7 @@ pub struct SchedulerShardKey {
 impl SchedulerShardKey {
     /// Construct a key from durable task scope.
     #[must_use]
+    /// New.
     pub fn new(
         namespace: impl Into<String>,
         app: impl Into<String>,
@@ -60,6 +63,7 @@ impl SchedulerShardKey {
     /// Panics when `shard_count` is zero. A zero-shard cluster is invalid configuration and must be
     /// rejected before a Raft assignment is applied.
     #[must_use]
+    /// Shard id.
     pub fn shard_id(&self, shard_count: u32) -> SchedulerShardId {
         assert!(
             shard_count > 0,
@@ -100,6 +104,7 @@ impl ShardAssignmentCommand {
     /// Panics when `epoch` is zero, `shard_count` is zero, or `owner_node_ids` is empty. These are
     /// invalid Raft command inputs and callers must validate operator/API input first.
     #[must_use]
+    /// Balanced.
     pub fn balanced(epoch: u64, shard_count: u32, owner_node_ids: &[impl AsRef<str>]) -> Self {
         Self::balanced_with_map_version(1, epoch, shard_count, owner_node_ids)
     }
@@ -112,6 +117,7 @@ impl ShardAssignmentCommand {
     /// `owner_node_ids` is empty. These are invalid Raft command inputs and callers must validate
     /// operator/API input first.
     #[must_use]
+    /// Balanced with map version.
     pub fn balanced_with_map_version(
         shard_map_version: u64,
         epoch: u64,
@@ -151,12 +157,14 @@ impl ShardAssignmentCommand {
 
     /// Return the owner node id for a shard.
     #[must_use]
+    /// Owner for.
     pub fn owner_for(&self, shard: SchedulerShardId) -> Option<&str> {
         self.owners.get(&shard).map(String::as_str)
     }
 
     /// Produce the fencing token a node must present while claiming work for a shard.
     #[must_use]
+    /// Fencing token for.
     pub fn fencing_token_for(&self, shard: SchedulerShardId, node_id: &str) -> Option<String> {
         (self.owner_for(shard) == Some(node_id)).then(|| {
             format!(
@@ -184,6 +192,7 @@ pub struct ShardOwnershipDecision {
 
 /// Decide whether `local_node_id` may schedule/dispatch work for `key`.
 #[must_use]
+/// Decide ownership.
 pub fn decide_ownership(
     assignment: &ShardAssignmentCommand,
     key: &SchedulerShardKey,
@@ -200,6 +209,7 @@ pub fn decide_ownership(
 
 /// Validate that a previously issued fencing token is still current for this assignment.
 #[must_use]
+/// Accepts fencing token.
 pub fn accepts_fencing_token(
     assignment: &ShardAssignmentCommand,
     shard: SchedulerShardId,

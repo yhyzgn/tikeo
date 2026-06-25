@@ -178,12 +178,14 @@ pub async fn fetch_userinfo(
 
 /// Generate an opaque OIDC state value.
 #[must_use]
+/// Generate state.
 pub fn generate_state() -> String {
     format!("oidc-state-{}", Uuid::now_v7())
 }
 
 /// Hash a state value before persistence.
 #[must_use]
+/// Hash state.
 pub fn hash_state(state: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(state.as_bytes());

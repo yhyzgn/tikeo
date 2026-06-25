@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     /// Binding identifier.
     #[sea_orm(primary_key, auto_increment = false)]
+    /// Identifier value.
     pub id: String,
     /// Related user id. No database foreign key is created.
     pub user_id: String,

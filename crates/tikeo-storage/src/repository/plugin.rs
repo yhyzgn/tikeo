@@ -1,5 +1,3 @@
-#![allow(missing_docs)]
-
 use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, QueryOrder, Set};
 use serde::{Deserialize, Serialize};
 
@@ -10,56 +8,85 @@ use super::util::{new_id, now_rfc3339};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PluginProcessorTypeSummary {
+    /// Record type discriminator.
     pub r#type: String,
+    /// Label value.
     pub label: String,
+    /// Capability value.
     pub capability: String,
     #[serde(default)]
+    /// Processor names value.
     pub processor_names: Vec<String>,
+    /// Description value.
     pub description: Option<String>,
+    /// Artifact ref value.
     pub artifact_ref: Option<String>,
+    /// Container image value.
     pub container_image: Option<String>,
+    /// Entrypoint value.
     pub entrypoint: Option<Vec<String>>,
+    /// Checksum value.
     pub checksum: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PluginAlertChannelTypeSummary {
+    /// Record type discriminator.
     pub r#type: String,
+    /// Label value.
     pub label: String,
+    /// Target kind value.
     pub target_kind: String,
+    /// Description value.
     pub description: Option<String>,
+    /// Template value.
     pub template: serde_json::Value,
 }
 
 #[derive(Debug, Clone)]
 pub struct CreatePlugin {
+    /// Name value.
     pub name: String,
     pub kind: String,
+    /// Processor types value.
     pub processor_types: Vec<PluginProcessorTypeSummary>,
+    /// Alert channel types value.
     pub alert_channel_types: Vec<PluginAlertChannelTypeSummary>,
+    /// Boolean state flag.
     pub enabled: bool,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct UpdatePlugin {
+    /// Name value.
     pub name: Option<String>,
     pub kind: Option<String>,
+    /// Processor types value.
     pub processor_types: Option<Vec<PluginProcessorTypeSummary>>,
+    /// Alert channel types value.
     pub alert_channel_types: Option<Vec<PluginAlertChannelTypeSummary>>,
+    /// Boolean state flag.
     pub enabled: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PluginSummary {
+    /// Identifier value.
     pub id: String,
+    /// Name value.
     pub name: String,
     pub kind: String,
+    /// Processor types value.
     pub processor_types: Vec<PluginProcessorTypeSummary>,
+    /// Alert channel types value.
     pub alert_channel_types: Vec<PluginAlertChannelTypeSummary>,
+    /// Boolean state flag.
     pub enabled: bool,
+    /// Timestamp value.
     pub created_at: String,
+    /// Timestamp value.
     pub updated_at: String,
 }
 
@@ -71,10 +98,16 @@ pub struct PluginRepository {
 
 impl PluginRepository {
     #[must_use]
+    /// New.
     pub const fn new(db: DatabaseConnection) -> Self {
         Self { db }
     }
 
+    /// Create plugin.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn create_plugin(
         &self,
         input: CreatePlugin,
@@ -95,6 +128,11 @@ impl PluginRepository {
         Ok(PluginSummary::from(model))
     }
 
+    /// Update plugin.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn update_plugin(
         &self,
         id: &str,
@@ -130,6 +168,11 @@ impl PluginRepository {
             .map(Some)
     }
 
+    /// Delete plugin.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn delete_plugin(&self, id: &str) -> Result<bool, sea_orm::DbErr> {
         let result = plugin::Entity::delete_by_id(id.to_owned())
             .exec(&self.db)
@@ -137,6 +180,11 @@ impl PluginRepository {
         Ok(result.rows_affected > 0)
     }
 
+    /// List plugins.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn list_plugins(&self) -> Result<Vec<PluginSummary>, sea_orm::DbErr> {
         let rows = plugin::Entity::find()
             .order_by_desc(plugin::Column::CreatedAt)
@@ -145,6 +193,11 @@ impl PluginRepository {
         Ok(rows.into_iter().map(PluginSummary::from).collect())
     }
 
+    /// Get plugin.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn get_plugin(&self, id: &str) -> Result<Option<PluginSummary>, sea_orm::DbErr> {
         plugin::Entity::find_by_id(id.to_owned())
             .one(&self.db)
@@ -152,6 +205,11 @@ impl PluginRepository {
             .map(|row| row.map(PluginSummary::from))
     }
 
+    /// Resolve processor type.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn resolve_processor_type(
         &self,
         processor_type: &str,
@@ -169,6 +227,11 @@ impl PluginRepository {
             .find(|item| item.r#type == wanted))
     }
 
+    /// Resolve alert channel type.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn resolve_alert_channel_type(
         &self,
         channel_type: &str,

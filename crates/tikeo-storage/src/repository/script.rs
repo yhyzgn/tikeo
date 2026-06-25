@@ -162,7 +162,7 @@ pub struct ScriptRepository {
 
 impl ScriptRepository {
     /// Create a repository using the provided database connection.
-    #[allow(clippy::missing_const_for_fn)]
+    #[must_use]
     pub fn new(db: DatabaseConnection) -> Self {
         let versions = ScriptVersionRepository::new(db.clone());
         Self { db, versions }
@@ -170,7 +170,8 @@ impl ScriptRepository {
 
     /// Access the version repository.
     #[must_use]
-    pub fn versions(&self) -> &ScriptVersionRepository {
+    /// Versions.
+    pub const fn versions(&self) -> &ScriptVersionRepository {
         &self.versions
     }
     /// # Errors
@@ -541,12 +542,17 @@ pub struct ScriptVersionRepository {
 
 impl ScriptVersionRepository {
     /// Create a new repository.
+    /// New.
     #[must_use]
     pub const fn new(db: DatabaseConnection) -> Self {
         Self { db }
     }
 
     /// Create a version snapshot from a script model.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn create_version(
         &self,
         script: &script::Model,
@@ -616,6 +622,10 @@ impl ScriptVersionRepository {
     }
 
     /// List versions for a script, newest first.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn list_versions(
         &self,
         script_id: &str,
@@ -632,6 +642,10 @@ impl ScriptVersionRepository {
     }
 
     /// Get a specific version by id.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn get_version(
         &self,
         id: &str,
@@ -643,6 +657,10 @@ impl ScriptVersionRepository {
     }
 
     /// Get a specific version by script id and version number.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn get_version_by_number(
         &self,
         script_id: &str,

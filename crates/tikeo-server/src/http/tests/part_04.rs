@@ -711,7 +711,6 @@
     }
 
     #[tokio::test]
-    #[allow(clippy::too_many_lines)]
     async fn script_publish_blocks_legacy_dangerous_policy_snapshot() {
         let db = connect_and_migrate("sqlite::memory:")
             .await
@@ -750,7 +749,7 @@
             )
             .await
             .unwrap_or_else(|error| panic!("safe script version should create: {error}"));
-        let app = router_with_state(AppState::new(
+        let app = router_with_state(app_state!(
             JobRepository::new(db.clone()),
             JobInstanceRepository::new(db.clone()),
             JobInstanceLogRepository::new(db.clone()),
@@ -907,7 +906,7 @@
         let (tx2, _rx2) = tokio::sync::mpsc::channel(1);
         registry.register(worker("worker-a", "billing"), tx1).await;
         registry.register(worker("worker-b", "billing"), tx2).await;
-        let app = router_with_state(AppState::new(
+        let app = router_with_state(app_state!(
             JobRepository::new(db.clone()),
             JobInstanceRepository::new(db.clone()),
             JobInstanceLogRepository::new(db.clone()),
@@ -952,7 +951,6 @@
     }
 
     #[tokio::test]
-    #[allow(clippy::too_many_lines)]
     async fn trigger_job_creates_pending_instance() {
         let app = router().await;
         let created = post_json(
@@ -999,7 +997,7 @@
         let db = connect_and_migrate("sqlite::memory:")
             .await
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
-        let app = router_with_state(AppState::new(
+        let app = router_with_state(app_state!(
             JobRepository::new(db.clone()),
             JobInstanceRepository::new(db.clone()),
             JobInstanceLogRepository::new(db.clone()),

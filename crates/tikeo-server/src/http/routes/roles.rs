@@ -20,22 +20,32 @@ use super::common::audit;
 #[serde(rename_all = "camelCase")]
 pub struct CreateRoleRequest {
     pub name: String,
+    /// Display name value.
     pub display_name: String,
     pub description: Option<String>,
+    /// Boolean state flag.
     pub enabled: bool,
+    /// Permission ids value.
     pub permission_ids: Vec<String>,
+    /// Menu keys value.
     pub menu_keys: Vec<String>,
+    /// Ui action keys value.
     pub ui_action_keys: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateRoleRequest {
+    /// Display name value.
     pub display_name: String,
     pub description: Option<String>,
+    /// Boolean state flag.
     pub enabled: bool,
+    /// Permission ids value.
     pub permission_ids: Vec<String>,
+    /// Menu keys value.
     pub menu_keys: Vec<String>,
+    /// Ui action keys value.
     pub ui_action_keys: Vec<String>,
 }
 
@@ -45,7 +55,9 @@ pub struct MenuPermissionCatalogItem {
     pub key: String,
     pub label: String,
     pub group: String,
+    /// Route path value.
     pub route_path: String,
+    /// Required permission value.
     pub required_permission: Option<tikeo_storage::PermissionSummary>,
 }
 
@@ -54,9 +66,11 @@ pub struct MenuPermissionCatalogItem {
 pub struct UiActionPermissionCatalogItem {
     pub key: String,
     pub label: String,
+    /// Page key value.
     pub page_key: String,
     pub operation: String,
     pub dangerous: bool,
+    /// Required permission value.
     pub required_permission: Option<tikeo_storage::PermissionSummary>,
 }
 

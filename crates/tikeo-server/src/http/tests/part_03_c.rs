@@ -88,7 +88,7 @@ async fn scheduling_advice_reports_history_duration_and_resource_prediction() {
         .labels
         .insert("memory_mb".to_owned(), "8192".to_owned());
     registry.register(worker, sender).await;
-    let app = router_with_state(AppState::new(
+    let app = router_with_state(app_state!(
         jobs,
         instances,
         JobInstanceLogRepository::new(db.clone()),
@@ -252,7 +252,7 @@ async fn job_impact_api_reports_cross_workflow_upstream_and_downstream() {
         })
         .await
         .unwrap_or_else(|error| panic!("second workflow should create: {error}"));
-    let app = router_with_state(AppState::new(
+    let app = router_with_state(app_state!(
         jobs,
         JobInstanceRepository::new(db.clone()),
         JobInstanceLogRepository::new(db.clone()),
@@ -352,7 +352,7 @@ async fn workflow_replay_api_returns_instance_events_and_graph_bundle() {
         .await
         .unwrap_or_else(|error| panic!("workflow should run: {error}"))
         .unwrap_or_else(|| panic!("workflow should exist"));
-    let app = router_with_state(AppState::new(
+    let app = router_with_state(app_state!(
         jobs,
         JobInstanceRepository::new(db.clone()),
         JobInstanceLogRepository::new(db.clone()),

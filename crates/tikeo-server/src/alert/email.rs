@@ -13,6 +13,7 @@ use tokio_rustls::{TlsConnector, client::TlsStream};
 use url::Url;
 use uuid::Uuid;
 
+/// Deliver email channel.
 pub async fn deliver_email_channel(
     smtp_url: &str,
     from: &str,
@@ -283,6 +284,11 @@ const fn severity_label(severity: &Severity) -> &'static str {
     }
 }
 
+/// Deserialize recipients.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub(super) fn deserialize_recipients<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
 where
     D: serde::Deserializer<'de>,

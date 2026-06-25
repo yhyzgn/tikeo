@@ -89,7 +89,7 @@ management trigger e2e evidence: .dev/reports/management-trigger-e2e-...
 
 | 文件模式 | 含义 |
 |---|---|
-| `*-config.toml` | 生成的 server 配置，包含隔离 SQLite 与本地明文 listener。 |
+| `*-config.yml` | 生成的 server 配置，包含隔离 SQLite 与本地明文 listener。 |
 | `*-server.log` | server 启动、鉴权、存储、派发日志。 |
 | `*-nodejs-worker.log` | Node.js demo worker 与 Worker Tunnel 日志。 |
 | `*-service-account.json` | Service Account 创建响应。 |
@@ -104,7 +104,7 @@ management trigger e2e evidence: .dev/reports/management-trigger-e2e-...
 
 ## 排障路径
 
-1. **Server 未到 `/readyz`**：看 `*-server.log`、`*-config.toml`，确认 `TIKEO_HTTP_URL` / `TIKEO_WORKER_ENDPOINT` 端口未被占用。
+1. **Server 未到 `/readyz`**：看 `*-server.log`、`*-config.yml`，确认 `TIKEO_HTTP_URL` / `TIKEO_WORKER_ENDPOINT` 端口未被占用。
 2. **Service Account 或 API key 创建失败**：检查 `/api/v1/management/service-accounts`、`/api/v1/management/api-keys`、`x-tikeo-api-key`、bootstrap 登录和 RBAC scope。
 3. **Worker 未 online**：看 `*-nodejs-worker.log`、`TIKEO_WORKER_CONNECT=1`、`TIKEO_WORKER_ENDPOINT`、`/api/v1/workers`、`clientInstanceId`、namespace/app/pool，以及 `structuredCapabilities.normalProcessors` 是否包含 `demo.echo`。
 4. **SDK create/trigger 失败**：检查 `sdks/nodejs/tikeo/src/management.ts`、`apiJob`、`apiTrigger`、`/api/v1/jobs`、`/api/v1/jobs/{job}:trigger` 和默认 `executionMode=single`。

@@ -166,7 +166,7 @@ export default function Home(): ReactNode {
               <h2>{localeCopy.quickTitle}</h2>
               <p>{localeCopy.quickBody}</p>
             </div>
-            <pre><code>{`cargo run --bin tikeo -- serve --config config/dev.toml
+            <pre><code>{`cargo run --bin tikeo -- serve --config config/dev.yml
 curl -fsS http://127.0.0.1:9090/readyz
 TIKEO_MANAGEMENT_TRIGGER_REBUILD_SERVER=0 scripts/management-trigger-e2e-smoke.sh`}</code></pre>
           </div>

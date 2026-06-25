@@ -35,6 +35,7 @@ pub struct NotificationDeliveryTrigger {
 impl NotificationDeliveryTrigger {
     /// Create a new shared delivery trigger.
     #[must_use]
+    /// New.
     pub fn new() -> Self {
         Self::default()
     }
@@ -121,8 +122,9 @@ pub async fn retry_once_if_owner(
     process_due_notification_delivery_attempts(channels, messages, attempts, limit, policy).await
 }
 
-/// Run the generic notification delivery worker forever, with an optional immediate wake-up signal.
-pub async fn run_delivery_loop_with_trigger(
+/// Runtime dependencies and policy for the generic notification delivery worker.
+#[derive(Debug, Clone)]
+pub struct NotificationDeliveryLoopContext {
     channels: NotificationChannelRepository,
     messages: NotificationMessageRepository,
     attempts: NotificationDeliveryAttemptRepository,
@@ -131,18 +133,80 @@ pub async fn run_delivery_loop_with_trigger(
     limit: u64,
     policy: NotificationDeliveryPolicy,
     trigger: Option<NotificationDeliveryTrigger>,
-) {
-    let mut ticker = tokio_time::interval(interval.max(Duration::from_secs(1)));
+}
+
+impl NotificationDeliveryLoopContext {
+    /// Create a notification delivery loop context.
+    #[must_use]
+    /// New.
+    pub fn new(
+        repositories: NotificationDeliveryRepositories,
+        cluster: SharedClusterCoordinator,
+        interval: Duration,
+        limit: u64,
+        policy: NotificationDeliveryPolicy,
+        trigger: Option<NotificationDeliveryTrigger>,
+    ) -> Self {
+        Self {
+            channels: repositories.channels,
+            messages: repositories.messages,
+            attempts: repositories.attempts,
+            cluster,
+            interval,
+            limit,
+            policy,
+            trigger,
+        }
+    }
+}
+
+/// Storage repositories used by the generic notification delivery worker.
+#[derive(Debug, Clone)]
+pub struct NotificationDeliveryRepositories {
+    channels: NotificationChannelRepository,
+    messages: NotificationMessageRepository,
+    attempts: NotificationDeliveryAttemptRepository,
+}
+
+impl NotificationDeliveryRepositories {
+    /// Create repository bundle for notification delivery.
+    #[must_use]
+    /// New.
+    pub const fn new(
+        channels: NotificationChannelRepository,
+        messages: NotificationMessageRepository,
+        attempts: NotificationDeliveryAttemptRepository,
+    ) -> Self {
+        Self {
+            channels,
+            messages,
+            attempts,
+        }
+    }
+}
+
+/// Run the generic notification delivery worker forever.
+pub async fn run_delivery_loop(context: NotificationDeliveryLoopContext) {
+    let mut ticker = tokio_time::interval(context.interval.max(Duration::from_secs(1)));
     info!(
-        interval_seconds = interval.as_secs(),
-        limit,
-        max_attempts = policy.max_attempts,
-        immediate_wakeup = trigger.is_some(),
+        interval_seconds = context.interval.as_secs(),
+        limit = context.limit,
+        max_attempts = context.policy.max_attempts,
+        immediate_wakeup = context.trigger.is_some(),
         "notification delivery worker started"
     );
     loop {
-        wait_for_delivery_iteration(&mut ticker, trigger.as_ref()).await;
-        match retry_once_if_owner(&channels, &messages, &attempts, &cluster, limit, policy).await {
+        wait_for_delivery_iteration(&mut ticker, context.trigger.as_ref()).await;
+        match retry_once_if_owner(
+            &context.channels,
+            &context.messages,
+            &context.attempts,
+            &context.cluster,
+            context.limit,
+            context.policy,
+        )
+        .await
+        {
             Ok(summary) if summary.scanned > 0 => {
                 info!(
                     scanned = summary.scanned,
@@ -323,6 +387,7 @@ fn rfc3339_after_seconds(seconds: i64) -> String {
         .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_owned())
 }
 
+/// Dedupe window elapsed.
 pub(super) fn dedupe_window_elapsed(
     message: &NotificationMessageSummary,
     dedupe_seconds: i64,
@@ -343,10 +408,13 @@ pub(super) fn dedupe_window_elapsed(
 #[derive(Debug, Clone)]
 pub struct NotificationProviderDeliveryResult {
     pub(crate) provider: String,
+    /// Target redacted value.
     pub(crate) target_redacted: String,
     pub(crate) delivered: bool,
+    /// Status code value.
     pub(crate) status_code: Option<u16>,
     pub(crate) error: Option<String>,
+    /// Rendered payload value.
     pub(crate) rendered_payload: Option<serde_json::Value>,
 }
 
@@ -357,6 +425,7 @@ pub(super) struct NotificationProviderClient {
 }
 
 impl NotificationProviderClient {
+    /// New.
     pub(super) fn new(policy: AlertDeliveryPolicy) -> Self {
         let http = reqwest::Client::builder()
             .timeout(Duration::from_secs(5))
@@ -368,6 +437,7 @@ impl NotificationProviderClient {
         Self { http, policy }
     }
 
+    /// Deliver.
     pub(super) async fn deliver(
         &self,
         channel: &NotificationChannelDeliveryConfig,
@@ -621,6 +691,7 @@ fn provider_numeric_code_error(
 /// Deliver one notification message through one already-loaded channel using the same provider
 /// adapters as the retry worker.
 #[must_use]
+/// Deliver notification channel once.
 pub async fn deliver_notification_channel_once(
     channel: &NotificationChannelDeliveryConfig,
     message: &NotificationMessageSummary,
@@ -631,6 +702,7 @@ pub async fn deliver_notification_channel_once(
         .await
 }
 
+/// Notification channel from delivery config.
 pub(super) fn notification_channel_from_delivery_config(
     channel: &NotificationChannelDeliveryConfig,
 ) -> Option<NotificationChannel> {
@@ -754,6 +826,7 @@ fn smtp_auth_enabled(config: &serde_json::Map<String, serde_json::Value>) -> boo
         .unwrap_or_else(|| optional_string(config, &["username"]).is_some())
 }
 
+/// Alert payload from message.
 pub(super) fn alert_payload_from_message(message: &NotificationMessageSummary) -> AlertPayload {
     AlertPayload {
         rule_name: message.subject.clone(),
@@ -773,6 +846,7 @@ fn severity_from_str(value: &str) -> Severity {
     }
 }
 
+/// Parse json object.
 pub(super) fn parse_json_object(raw: &str) -> serde_json::Map<String, serde_json::Value> {
     serde_json::from_str::<serde_json::Value>(raw)
         .ok()
@@ -788,6 +862,7 @@ fn resolved_url(
         .or_else(|| optional_secret(secrets, &["url", "webhookUrl", "webhook_url"]))
 }
 
+/// Optional string.
 pub(super) fn optional_string(
     map: &serde_json::Map<String, serde_json::Value>,
     keys: &[&str],
@@ -931,6 +1006,7 @@ fn effective_delivery_policy(
     }
 }
 
+/// Notification payload.
 pub(super) fn notification_payload(message: &NotificationMessageSummary) -> serde_json::Value {
     let mut payload = serde_json::from_str::<serde_json::Value>(&message.payload_json)
         .unwrap_or_else(|_| serde_json::json!({}));
@@ -979,6 +1055,7 @@ pub(super) fn notification_payload(message: &NotificationMessageSummary) -> serd
     payload
 }
 
+/// Notification text.
 pub(super) fn notification_text(message: &NotificationMessageSummary) -> String {
     format!(
         "[tikeo/{}] {}: {} ({}/{})",
@@ -990,6 +1067,7 @@ pub(super) fn notification_text(message: &NotificationMessageSummary) -> String 
     )
 }
 
+/// Pagerduty severity.
 pub(super) fn pagerduty_severity(severity: &str) -> &'static str {
     match severity {
         "critical" => "critical",

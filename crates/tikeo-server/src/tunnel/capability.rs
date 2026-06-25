@@ -27,6 +27,7 @@ pub enum WorkerRequirement {
 impl WorkerRequirement {
     /// Human-readable requirement label for logs and API compatibility surfaces.
     #[must_use]
+    /// Display label.
     pub fn display_label(&self) -> String {
         match self {
             Self::NormalProcessor { name } => format!("normal processor '{name}'"),
@@ -43,6 +44,7 @@ impl WorkerRequirement {
 
 /// Return true when structured Worker capabilities satisfy a requirement.
 #[must_use]
+/// Structured capabilities match.
 pub fn structured_capabilities_match(
     capabilities: &WorkerCapabilities,
     requirement: &WorkerRequirement,

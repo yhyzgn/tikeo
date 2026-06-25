@@ -8,23 +8,36 @@ use super::util::{new_id, now_rfc3339};
 /// Service account creation input.
 #[derive(Debug, Clone)]
 pub struct CreateServiceAccount {
+    /// Name value.
     pub name: String,
+    /// Description value.
     pub description: Option<String>,
+    /// Namespace value.
     pub namespace: String,
+    /// App value.
     pub app: String,
+    /// Worker pool value.
     pub worker_pool: Option<String>,
+    /// Created by value.
     pub created_by: String,
 }
 
 /// Service account update input.
 #[derive(Debug, Clone)]
 pub struct UpdateServiceAccount {
+    /// Name value.
     pub name: String,
+    /// Description value.
     pub description: Option<String>,
+    /// Namespace value.
     pub namespace: String,
+    /// App value.
     pub app: String,
+    /// Worker pool value.
     pub worker_pool: Option<String>,
+    /// Status value.
     pub status: String,
+    /// Updated by value.
     pub updated_by: String,
 }
 
@@ -32,16 +45,27 @@ pub struct UpdateServiceAccount {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ServiceAccountSummary {
+    /// Identifier value.
     pub id: String,
+    /// Name value.
     pub name: String,
+    /// Description value.
     pub description: Option<String>,
+    /// Namespace value.
     pub namespace: String,
+    /// App value.
     pub app: String,
+    /// Worker pool value.
     pub worker_pool: Option<String>,
+    /// Status value.
     pub status: String,
+    /// Created by value.
     pub created_by: String,
+    /// Updated by value.
     pub updated_by: Option<String>,
+    /// Timestamp value.
     pub created_at: String,
+    /// Timestamp value.
     pub updated_at: String,
 }
 
@@ -53,10 +77,16 @@ pub struct ServiceAccountRepository {
 
 impl ServiceAccountRepository {
     #[must_use]
+    /// New.
     pub const fn new(db: DatabaseConnection) -> Self {
         Self { db }
     }
 
+    /// Create.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn create(
         &self,
         input: CreateServiceAccount,
@@ -80,6 +110,11 @@ impl ServiceAccountRepository {
         Ok(ServiceAccountSummary::from(model))
     }
 
+    /// List.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn list(&self) -> Result<Vec<ServiceAccountSummary>, sea_orm::DbErr> {
         let rows = service_account::Entity::find()
             .order_by_asc(service_account::Column::Namespace)
@@ -90,6 +125,11 @@ impl ServiceAccountRepository {
         Ok(rows.into_iter().map(ServiceAccountSummary::from).collect())
     }
 
+    /// Get.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn get(&self, id: &str) -> Result<Option<ServiceAccountSummary>, sea_orm::DbErr> {
         service_account::Entity::find_by_id(id.to_owned())
             .one(&self.db)
@@ -97,6 +137,11 @@ impl ServiceAccountRepository {
             .map(|row| row.map(ServiceAccountSummary::from))
     }
 
+    /// Update.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn update(
         &self,
         id: &str,
@@ -121,6 +166,11 @@ impl ServiceAccountRepository {
         Ok(Some(ServiceAccountSummary::from(updated)))
     }
 
+    /// Disable.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn disable(&self, id: &str, actor: &str) -> Result<bool, sea_orm::DbErr> {
         let Some(model) = service_account::Entity::find_by_id(id.to_owned())
             .one(&self.db)

@@ -5,6 +5,11 @@ use crate::entities::dispatch_queue;
 use super::{DispatchQueueSummary, QueueOverview, WorkflowRepository};
 
 impl WorkflowRepository {
+    /// Queue overview.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn queue_overview(&self, limit: u64) -> Result<QueueOverview, sea_orm::DbErr> {
         let rows = dispatch_queue::Entity::find()
             .order_by_desc(dispatch_queue::Column::CreatedAt)

@@ -10,37 +10,60 @@ use super::util::{new_id, now_rfc3339};
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CalendarWindowSummary {
+    /// Start value.
     pub start: String,
+    /// End value.
     pub end: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CalendarSummary {
+    /// Identifier value.
     pub id: String,
+    /// Namespace value.
     pub namespace: String,
+    /// App value.
     pub app: String,
+    /// Name value.
     pub name: String,
+    /// Timezone value.
     pub timezone: String,
+    /// Excluded dates value.
     pub excluded_dates: Vec<String>,
+    /// Holidays value.
     pub holidays: Vec<String>,
+    /// Maintenance windows value.
     pub maintenance_windows: Vec<CalendarWindowSummary>,
+    /// Freeze windows value.
     pub freeze_windows: Vec<CalendarWindowSummary>,
+    /// Created by value.
     pub created_by: String,
+    /// Timestamp value.
     pub created_at: String,
+    /// Timestamp value.
     pub updated_at: String,
 }
 
 #[derive(Debug, Clone)]
 pub struct UpsertCalendar {
+    /// Namespace value.
     pub namespace: String,
+    /// App value.
     pub app: String,
+    /// Name value.
     pub name: String,
+    /// Timezone value.
     pub timezone: String,
+    /// Excluded dates value.
     pub excluded_dates: Vec<String>,
+    /// Holidays value.
     pub holidays: Vec<String>,
+    /// Maintenance windows value.
     pub maintenance_windows: Vec<CalendarWindowSummary>,
+    /// Freeze windows value.
     pub freeze_windows: Vec<CalendarWindowSummary>,
+    /// Created by value.
     pub created_by: String,
 }
 
@@ -50,10 +73,17 @@ pub struct CalendarRepository {
 }
 
 impl CalendarRepository {
+    /// New.
+    #[must_use]
     pub const fn new(db: DatabaseConnection) -> Self {
         Self { db }
     }
 
+    /// List.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn list(
         &self,
         namespace: Option<&str>,
@@ -70,6 +100,11 @@ impl CalendarRepository {
         Ok(rows.into_iter().map(CalendarSummary::from).collect())
     }
 
+    /// Get by name.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn get_by_name(
         &self,
         namespace: &str,
@@ -85,6 +120,11 @@ impl CalendarRepository {
             .map(|row| row.map(CalendarSummary::from))
     }
 
+    /// Upsert.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn upsert(&self, input: UpsertCalendar) -> Result<CalendarSummary, sea_orm::DbErr> {
         let now = now_rfc3339();
         let excluded_dates_json = to_json(&input.excluded_dates)?;
@@ -126,6 +166,11 @@ impl CalendarRepository {
         .map(CalendarSummary::from)
     }
 
+    /// Delete.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn delete(&self, id: &str) -> Result<bool, sea_orm::DbErr> {
         let result = calendar::Entity::delete_by_id(id.to_owned())
             .exec(&self.db)

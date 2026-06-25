@@ -8,6 +8,7 @@ use super::{
     RegisteredWorker, WorkerSessionStatus, registry_capabilities::worker_capabilities_json,
 };
 
+/// Logical instance id.
 pub(super) fn logical_instance_id(
     namespace: &str,
     app: &str,
@@ -20,6 +21,7 @@ pub(super) fn logical_instance_id(
     [namespace, app, cluster, region, instance].join("/")
 }
 
+/// Stable worker id.
 pub(super) fn stable_worker_id(
     namespace: &str,
     app: &str,
@@ -38,6 +40,7 @@ pub(super) fn stable_worker_id(
     format!("wrk-{}", Uuid::now_v7())
 }
 
+/// Session snapshots.
 pub(super) fn session_snapshots<'a>(
     workers: impl IntoIterator<Item = &'a RegisteredWorker>,
 ) -> Vec<WorkerSessionSnapshotUpdate> {
@@ -56,6 +59,7 @@ pub(super) fn session_snapshots<'a>(
         .collect()
 }
 
+/// Next generation.
 pub(super) fn next_generation(
     workers: &HashMap<String, RegisteredWorker>,
     logical_instance_id: &str,
@@ -69,6 +73,7 @@ pub(super) fn next_generation(
         .saturating_add(1)
 }
 
+/// Replace previous generations.
 pub(super) fn replace_previous_generations(
     workers: &mut HashMap<String, RegisteredWorker>,
     logical_instance_id: &str,
@@ -86,6 +91,7 @@ pub(super) fn replace_previous_generations(
     }
 }
 
+/// Empty to none.
 pub(super) fn empty_to_none(value: String) -> Option<String> {
     if value.trim().is_empty() {
         None

@@ -2,11 +2,13 @@
 
 #![forbid(unsafe_code)]
 
+/// `Proto` module.
 pub mod proto;
 
 mod config;
 mod error;
 mod logging;
+/// `Management` module.
 pub mod management;
 mod script;
 mod session;

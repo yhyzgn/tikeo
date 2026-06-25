@@ -83,17 +83,19 @@
             .await;
 
         dispatch_once(
-            &jobs,
-            &instances,
-            &attempts,
-            &outbox,
-            &workflows,
-            &scripts,
-            &logs,
-            &audit,
-            &registry,
+            dispatcher_refs!(
+                &jobs,
+                &instances,
+                &attempts,
+                &outbox,
+                &workflows,
+                &scripts,
+                &logs,
+                &audit,
+                &registry,
+                &notification_center(&jobs),
+            ),
             "test-fence",
-            &notification_center(&jobs),
         )
         .await
         .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
@@ -111,7 +113,6 @@
         }
     }
     #[tokio::test]
-    #[allow(clippy::too_many_lines)]
     async fn dispatch_includes_wasm_binding_only_for_approved_policy_safe_script() {
         let db = connect_and_migrate("sqlite::memory:")
             .await
@@ -210,17 +211,19 @@
             .await;
 
         dispatch_once(
-            &jobs,
-            &instances,
-            &attempts,
-            &outbox,
-            &workflows,
-            &scripts,
-            &logs,
-            &audit,
-            &registry,
+            dispatcher_refs!(
+                &jobs,
+                &instances,
+                &attempts,
+                &outbox,
+                &workflows,
+                &scripts,
+                &logs,
+                &audit,
+                &registry,
+                &notification_center(&jobs),
+            ),
             "test-fence",
-            &notification_center(&jobs),
         )
         .await
         .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
@@ -720,17 +723,19 @@
             .unwrap_or_else(|| panic!("job should exist"));
 
         dispatch_once(
-            &jobs,
-            &instances,
-            &attempts,
-            &outbox,
-            &workflows,
-            &scripts,
-            &logs,
-            &audit,
-            &registry,
+            dispatcher_refs!(
+                &jobs,
+                &instances,
+                &attempts,
+                &outbox,
+                &workflows,
+                &scripts,
+                &logs,
+                &audit,
+                &registry,
+                &notification_center(&jobs),
+            ),
             "test-fence",
-            &notification_center(&jobs),
         )
         .await
         .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
@@ -830,17 +835,19 @@
             .unwrap_or_else(|| panic!("job should exist"));
 
         dispatch_once(
-            &jobs,
-            &instances,
-            &attempts,
-            &outbox,
-            &workflows,
-            &scripts,
-            &logs,
-            &audit,
-            &registry,
+            dispatcher_refs!(
+                &jobs,
+                &instances,
+                &attempts,
+                &outbox,
+                &workflows,
+                &scripts,
+                &logs,
+                &audit,
+                &registry,
+                &notification_center(&jobs),
+            ),
             "test-fence",
-            &notification_center(&jobs),
         )
         .await
         .unwrap_or_else(|error| panic!("dispatch should run: {error}"));

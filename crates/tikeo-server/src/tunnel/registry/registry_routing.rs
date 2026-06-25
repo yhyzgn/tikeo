@@ -18,6 +18,7 @@ pub(super) struct LassoDispatchScore {
     worker_id: String,
 }
 
+/// Is match.
 pub(in crate::tunnel) fn is_match(worker_val: &str, job_val: &str) -> bool {
     worker_val == job_val
         || worker_val == "*"
@@ -26,6 +27,7 @@ pub(in crate::tunnel) fn is_match(worker_val: &str, job_val: &str) -> bool {
         || job_val.is_empty()
 }
 
+/// Broadcast selector matches.
 pub(super) fn broadcast_selector_matches(
     worker: &RegisteredWorker,
     selector: &BroadcastSelector,
@@ -63,10 +65,12 @@ pub(super) fn broadcast_selector_matches(
     selector.tags.iter().all(|tag| tags.contains(tag.as_str()))
 }
 
+/// Worker satisfies.
 pub(super) fn worker_satisfies(worker: &RegisteredWorker, requirement: &WorkerRequirement) -> bool {
     structured_capabilities_match(&worker.structured_capabilities, requirement)
 }
 
+/// Persisted lasso dispatch score.
 pub(super) fn persisted_lasso_dispatch_score(
     worker: &PersistedOnlineWorkerSummary,
     local_gateway_node_id: &str,
@@ -82,6 +86,7 @@ pub(super) fn persisted_lasso_dispatch_score(
     }
 }
 
+/// Registered lasso dispatch score.
 pub(super) fn registered_lasso_dispatch_score(
     worker: &RegisteredWorker,
     dispatch_key: &str,
@@ -139,6 +144,7 @@ fn rendezvous_spread_score(dispatch_key: &str, worker_id: &str) -> u64 {
     u64::from_be_bytes(prefix)
 }
 
+/// Persisted worker matches.
 pub(super) fn persisted_worker_matches(
     worker: &PersistedOnlineWorkerSummary,
     namespace: &str,
@@ -150,6 +156,7 @@ pub(super) fn persisted_worker_matches(
         && requirement.is_none_or(|requirement| persisted_worker_satisfies(worker, requirement))
 }
 
+/// Persisted broadcast worker matches.
 pub(super) fn persisted_broadcast_worker_matches(
     worker: &PersistedOnlineWorkerSummary,
     namespace: &str,
@@ -193,6 +200,7 @@ pub(super) fn persisted_broadcast_worker_matches(
     selector.tags.iter().all(|tag| tags.contains(tag.as_str()))
 }
 
+/// Persisted worker satisfies.
 pub(super) fn persisted_worker_satisfies(
     worker: &PersistedOnlineWorkerSummary,
     requirement: &WorkerRequirement,

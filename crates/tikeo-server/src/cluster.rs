@@ -7,6 +7,7 @@
 use std::sync::Arc;
 
 mod raft_rs;
+/// Shard ownership module.
 pub mod shard_ownership;
 
 use raft::eraftpb::Message;
@@ -114,6 +115,7 @@ pub struct RaftMembershipProposalSubmission {
 impl RaftMembershipProposalSubmission {
     /// Accepted by a running runtime.
     #[must_use]
+    /// Accepted.
     pub fn accepted(reason: impl Into<String>) -> Self {
         Self {
             accepted: true,
@@ -123,6 +125,7 @@ impl RaftMembershipProposalSubmission {
 
     /// Rejected because the current coordinator cannot safely propose membership.
     #[must_use]
+    /// Unavailable.
     pub fn unavailable(reason: impl Into<String>) -> Self {
         Self {
             accepted: false,
@@ -134,6 +137,7 @@ impl RaftMembershipProposalSubmission {
 impl RaftMessageSubmission {
     /// Accepted by a running runtime inbox.
     #[must_use]
+    /// Accepted.
     pub fn accepted(message_type: impl std::fmt::Debug) -> Self {
         Self {
             accepted: true,
@@ -143,6 +147,7 @@ impl RaftMessageSubmission {
 
     /// Rejected because the current coordinator cannot consume raft-rs messages.
     #[must_use]
+    /// Unavailable.
     pub fn unavailable(reason: impl Into<String>) -> Self {
         Self {
             accepted: false,
@@ -153,6 +158,7 @@ impl RaftMessageSubmission {
 
 /// Build a cluster coordinator from process configuration without storage bootstrap.
 #[must_use]
+/// Coordinator from config.
 pub fn coordinator_from_config(config: &ClusterConfig) -> SharedClusterCoordinator {
     match config.mode {
         ClusterModeConfig::Standalone => StandaloneCoordinator::shared(config.node_id.clone()),
@@ -240,6 +246,7 @@ fn raft_runtime_detail(config: &ClusterConfig) -> String {
 
 /// Cluster coordinator boundary used by HTTP and future scheduling gates.
 #[async_trait::async_trait]
+/// `ClusterCoordinator` behavior contract.
 pub trait ClusterCoordinator: Send + Sync + std::fmt::Debug {
     /// Return current cluster status.
     async fn status(&self) -> ClusterStatus;
@@ -276,12 +283,14 @@ pub struct StaticCoordinator {
 impl StaticCoordinator {
     /// Create a static coordinator from a fixed status.
     #[must_use]
+    /// New.
     pub const fn new(status: ClusterStatus) -> Self {
         Self { status }
     }
 
     /// Create a shared static coordinator.
     #[must_use]
+    /// Shared.
     pub fn shared(status: ClusterStatus) -> SharedClusterCoordinator {
         Arc::new(Self::new(status))
     }
@@ -303,6 +312,7 @@ pub struct StandaloneCoordinator {
 impl StandaloneCoordinator {
     /// Create a standalone coordinator with a stable node id.
     #[must_use]
+    /// New.
     pub fn new(node_id: impl Into<String>) -> Self {
         Self {
             node_id: node_id.into(),
@@ -311,6 +321,7 @@ impl StandaloneCoordinator {
 
     /// Create a shared standalone coordinator.
     #[must_use]
+    /// Shared.
     pub fn shared(node_id: impl Into<String>) -> SharedClusterCoordinator {
         Arc::new(Self::new(node_id))
     }

@@ -11,6 +11,11 @@ impl MigrationTrait for LegacySqliteSchemaCompatibility {
     }
 }
 
+/// Apply sqlite schema compatibility.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn apply_sqlite_schema_compatibility(
     db: &impl ConnectionTrait,
 ) -> Result<(), sea_orm::DbErr> {

@@ -22,6 +22,7 @@ pub struct ManagementClient {
 impl ManagementClient {
     /// Build a management client for one namespace/app API key scope.
     #[must_use]
+    /// New.
     pub fn new(
         endpoint: impl Into<String>,
         api_key: impl Into<String>,
@@ -243,9 +244,11 @@ pub struct TriggerJobRequest {
     pub trigger_type: String,
     /// Execution mode selected by the caller. Use `single` or `broadcast`.
     #[serde(skip_serializing_if = "Option::is_none")]
+    /// Execution mode value.
     pub execution_mode: Option<String>,
     /// Optional broadcast worker selector when `execution_mode` is `broadcast`.
     #[serde(skip_serializing_if = "Option::is_none")]
+    /// Broadcast selector value.
     pub broadcast_selector: Option<BroadcastSelectorRequest>,
 }
 
@@ -255,21 +258,25 @@ pub struct TriggerJobRequest {
 pub struct BroadcastSelectorRequest {
     /// Match workers by advertised tags.
     #[serde(skip_serializing_if = "Option::is_none")]
+    /// Tags value.
     pub tags: Option<Vec<String>>,
     /// Match workers by region.
     #[serde(skip_serializing_if = "Option::is_none")]
+    /// Region value.
     pub region: Option<String>,
     /// Match workers by cluster.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cluster: Option<String>,
     /// Match workers by labels.
     #[serde(skip_serializing_if = "Option::is_none")]
+    /// Labels value.
     pub labels: Option<std::collections::HashMap<String, String>>,
 }
 
 impl TriggerJobRequest {
     /// Build an API-trigger request.
     #[must_use]
+    /// Api.
     pub fn api() -> Self {
         Self {
             trigger_type: "api".to_owned(),
@@ -280,6 +287,7 @@ impl TriggerJobRequest {
 
     /// Build a broadcast API-trigger request with an optional worker selector.
     #[must_use]
+    /// Broadcast api.
     pub fn broadcast_api(selector: Option<BroadcastSelectorRequest>) -> Self {
         Self {
             trigger_type: "api".to_owned(),
@@ -292,6 +300,7 @@ impl TriggerJobRequest {
 impl CreateJobRequest {
     /// Build an API-triggered processor job request.
     #[must_use]
+    /// Api.
     pub fn api(name: impl Into<String>, processor_name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
@@ -307,6 +316,7 @@ impl CreateJobRequest {
 
     /// Build an API-triggered plugin processor job request.
     #[must_use]
+    /// Plugin api.
     pub fn plugin_api(
         name: impl Into<String>,
         processor_type: impl Into<String>,
@@ -326,6 +336,7 @@ impl CreateJobRequest {
 
     /// Build an API-triggered script job request.
     #[must_use]
+    /// Script api.
     pub fn script_api(name: impl Into<String>, script_id: impl Into<String>) -> Self {
         Self {
             name: name.into(),

@@ -23,6 +23,7 @@ pub struct WorkerMasterState {
 }
 
 impl WorkerMasterState {
+    /// Follower.
     pub(super) const fn follower(domain: String) -> Self {
         Self {
             domain,
@@ -36,11 +37,13 @@ impl WorkerMasterState {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct WorkerElectionRegistration {
+    /// Boolean state flag.
     pub(super) enabled: bool,
     pub(super) domain: String,
     pub(super) priority: u32,
 }
 
+/// Worker election registration.
 pub(super) fn worker_election_registration(worker: &RegisterWorker) -> WorkerElectionRegistration {
     let election = worker.election.clone().unwrap_or_default();
     WorkerElectionRegistration {
@@ -68,6 +71,7 @@ fn worker_domain(namespace: &str, app: &str, cluster: &str, region: &str) -> Str
     format!("{namespace}/{app}/{cluster}/{region}")
 }
 
+/// Recompute worker master states.
 pub(super) fn recompute_worker_master_states(workers: &mut HashMap<String, RegisteredWorker>) {
     let now = SystemTime::now();
     let mut winners = HashMap::<String, (String, u64, String)>::new();

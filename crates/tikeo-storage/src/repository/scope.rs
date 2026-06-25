@@ -6,36 +6,55 @@ use super::util::{new_id, now_rfc3339};
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, utoipa::ToSchema)]
 pub struct NamespaceSummary {
+    /// Identifier value.
     pub id: String,
+    /// Name value.
     pub name: String,
+    /// Timestamp value.
     pub created_at: String,
+    /// Timestamp value.
     pub updated_at: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, utoipa::ToSchema)]
 pub struct AppSummary {
+    /// Identifier value.
     pub id: String,
+    /// Namespace value.
     pub namespace: String,
+    /// Name value.
     pub name: String,
+    /// Timestamp value.
     pub created_at: String,
+    /// Timestamp value.
     pub updated_at: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, utoipa::ToSchema)]
 pub struct WorkerPoolSummary {
+    /// Identifier value.
     pub id: String,
+    /// Namespace value.
     pub namespace: String,
+    /// App value.
     pub app: String,
+    /// Name value.
     pub name: String,
+    /// Max queue depth value.
     pub max_queue_depth: i32,
+    /// Max concurrency value.
     pub max_concurrency: i32,
+    /// Timestamp value.
     pub created_at: String,
+    /// Timestamp value.
     pub updated_at: String,
 }
 
 #[derive(Debug, Clone)]
 pub struct UpdateWorkerPoolQuota {
+    /// Max queue depth value.
     pub max_queue_depth: i32,
+    /// Max concurrency value.
     pub max_concurrency: i32,
 }
 
@@ -45,15 +64,27 @@ pub struct ScopeRepository {
 }
 
 impl ScopeRepository {
+    /// New.
+    #[must_use]
     pub const fn new(db: DatabaseConnection) -> Self {
         Self { db }
     }
 
+    /// List namespaces.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn list_namespaces(&self) -> Result<Vec<NamespaceSummary>, sea_orm::DbErr> {
         let rows = namespace::Entity::find().all(&self.db).await?;
         Ok(rows.into_iter().map(NamespaceSummary::from).collect())
     }
 
+    /// Create namespace.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn create_namespace(&self, name: &str) -> Result<NamespaceSummary, sea_orm::DbErr> {
         let now = now_rfc3339();
         Ok(NamespaceSummary::from(
@@ -61,6 +92,11 @@ impl ScopeRepository {
         ))
     }
 
+    /// List apps.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn list_apps(
         &self,
         namespace_name: Option<&str>,
@@ -88,6 +124,11 @@ impl ScopeRepository {
         Ok(out)
     }
 
+    /// Create app.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn create_app(
         &self,
         namespace_name: &str,
@@ -105,6 +146,11 @@ impl ScopeRepository {
         })
     }
 
+    /// List worker pools.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn list_worker_pools(
         &self,
         namespace_name: Option<&str>,
@@ -144,6 +190,11 @@ impl ScopeRepository {
         Ok(out)
     }
 
+    /// Create worker pool.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn create_worker_pool(
         &self,
         namespace_name: &str,
@@ -194,6 +245,11 @@ impl ScopeRepository {
         })
     }
 
+    /// Update worker pool quota.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn update_worker_pool_quota(
         &self,
         id: &str,
@@ -234,6 +290,11 @@ impl ScopeRepository {
         }))
     }
 
+    /// Delete namespace if empty.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn delete_namespace_if_empty(&self, id: &str) -> Result<bool, sea_orm::DbErr> {
         let Some(ns) = namespace::Entity::find_by_id(id.to_owned())
             .one(&self.db)
@@ -265,6 +326,11 @@ impl ScopeRepository {
         Ok(true)
     }
 
+    /// Delete app if empty.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn delete_app_if_empty(&self, id: &str) -> Result<bool, sea_orm::DbErr> {
         let Some(app_model) = app::Entity::find_by_id(id.to_owned()).one(&self.db).await? else {
             return Ok(false);
@@ -288,6 +354,11 @@ impl ScopeRepository {
         Ok(true)
     }
 
+    /// Delete worker pool.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn delete_worker_pool(&self, id: &str) -> Result<bool, sea_orm::DbErr> {
         let result = worker_pool::Entity::delete_by_id(id.to_owned())
             .exec(&self.db)

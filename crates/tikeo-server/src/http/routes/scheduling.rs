@@ -33,6 +33,11 @@ use crate::tunnel::capability::WorkerRequirement;
         (status = 500, description = "Storage error", body = ErrorResponse)
     )
 )]
+/// Job scheduling advice.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn job_scheduling_advice(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,

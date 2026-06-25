@@ -1,12 +1,20 @@
 //! Worker tunnel server implementation.
 
+/// `Capability` module.
 pub mod capability;
+/// `Dispatcher` module.
 pub mod dispatcher;
+/// `Governance` module.
 pub mod governance;
+/// `Lifecycle` module.
 pub mod lifecycle;
+/// Outbox delivery module.
 pub mod outbox_delivery;
+/// `Registry` module.
 pub mod registry;
+/// `Relay` module.
 pub mod relay;
+/// `Service` module.
 pub mod service;
 
 pub use registry::{RegisteredWorker, WorkerRegistry};
@@ -71,6 +79,7 @@ pub struct WorkerTunnelRuntimeParts {
 impl WorkerTunnelRuntime {
     /// Create a Worker Tunnel runtime dependency bundle.
     #[must_use]
+    /// New.
     pub fn new(parts: WorkerTunnelRuntimeParts) -> Self {
         let jobs = parts.jobs;
         let notifications = parts.notifications.unwrap_or_else(|| {

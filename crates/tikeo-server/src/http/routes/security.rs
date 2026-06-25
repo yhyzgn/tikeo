@@ -1,5 +1,3 @@
-#![allow(missing_docs, clippy::missing_errors_doc)]
-
 use std::sync::Arc;
 
 use axum::{Json, extract::State, http::HeaderMap};
@@ -11,13 +9,18 @@ use crate::http::{
     dto::{
         ApiResponse, ClusterTransportPosture, NotificationSafetyPosture, ScriptGovernancePosture,
         SecurityPolicyDenial, SecurityPostureApiResponse, SecurityPostureCheck,
-        SecurityPostureResponse, TlsEndpointStatus, TransportSecurityStatusApiResponse,
-        TransportSecurityStatusResponse,
+        SecurityPostureResponse, TlsEndpointStatus, TlsMaterialStatus,
+        TransportSecurityStatusApiResponse, TransportSecurityStatusResponse,
     },
     error::ApiError,
 };
 
 #[utoipa::path(get, path = "/api/v1/security/posture", tag = "security")]
+/// Security posture.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn security_posture(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -265,6 +268,11 @@ pub async fn security_posture(
 }
 
 #[utoipa::path(get, path = "/api/v1/security/transport", tag = "security")]
+/// Transport security status.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn transport_security_status(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -328,9 +336,11 @@ fn endpoint_status(
     TlsEndpointStatus {
         tls_enabled: config.tls_enabled,
         mtls_required: config.mtls_required,
-        cert_configured,
-        key_configured,
-        ca_configured,
+        material: TlsMaterialStatus {
+            cert_configured,
+            key_configured,
+            ca_configured,
+        },
         listener_mode: listener_mode(config, cert_configured, key_configured, ca_configured)
             .to_owned(),
     }

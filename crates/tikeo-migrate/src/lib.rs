@@ -6,6 +6,7 @@
 //! local code migration only; service endpoints and API keys are emitted as config placeholders.
 
 use std::{
+    fmt::Write as _,
     fs,
     path::{Path, PathBuf},
 };
@@ -35,6 +36,7 @@ use render::{render_checklist, render_java_project_plan, render_markdown_report}
 pub struct Cli {
     /// Command to execute.
     #[command(subcommand)]
+    /// Command value.
     pub command: Command,
 }
 
@@ -47,7 +49,7 @@ impl Cli {
     pub async fn run(self) -> Result<()> {
         match self.command {
             Command::Plan(command) => run_plan_command(&command).await,
-            Command::Apply(command) => run_apply_command(&command).await,
+            Command::Apply(command) => run_apply_command(&command),
         }
     }
 }
@@ -69,13 +71,13 @@ pub enum MigrationSource {
     /// XXL-JOB exported job records.
     #[value(name = "xxl-job")]
     XxlJob,
-    /// PowerJob exported job records.
+    /// `PowerJob` exported job records.
     #[value(name = "powerjob", alias = "power-job")]
     PowerJob,
 }
 
 impl MigrationSource {
-    fn as_str(self) -> &'static str {
+    const fn as_str(self) -> &'static str {
         match self {
             Self::XxlJob => "xxl-job",
             Self::PowerJob => "powerjob",
@@ -97,39 +99,51 @@ pub enum MigrationReportFormat {
 pub struct PlanCommand {
     /// Source scheduler export format. Auto-detected from export content/file name when omitted.
     #[arg(long, value_enum)]
+    /// From value.
     pub from: Option<MigrationSource>,
     /// Path to a pre-exported JSON file. Usually unnecessary: automatic mode detects the Worker code first and treats Admin DB/export data as optional enrichment.
     #[arg(long)]
+    /// Input value.
     pub input: Option<PathBuf>,
     /// Legacy scheduler database URL. Auto-detected from Spring config when omitted. Supports MySQL/PostgreSQL JDBC and native URLs.
     #[arg(long, env = "TIKEO_MIGRATE_LEGACY_DB_URL")]
+    /// Legacy db url value.
     pub legacy_db_url: Option<String>,
     /// Legacy scheduler database username when it is not embedded in the URL. Auto-detected from Spring config when omitted.
     #[arg(long, env = "TIKEO_MIGRATE_LEGACY_DB_USER")]
+    /// Legacy db user value.
     pub legacy_db_user: Option<String>,
     /// Legacy scheduler database password when it is not embedded in the URL. Auto-detected from Spring config when omitted.
     #[arg(long, env = "TIKEO_MIGRATE_LEGACY_DB_PASSWORD")]
+    /// Legacy db password value.
     pub legacy_db_password: Option<String>,
     /// Output directory for the migration bundle.
     #[arg(long, default_value = ".tikeo-migration")]
+    /// Output dir value.
     pub output_dir: PathBuf,
     /// Optional legacy Java/Spring project root. Defaults to the current directory when it looks like a Java project.
     #[arg(long, visible_alias = "path")]
+    /// Project value.
     pub project: Option<PathBuf>,
     /// Optional standalone report output. The bundle always contains JSON and Markdown reports.
     #[arg(long)]
+    /// Output value.
     pub output: Option<PathBuf>,
     /// Standalone report output format for --output.
     #[arg(long, value_enum, default_value = "json")]
+    /// Format value.
     pub format: MigrationReportFormat,
     /// Default Tikeo namespace for generated job drafts.
     #[arg(long, default_value = "default")]
+    /// Namespace value.
     pub namespace: String,
     /// Default Tikeo app for generated job drafts when source app/group is absent.
     #[arg(long, default_value = "default")]
+    /// App value.
     pub app: String,
     /// Concrete Tikeo dependency version used in generated Java snippets.
     #[arg(long, default_value = "0.3.10")]
+    /// Tikeo version value.
     pub tikeo_version: String,
 }
 
@@ -138,12 +152,15 @@ pub struct PlanCommand {
 pub struct ApplyCommand {
     /// Migration bundle directory created by `tikeo-migrate plan`.
     #[arg(long, default_value = ".tikeo-migration")]
+    /// Bundle value.
     pub bundle: PathBuf,
     /// Source Java worker project. Defaults to java-project-plan.json projectRoot.
     #[arg(long, visible_alias = "path")]
+    /// Project value.
     pub project: Option<PathBuf>,
     /// Optional output evidence path. Defaults to <bundle>/code-apply-evidence.json.
     #[arg(long)]
+    /// Output value.
     pub output: Option<PathBuf>,
 }
 
@@ -175,7 +192,7 @@ pub async fn run_plan_command(command: &PlanCommand) -> Result<()> {
 /// # Errors
 ///
 /// Returns an error when the bundle cannot be read or the project cannot be transformed.
-pub async fn run_apply_command(command: &ApplyCommand) -> Result<()> {
+pub fn run_apply_command(command: &ApplyCommand) -> Result<()> {
     let evidence = apply_code(command)?;
     let output = command
         .output
@@ -211,8 +228,7 @@ async fn resolve_plan_inputs_from(command: &PlanCommand, cwd: &Path) -> Result<R
         return resolve_json_file_input(command, input, project);
     }
 
-    let detected_source = command.from.or_else(|| infer_source_from_project(root));
-    if detected_source.is_some() {
+    if let Some(detected_source) = command.from.or_else(|| infer_source_from_project(root)) {
         match export_from_legacy_database(command, root).await {
             Ok(Some(export)) => {
                 return Ok(ResolvedPlanInputs {
@@ -232,10 +248,9 @@ async fn resolve_plan_inputs_from(command: &PlanCommand, cwd: &Path) -> Result<R
         if let Ok(input) = find_export_file(root) {
             return resolve_json_file_input(command, &input, project);
         }
-        let source = detected_source.expect("checked above");
-        let export_json = build_code_only_export_json(root, source)?;
+        let export_json = build_code_only_export_json(root, detected_source)?;
         return Ok(ResolvedPlanInputs {
-            source,
+            source: detected_source,
             input_origin: format!("code-only:{}", root.display()),
             export_json,
             project,
@@ -336,13 +351,13 @@ async fn export_from_legacy_database(
 fn resolve_legacy_db_config(command: &PlanCommand, project_root: &Path) -> Result<LegacyDbConfig> {
     let mut config = read_legacy_db_config(project_root)?;
     if command.legacy_db_url.is_some() {
-        config.url = command.legacy_db_url.clone();
+        config.url.clone_from(&command.legacy_db_url);
     }
     if command.legacy_db_user.is_some() {
-        config.username = command.legacy_db_user.clone();
+        config.username.clone_from(&command.legacy_db_user);
     }
     if command.legacy_db_password.is_some() {
-        config.password = command.legacy_db_password.clone();
+        config.password.clone_from(&command.legacy_db_password);
     }
     Ok(config)
 }
@@ -411,13 +426,9 @@ fn merge_legacy_db_config_from_text(config: &mut LegacyDbConfig, text: &str) {
 }
 
 fn split_config_line(line: &str) -> Option<(&str, &str)> {
-    if let Some(index) = line.find('=') {
-        Some((&line[..index], &line[index + 1..]))
-    } else if let Some(index) = line.find(':') {
-        Some((&line[..index], &line[index + 1..]))
-    } else {
-        None
-    }
+    line.find('=')
+        .or_else(|| line.find(':'))
+        .map(|index| (&line[..index], &line[index + 1..]))
 }
 
 fn strip_inline_comment(value: &str) -> &str {
@@ -532,9 +543,11 @@ fn percent_encode_credential(value: &str) -> String {
     for byte in value.bytes() {
         match byte {
             b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
-                output.push(byte as char)
+                output.push(byte as char);
             }
-            _ => output.push_str(&format!("%{byte:02X}")),
+            _ => {
+                let _ = write!(output, "%{byte:02X}");
+            }
         }
     }
     output
@@ -739,7 +752,7 @@ struct MigrationDefaults {
 }
 
 /// Complete report emitted by the migration planner.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MigrationReport {
     /// Source scheduler family.
@@ -769,7 +782,7 @@ pub struct MigrationSummary {
 }
 
 /// One planned Tikeo job draft with evidence and warnings.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MigrationJobPlan {
     /// Source scheduler job id.
@@ -789,7 +802,7 @@ pub struct MigrationJobPlan {
 }
 
 /// Tikeo job draft generated from a source scheduler record.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TikeoJobDraft {
     /// Target namespace.
@@ -819,7 +832,7 @@ pub struct TikeoJobDraft {
 }
 
 /// Complete non-destructive migration bundle.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MigrationBundle {
     /// Source scheduler family.
@@ -835,7 +848,7 @@ pub struct MigrationBundle {
 }
 
 /// Data import plan extracted from the report.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DataImportPlan {
     /// Ready drafts that can be applied by default.
@@ -901,14 +914,11 @@ pub struct HandlerCandidate {
 /// Returns an error when the legacy export or optional project cannot be read.
 pub async fn build_migration_bundle(command: &PlanCommand) -> Result<MigrationBundle> {
     let resolved = resolve_plan_inputs(command).await?;
-    let report = plan_migration(
-        resolved.source,
-        &resolved.export_json,
-        MigrationDefaults {
-            namespace: command.namespace.clone(),
-            app: command.app.clone(),
-        },
-    )?;
+    let defaults = MigrationDefaults {
+        namespace: command.namespace.clone(),
+        app: command.app.clone(),
+    };
+    let report = plan_migration(resolved.source, &resolved.export_json, &defaults)?;
     let data_import = build_data_import_plan(&report);
     let java_project = resolved
         .project
@@ -1078,7 +1088,7 @@ fn detect_spring_boot_major(project: &Path) -> Result<Option<u8>> {
             "spring-boot-starter-parent</artifactId>\n        <version>{major}."
         )) || content.contains(&format!(
             "spring-boot-starter-parent</artifactId><version>{major}."
-        )) || content.contains(&format!("org.springframework.boot:spring-boot"))
+        )) || content.contains(&"org.springframework.boot:spring-boot".to_string())
             && content.contains(&format!("{major}."))
             || content.contains(&format!(
                 "id(\"org.springframework.boot\") version \"{major}."
@@ -1093,7 +1103,7 @@ fn detect_spring_boot_major(project: &Path) -> Result<Option<u8>> {
     Ok(None)
 }
 
-fn recommended_artifact(spring_boot_major: Option<u8>) -> &'static str {
+const fn recommended_artifact(spring_boot_major: Option<u8>) -> &'static str {
     match spring_boot_major {
         Some(2) => "tikeo-spring-boot2-starter",
         Some(3) => "tikeo-spring-boot3-starter",
@@ -1310,7 +1320,7 @@ fn lower_camel_identifier(value: &str) -> String {
     let chars_to_lower = if uppercase_prefix > 1
         && chars
             .get(uppercase_prefix)
-            .is_some_and(|character| character.is_ascii_lowercase())
+            .is_some_and(char::is_ascii_lowercase)
     {
         uppercase_prefix - 1
     } else {
@@ -1351,10 +1361,13 @@ fn java_patch_guidance(content: &str, candidates: &[(String, Option<String>)]) -
     }
     diff.push_str("@@\n");
     for (processor_name, method_name) in candidates {
-        diff.push_str(&format!(
-            "+// Add @TikeoProcessor(\"{processor_name}\") to the migrated handler{}; adapt parameters to String, byte[], or TaskContext when needed.\n",
-            method_name.as_ref().map_or(String::new(), |name| format!(" method `{name}`"))
-        ));
+        let method_hint = method_name
+            .as_ref()
+            .map_or(String::new(), |name| format!(" method `{name}`"));
+        let _ = writeln!(
+            diff,
+            "+// Add @TikeoProcessor(\"{processor_name}\") to the migrated handler{method_hint}; adapt parameters to String, byte[], or TaskContext when needed."
+        );
     }
     diff
 }
@@ -1362,15 +1375,15 @@ fn java_patch_guidance(content: &str, candidates: &[(String, Option<String>)]) -
 fn plan_migration(
     source: MigrationSource,
     input: &str,
-    defaults: MigrationDefaults,
+    defaults: &MigrationDefaults,
 ) -> Result<MigrationReport> {
     let root: Value = serde_json::from_str(input).context("migration input must be valid JSON")?;
     let records = extract_records(&root)?;
     let mut jobs = Vec::with_capacity(records.len());
     for record in records {
         jobs.push(match source {
-            MigrationSource::XxlJob => plan_xxl_job(record, &defaults),
-            MigrationSource::PowerJob => plan_powerjob(record, &defaults),
+            MigrationSource::XxlJob => plan_xxl_job(record, defaults),
+            MigrationSource::PowerJob => plan_powerjob(record, defaults),
         });
     }
     let mut summary = MigrationSummary {
@@ -1473,11 +1486,10 @@ fn plan_xxl_job(record: &Map<String, Value>, defaults: &MigrationDefaults) -> Mi
     .unwrap_or(0)
     .max(0);
     let enabled = integer_field(record, &["triggerStatus", "trigger_status"]).unwrap_or(1) != 0;
-    let status = if schedule_type == ScheduleType::Api.as_str()
-        && schedule_type_raw.to_ascii_uppercase() != "NONE"
-    {
-        "needs_review"
-    } else if processor_name.is_none() {
+    let needs_review = (schedule_type == ScheduleType::Api.as_str()
+        && !schedule_type_raw.eq_ignore_ascii_case("NONE"))
+        || processor_name.is_none();
+    let status = if needs_review {
         "needs_review"
     } else if unsupported_features.is_empty() {
         "ready"

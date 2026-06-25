@@ -8,23 +8,37 @@ use super::util::{new_id, now_rfc3339};
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SecretSummary {
+    /// Identifier value.
     pub id: String,
+    /// Namespace value.
     pub namespace: String,
+    /// App value.
     pub app: String,
+    /// Name value.
     pub name: String,
+    /// Value ref value.
     pub value_ref: String,
+    /// Status value.
     pub status: String,
+    /// Created by value.
     pub created_by: String,
+    /// Timestamp value.
     pub created_at: String,
+    /// Timestamp value.
     pub updated_at: String,
 }
 
 #[derive(Debug, Clone)]
 pub struct CreateSecret {
+    /// Namespace value.
     pub namespace: String,
+    /// App value.
     pub app: String,
+    /// Name value.
     pub name: String,
+    /// Value ref value.
     pub value_ref: String,
+    /// Created by value.
     pub created_by: String,
 }
 
@@ -34,10 +48,17 @@ pub struct SecretRepository {
 }
 
 impl SecretRepository {
+    /// New.
+    #[must_use]
     pub const fn new(db: DatabaseConnection) -> Self {
         Self { db }
     }
 
+    /// List.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn list(
         &self,
         namespace: Option<&str>,
@@ -54,6 +75,11 @@ impl SecretRepository {
         Ok(rows.into_iter().map(SecretSummary::from).collect())
     }
 
+    /// Create.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn create(&self, input: CreateSecret) -> Result<SecretSummary, sea_orm::DbErr> {
         let now = now_rfc3339();
         if let Some(existing) = secret::Entity::find()
@@ -85,6 +111,11 @@ impl SecretRepository {
         .map(SecretSummary::from)
     }
 
+    /// Delete.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn delete(&self, id: &str) -> Result<bool, sea_orm::DbErr> {
         let Some(existing) = secret::Entity::find_by_id(id.to_owned())
             .one(&self.db)

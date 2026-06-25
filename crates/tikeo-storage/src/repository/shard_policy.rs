@@ -51,6 +51,7 @@ impl SchedulerShardPolicy {
 
     /// Compute a stable shard id for one durable work key.
     #[must_use]
+    /// Shard id for.
     pub fn shard_id_for(self, namespace: &str, app: &str, durable_id: &str) -> i32 {
         stable_scheduler_shard_id(namespace, app, durable_id, self.shard_count)
     }
@@ -58,6 +59,7 @@ impl SchedulerShardPolicy {
 
 /// Return the process-wide scheduler shard policy.
 #[must_use]
+/// Scheduler shard policy.
 pub fn scheduler_shard_policy() -> SchedulerShardPolicy {
     *SHARD_POLICY
         .get_or_init(|| std::sync::RwLock::new(SchedulerShardPolicy::default()))
@@ -84,6 +86,7 @@ pub fn set_scheduler_shard_policy(
 
 /// Reset process-wide scheduler shard policy to defaults. Intended for tests.
 #[doc(hidden)]
+/// Reset scheduler shard policy for test.
 pub fn reset_scheduler_shard_policy_for_test() {
     let lock = SHARD_POLICY.get_or_init(|| std::sync::RwLock::new(SchedulerShardPolicy::default()));
     *lock

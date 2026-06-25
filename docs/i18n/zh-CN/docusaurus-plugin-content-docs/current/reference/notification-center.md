@@ -14,7 +14,7 @@ description: Tikeo 通知中心 API、配置、存储、事件、脱敏、重试
 - HTTP routes 与 OpenAPI annotations：`crates/tikeo-server/src/http/routes/notifications.rs`、`crates/tikeo-server/src/http/routes/notification_templates.rs`
 - 存储 repository 与脱敏：`crates/tikeo-storage/src/repository/notification.rs`、`crates/tikeo-storage/src/repository/notification_template.rs`
 - 实体/迁移：`crates/tikeo-storage/src/entities/notification_*.rs`、`crates/tikeo-storage/src/migration/notification_center.rs`
-- 配置默认值：`crates/tikeo-config/src/lib.rs`、`config/dev.toml`、`config/tikeo.toml`
+- 配置默认值：`crates/tikeo-config/src/lib.rs`、`config/dev.yml`、`config/tikeo.yml`
 - Web UI：`web/src/pages/NotificationCenterPage.tsx`、`web/src/api/notifications.ts`
 
 ## 领域模型
@@ -33,15 +33,15 @@ description: Tikeo 通知中心 API、配置、存储、事件、脱敏、重试
 
 通用投递 worker 位于 `notification_delivery`。
 
-```toml
-[notification_delivery]
-enabled = true
-# 可选。用于通知卡片按钮的外部可访问 Web 基地址。
-# public_console_base_url = "https://tikeo.example.com"
-interval_seconds = 60
-batch_size = 50
-max_attempts = 3
-backoff_seconds = 300
+```yaml
+notification_delivery:
+  enabled: true
+  # 可选。用于通知卡片按钮的外部可访问 Web 基地址。
+  # public_console_base_url: "https://tikeo.example.com"
+  interval_seconds: 60
+  batch_size: 50
+  max_attempts: 3
+  backoff_seconds: 300
 ```
 
 | Key | 默认值 | 环境变量 | 含义 |

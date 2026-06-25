@@ -1,5 +1,10 @@
 use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
 
+/// Remove sqlite foreign keys.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub(super) async fn remove_sqlite_foreign_keys(
     db: &impl ConnectionTrait,
 ) -> Result<(), sea_orm::DbErr> {

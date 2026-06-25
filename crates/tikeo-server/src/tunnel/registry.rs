@@ -95,6 +95,7 @@ pub struct BroadcastSelector {
 impl WorkerRegistry {
     /// Create a registry backed by persistent worker lifecycle storage.
     #[must_use]
+    /// With lifecycle.
     pub fn with_lifecycle(lifecycle: WorkerLifecycleRepository) -> Self {
         Self {
             workers: Arc::new(RwLock::const_new(HashMap::new())),
@@ -106,6 +107,7 @@ impl WorkerRegistry {
 
     /// Bind this registry to the server node that owns its live Worker Tunnel streams.
     #[must_use]
+    /// With gateway node id.
     pub fn with_gateway_node_id(mut self, gateway_node_id: impl Into<String>) -> Self {
         let gateway_node_id = gateway_node_id.into();
         self.gateway_node_id = if gateway_node_id.trim().is_empty() {
@@ -118,18 +120,24 @@ impl WorkerRegistry {
 
     /// Return the server node id owning this registry's live streams.
     #[must_use]
+    /// Gateway node id.
     pub fn gateway_node_id(&self) -> &str {
         &self.gateway_node_id
     }
 
     /// Attach the server-to-server relay used for workers connected through other Pods.
     #[must_use]
+    /// With relay.
     pub fn with_relay(mut self, relay: SharedWorkerRelayDispatch) -> Self {
         self.relay = Some(relay);
         self
     }
 
     /// Register or replace a worker record.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn register(
         &self,
         worker: RegisterWorker,

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-config_path="${1:-config/dev.toml}"
+config_path="${1:-config/dev.yml}"
 if [[ ! -f "$config_path" ]]; then
   echo "config file not found: $config_path" >&2
   exit 2

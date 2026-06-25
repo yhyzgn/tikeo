@@ -1,4 +1,5 @@
 use std::{
+    fmt::Write as _,
     fs,
     path::{Path, PathBuf},
 };
@@ -14,37 +15,57 @@ const TIKEO_PROTOBUF_JAVA_VERSION: &str = "4.34.1";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct CodeApplyEvidence {
+pub struct CodeApplyEvidence {
+    /// Source project value.
     pub source_project: String,
+    /// Target project value.
     pub target_project: String,
+    /// Bundle value.
     pub bundle: String,
+    /// Changed files value.
     pub changed_files: Vec<String>,
+    /// Skipped paths value.
     pub skipped_paths: Vec<String>,
+    /// Data import summary value.
     pub data_import_summary: Option<CodeApplyDataImportSummary>,
+    /// Semantic review items value.
     pub semantic_review_items: Vec<CodeApplySemanticReviewItem>,
+    /// Next actions value.
     pub next_actions: Vec<String>,
+    /// Warnings value.
     pub warnings: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct CodeApplyDataImportSummary {
+pub struct CodeApplyDataImportSummary {
+    /// Source value.
     pub source: Option<String>,
     pub mode: Option<String>,
+    /// Total value.
     pub total: usize,
+    /// Ready value.
     pub ready: usize,
+    /// Needs review value.
     pub needs_review: usize,
+    /// Skipped value.
     pub skipped: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct CodeApplySemanticReviewItem {
+pub struct CodeApplySemanticReviewItem {
+    /// Identifier value.
     pub source_id: String,
+    /// Source name value.
     pub source_name: String,
+    /// Status value.
     pub status: String,
+    /// Processor name value.
     pub processor_name: Option<String>,
+    /// Unsupported features value.
     pub unsupported_features: Vec<String>,
+    /// Warnings value.
     pub warnings: Vec<String>,
 }
 
@@ -100,7 +121,12 @@ struct BundleTikeoJobDraft {
     processor_name: Option<String>,
 }
 
-pub(crate) fn apply_code(command: &ApplyCommand) -> Result<CodeApplyEvidence> {
+/// Apply code.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
+pub fn apply_code(command: &ApplyCommand) -> Result<CodeApplyEvidence> {
     let plan_path = command.bundle.join("java-project-plan.json");
     let plan_text = fs::read_to_string(&plan_path)
         .with_context(|| format!("failed to read Java project plan {}", plan_path.display()))?;
@@ -250,31 +276,36 @@ fn has_dependency_management(text: &str) -> bool {
 
 fn tikeo_version_from_plan(plan: &JavaProjectMigrationPlan) -> String {
     let snippet = plan.dependency_snippet.trim();
-    let version = if let Some(start) = snippet.find("<version>") {
-        let value_start = start + "<version>".len();
-        snippet[value_start..]
-            .find("</version>")
-            .map(|end| snippet[value_start..value_start + end].trim().to_owned())
-    } else if let Some(start) = snippet.find(&format!("net.tikeo:{}:", plan.recommended_artifact)) {
-        let value_start = start + format!("net.tikeo:{}:", plan.recommended_artifact).len();
-        let tail = &snippet[value_start..];
-        let value = tail
-            .trim_end_matches(')')
-            .trim_end_matches('"')
-            .trim_end_matches('\'')
-            .trim()
-            .to_owned();
-        (!value.is_empty()).then_some(value)
-    } else {
-        None
-    }
-    .unwrap_or_else(|| DEFAULT_TIKEO_VERSION.to_owned());
+    let coordinates = format!("net.tikeo:{}:", plan.recommended_artifact);
+    let version = snippet
+        .find("<version>")
+        .and_then(|start| {
+            let value_start = start + "<version>".len();
+            snippet[value_start..]
+                .find("</version>")
+                .map(|end| snippet[value_start..value_start + end].trim().to_owned())
+        })
+        .or_else(|| version_from_gradle_snippet(snippet, &coordinates))
+        .unwrap_or_else(|| DEFAULT_TIKEO_VERSION.to_owned());
 
-    if version.contains("${TIKEO_VERSION}") || version.contains("<") || version.contains(">") {
+    if version.contains("${TIKEO_VERSION}") || version.contains('<') || version.contains('>') {
         DEFAULT_TIKEO_VERSION.to_owned()
     } else {
         version
     }
+}
+
+fn version_from_gradle_snippet(snippet: &str, coordinates: &str) -> Option<String> {
+    let start = snippet.find(coordinates)?;
+    let value_start = start + coordinates.len();
+    let tail = &snippet[value_start..];
+    let value = tail
+        .trim_end_matches(')')
+        .trim_end_matches('"')
+        .trim_end_matches('\'')
+        .trim()
+        .to_owned();
+    (!value.is_empty()).then_some(value)
 }
 
 fn remove_legacy_scheduler_dependencies(text: &str) -> String {
@@ -342,40 +373,42 @@ fn ensure_maven_tikeo_version_property(text: &str, version: &str) -> String {
     if text.contains("<tikeo.version>") {
         return text.to_owned();
     }
-    if let Some(index) = text.find("</properties>") {
-        let mut output = text.to_owned();
-        let (insert_at, closing_indent) = line_start_and_indent_at(text, index);
-        let indent = format!("{closing_indent}    ");
-        output.insert_str(
-            insert_at,
-            &format!(
-                "{indent}<!-- tikeo-migrate default: replace with the release badge version when upgrading. -->\n{indent}<tikeo.version>{version}</tikeo.version>\n"
-            ),
-        );
-        output
-    } else {
-        text.to_owned()
-    }
+    text.find("</properties>").map_or_else(
+        || text.to_owned(),
+        |index| {
+            let mut output = text.to_owned();
+            let (insert_at, closing_indent) = line_start_and_indent_at(text, index);
+            let indent = format!("{closing_indent}    ");
+            output.insert_str(
+                insert_at,
+                &format!(
+                    "{indent}<!-- tikeo-migrate default: replace with the release badge version when upgrading. -->\n{indent}<tikeo.version>{version}</tikeo.version>\n"
+                ),
+            );
+            output
+        },
+    )
 }
 
 fn ensure_maven_protobuf_version_property(text: &str) -> String {
     if text.contains("<protobuf-java.version>") {
         return text.to_owned();
     }
-    if let Some(index) = text.find("</properties>") {
-        let mut output = text.to_owned();
-        let (insert_at, closing_indent) = line_start_and_indent_at(text, index);
-        let indent = format!("{closing_indent}    ");
-        output.insert_str(
-            insert_at,
-            &format!(
-                "{indent}<!-- Tikeo generated protobuf classes require runtime >= gencode version. -->\n{indent}<protobuf-java.version>{TIKEO_PROTOBUF_JAVA_VERSION}</protobuf-java.version>\n"
-            ),
-        );
-        output
-    } else {
-        text.to_owned()
-    }
+    text.find("</properties>").map_or_else(
+        || text.to_owned(),
+        |index| {
+            let mut output = text.to_owned();
+            let (insert_at, closing_indent) = line_start_and_indent_at(text, index);
+            let indent = format!("{closing_indent}    ");
+            output.insert_str(
+                insert_at,
+                &format!(
+                    "{indent}<!-- Tikeo generated protobuf classes require runtime >= gencode version. -->\n{indent}<protobuf-java.version>{TIKEO_PROTOBUF_JAVA_VERSION}</protobuf-java.version>\n"
+                ),
+            );
+            output
+        },
+    )
 }
 
 fn line_start_and_indent_at(text: &str, index: usize) -> (usize, String) {
@@ -491,7 +524,7 @@ fn apply_gradle_dependency(
     if text.contains(&format!("net.tikeo:{artifact}:")) {
         return Ok(());
     }
-    let line = if file.ends_with(".kts") {
+    let line = if has_extension(file, "kts") {
         format!("    implementation(\"net.tikeo:{artifact}:{version}\")\n")
     } else {
         format!("    implementation 'net.tikeo:{artifact}:{version}'\n")
@@ -502,7 +535,7 @@ fn apply_gradle_dependency(
             .map_or(index + "dependencies {".len(), |offset| index + offset + 1);
         text.insert_str(insert_at, &line);
     } else {
-        text.push_str(&format!("\ndependencies {{\n{line}}}\n"));
+        let _ = write!(text, "\ndependencies {{\n{line}}}\n");
     }
     fs::write(&path, text).with_context(|| format!("failed to write {}", path.display()))?;
     push_unique(changed, file.to_owned());
@@ -532,9 +565,9 @@ fn apply_worker_config(
         }
         let is_properties = path.extension().and_then(|ext| ext.to_str()) == Some("properties");
         content = if is_properties {
-            remove_legacy_scheduler_properties(content)
+            remove_legacy_scheduler_properties(&content)
         } else {
-            remove_legacy_scheduler_yaml(content)
+            remove_legacy_scheduler_yaml(&content)
         };
         let block = if is_properties {
             tikeo_properties_block(&app)
@@ -551,7 +584,7 @@ fn apply_worker_config(
     Ok(())
 }
 
-fn remove_legacy_scheduler_properties(content: String) -> String {
+fn remove_legacy_scheduler_properties(content: &str) -> String {
     let mut output = Vec::new();
     for line in content.lines() {
         let trimmed = line.trim_start();
@@ -573,7 +606,7 @@ fn remove_legacy_scheduler_properties(content: String) -> String {
     result
 }
 
-fn remove_legacy_scheduler_yaml(content: String) -> String {
+fn remove_legacy_scheduler_yaml(content: &str) -> String {
     let lines = content.lines().collect::<Vec<_>>();
     let mut output = Vec::new();
     let mut index = 0;
@@ -697,8 +730,7 @@ fn collect_config_candidates(directory: &Path, output: &mut Vec<PathBuf>) -> Res
             continue;
         };
         let lower = name.to_ascii_lowercase();
-        let supported =
-            lower.ends_with(".yml") || lower.ends_with(".yaml") || lower.ends_with(".properties");
+        let supported = has_any_extension(&path, &["yml", "yaml", "properties"]);
         if supported && (lower.starts_with("application") || lower.starts_with("bootstrap")) {
             output.push(path);
         }
@@ -708,7 +740,7 @@ fn collect_config_candidates(directory: &Path, output: &mut Vec<PathBuf>) -> Res
 
 fn tikeo_yaml_block(app: &str) -> String {
     format!(
-        r#"
+        r"
 # Generated by tikeo-migrate apply. Review values before enabling production traffic.
 # Legacy scheduler powerjob/xxl config blocks are removed from this file during migration.
 # This is intentionally minimal: keep advanced tuning in deployment docs or your ops overlay.
@@ -732,13 +764,13 @@ tikeo:
     enabled: ${{TIKEO_MANAGEMENT_ENABLED:false}}
     endpoint: ${{TIKEO_MANAGEMENT_ENDPOINT:http://127.0.0.1:9090}}
     api-key: ${{TIKEO_MANAGEMENT_API_KEY:}}
-"#
+"
     )
 }
 
 fn tikeo_properties_block(app: &str) -> String {
     format!(
-        r#"
+        r"
 # Generated by tikeo-migrate apply. Review values before enabling production traffic.
 # Legacy scheduler powerjob/xxl config keys are removed from this file during migration.
 # This is intentionally minimal: keep advanced tuning in deployment docs or your ops overlay.
@@ -757,7 +789,7 @@ tikeo.worker.state-dir=${{TIKEO_WORKER_STATE_DIR:~/.tikeo/workers}}
 tikeo.management.enabled=${{TIKEO_MANAGEMENT_ENABLED:false}}
 tikeo.management.endpoint=${{TIKEO_MANAGEMENT_ENDPOINT:http://127.0.0.1:9090}}
 tikeo.management.api-key=${{TIKEO_MANAGEMENT_API_KEY:}}
-"#
+"
     )
 }
 
@@ -819,9 +851,9 @@ fn transform_powerjob_handler(content: &str, processor_name: &str) -> String {
         "context.getJobParams()",
         "new String(context.payload(), StandardCharsets.UTF_8)",
     );
-    output = remove_override_before_process(output);
+    output = remove_override_before_process(&output);
     let output = add_annotation_before_process(output, &processor_name);
-    ensure_javadoc_before_tikeo_processor(output)
+    ensure_javadoc_before_tikeo_processor(&output)
 }
 
 fn transform_xxl_handler(content: &str, processor_name: &str) -> String {
@@ -865,7 +897,7 @@ fn lower_camel_processor_name(value: &str) -> String {
     let chars_to_lower = if uppercase_prefix > 1
         && chars
             .get(uppercase_prefix)
-            .is_some_and(|character| character.is_ascii_lowercase())
+            .is_some_and(char::is_ascii_lowercase)
     {
         uppercase_prefix - 1
     } else {
@@ -877,7 +909,7 @@ fn lower_camel_processor_name(value: &str) -> String {
     chars.into_iter().collect()
 }
 
-fn ensure_javadoc_before_tikeo_processor(content: String) -> String {
+fn ensure_javadoc_before_tikeo_processor(content: &str) -> String {
     let input_lines = content.lines().collect::<Vec<_>>();
     let mut output = Vec::new();
     for (index, line) in input_lines.iter().enumerate() {
@@ -912,7 +944,7 @@ fn previous_significant_line_is_javadoc_end(lines: &[&str], index: usize) -> boo
         .is_some_and(|line| line.trim() == "*/")
 }
 
-fn remove_override_before_process(content: String) -> String {
+fn remove_override_before_process(content: &str) -> String {
     let lines = content.lines().collect::<Vec<_>>();
     let mut output = Vec::new();
     let mut index = 0;
@@ -1142,25 +1174,27 @@ fn render_code_apply_report(evidence: &CodeApplyEvidence) -> String {
         output.push_str("| File | Migration type | Status |\n");
         output.push_str("| --- | --- | --- |\n");
         for file in &evidence.changed_files {
-            output.push_str(&format!(
-                "| `{file}` | {} | migrated |\n",
+            let _ = writeln!(
+                output,
+                "| `{file}` | {} | migrated |",
                 migration_type_for_file(file)
-            ));
+            );
         }
     }
     output.push_str("\n## Data import summary\n\n");
     if let Some(summary) = &evidence.data_import_summary {
         output.push_str("| Source | Mode | Total | Ready | Needs review | Skipped |\n");
         output.push_str("| --- | --- | ---: | ---: | ---: | ---: |\n");
-        output.push_str(&format!(
-            "| `{}` | `{}` | {} | {} | {} | {} |\n",
+        let _ = writeln!(
+            output,
+            "| `{}` | `{}` | {} | {} | {} | {} |",
             summary.source.as_deref().unwrap_or("unknown"),
             summary.mode.as_deref().unwrap_or("unknown"),
             summary.total,
             summary.ready,
             summary.needs_review,
             summary.skipped
-        ));
+        );
     } else {
         output.push_str(
             "- No `jobs.tikeo.json` or `data-import-plan.json` summary was available in the bundle.\n",
@@ -1179,8 +1213,9 @@ fn render_code_apply_report(evidence: &CodeApplyEvidence) -> String {
             let mut reasons = item.unsupported_features.clone();
             reasons.extend(item.warnings.clone());
             let reason = reasons.join("; ").replace('|', "\\|");
-            output.push_str(&format!(
-                "| `{}` | {} | `{}` | `{}` | {} |\n",
+            let _ = writeln!(
+                output,
+                "| `{}` | {} | `{}` | `{}` | {} |",
                 item.source_id,
                 item.source_name.replace('|', "\\|"),
                 item.status,
@@ -1190,25 +1225,25 @@ fn render_code_apply_report(evidence: &CodeApplyEvidence) -> String {
                 } else {
                     reason.as_str()
                 }
-            ));
+            );
         }
     }
 
     output.push_str("\n## Next manual actions\n\n");
     for action in &evidence.next_actions {
-        output.push_str(&format!("- {action}\n"));
+        let _ = writeln!(output, "- {action}");
     }
 
     output.push_str("\n## Skipped paths\n\n");
     for file in &evidence.skipped_paths {
-        output.push_str(&format!("- `{file}`\n"));
+        let _ = writeln!(output, "- `{file}`");
     }
     if evidence.skipped_paths.is_empty() {
         output.push_str("- None. `apply` is in-place and does not copy the project.\n");
     }
     output.push_str("\n## Warnings\n\n");
     for warning in &evidence.warnings {
-        output.push_str(&format!("- {warning}\n"));
+        let _ = writeln!(output, "- {warning}");
     }
     if evidence.warnings.is_empty() {
         output.push_str("- None.\n");
@@ -1219,9 +1254,9 @@ fn render_code_apply_report(evidence: &CodeApplyEvidence) -> String {
 fn migration_type_for_file(file: &str) -> &'static str {
     if file == "pom.xml" || file.ends_with("build.gradle") || file.ends_with("build.gradle.kts") {
         "dependency"
-    } else if file.ends_with(".yml") || file.ends_with(".yaml") || file.ends_with(".properties") {
+    } else if has_any_extension(file, &["yml", "yaml", "properties"]) {
         "configuration"
-    } else if file.ends_with(".java") {
+    } else if has_extension(file, "java") {
         "executor"
     } else {
         "other"
@@ -1232,4 +1267,17 @@ fn push_unique(values: &mut Vec<String>, value: String) {
     if !values.contains(&value) {
         values.push(value);
     }
+}
+
+fn has_extension(path: impl AsRef<Path>, expected: &str) -> bool {
+    path.as_ref()
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case(expected))
+}
+
+fn has_any_extension(path: impl AsRef<Path>, expected: &[&str]) -> bool {
+    expected
+        .iter()
+        .any(|extension| has_extension(path.as_ref(), extension))
 }

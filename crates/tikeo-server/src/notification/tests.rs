@@ -1,5 +1,3 @@
-#![allow(missing_docs)]
-
 use super::delivery::{
     NotificationProviderClient, notification_channel_from_delivery_config, parse_json_object,
 };

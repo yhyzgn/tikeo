@@ -4,6 +4,7 @@ use tikeo_proto::worker::v1::{
     PluginProcessorCapability, ProcessorCapability, ScriptRunnerCapability, WorkerCapabilities,
 };
 
+/// Worker capabilities json.
 pub(super) fn worker_capabilities_json(capabilities: Option<&WorkerCapabilities>) -> String {
     let Some(capabilities) = capabilities else {
         return "{}".to_owned();
@@ -27,6 +28,7 @@ pub(super) fn worker_capabilities_json(capabilities: Option<&WorkerCapabilities>
     .unwrap_or_else(|_| "{}".to_owned())
 }
 
+/// Parse persisted capabilities.
 pub(super) fn parse_persisted_capabilities(value: &str) -> WorkerCapabilities {
     let Ok(value) = serde_json::from_str::<serde_json::Value>(value) else {
         return WorkerCapabilities::default();
@@ -46,6 +48,7 @@ pub(super) fn parse_persisted_capabilities(value: &str) -> WorkerCapabilities {
     }
 }
 
+/// Parse persisted labels.
 pub(super) fn parse_persisted_labels(value: &str) -> HashMap<String, String> {
     serde_json::from_str::<HashMap<String, String>>(value).unwrap_or_default()
 }
@@ -70,13 +73,13 @@ fn parse_normal_processors(value: &serde_json::Value) -> Vec<ProcessorCapability
                     name: name.to_owned(),
                     description,
                 });
-            } else if let Some(name) = processor.as_str() {
-                if !name.trim().is_empty() {
-                    processors.push(ProcessorCapability {
-                        name: name.to_owned(),
-                        description: String::new(),
-                    });
-                }
+            } else if let Some(name) = processor.as_str()
+                && !name.trim().is_empty()
+            {
+                processors.push(ProcessorCapability {
+                    name: name.to_owned(),
+                    description: String::new(),
+                });
             }
         }
     }

@@ -36,10 +36,10 @@ Keep one terminal for the Server and one for commands. If you already ran older 
 ## Phase 1: start the Server
 
 ```bash
-cargo run --bin tikeo -- serve --config config/dev.toml
+cargo run --bin tikeo -- serve --config config/dev.yml
 ```
 
-Expected listeners from `config/dev.toml`:
+Expected listeners from `config/dev.yml`:
 
 | Listener | Default | Purpose |
 | --- | --- | --- |
@@ -244,7 +244,7 @@ TIKEO_MANAGEMENT_TRIGGER_REBUILD_SERVER=0 scripts/management-trigger-e2e-smoke.s
 
 It writes evidence under `.dev/reports/management-trigger-e2e-*`, including:
 
-- generated TOML config
+- generated YAML config
 - SQLite DB path
 - Server log
 - Node.js Worker log
@@ -286,7 +286,7 @@ After this passes, pick one production path:
 
 ## Prerequisites
 
-Use the setup, authentication, and access requirements described in this page before running any command. For local examples, start the Server with `config/dev.toml`, use `127.0.0.1` as the client host, and keep tokens in shell variables rather than pasted into files.
+Use the setup, authentication, and access requirements described in this page before running any command. For local examples, start the Server with `config/dev.yml`, use `127.0.0.1` as the client host, and keep tokens in shell variables rather than pasted into files.
 
 ## Verify
 

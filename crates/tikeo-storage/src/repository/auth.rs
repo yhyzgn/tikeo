@@ -57,6 +57,7 @@ pub struct AuthSessionRepository {
 impl AuthSessionRepository {
     /// Create a repository using the provided database connection.
     #[must_use]
+    /// New.
     pub const fn new(db: DatabaseConnection) -> Self {
         Self { db }
     }

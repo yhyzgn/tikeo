@@ -1,17 +1,21 @@
+use std::fmt::Write as _;
+
 use crate::{JavaProjectMigrationPlan, MigrationBundle, MigrationReport};
 
-pub(crate) fn render_checklist(bundle: &MigrationBundle) -> String {
+/// Render checklist.
+pub fn render_checklist(bundle: &MigrationBundle) -> String {
     let mut output = format!(
         "# Tikeo migration checklist\n\nSource: `{}`\n\n",
         bundle.source
     );
     for (index, item) in bundle.checklist.iter().enumerate() {
-        output.push_str(&format!("{}. {item}\n", index + 1));
+        let _ = writeln!(output, "{}. {item}", index + 1);
     }
     output
 }
 
-pub(crate) fn render_java_project_plan(project: &JavaProjectMigrationPlan) -> String {
+/// Render java project plan.
+pub fn render_java_project_plan(project: &JavaProjectMigrationPlan) -> String {
     let mut output = format!(
         "# Java project migration plan\n\n- Project: `{}`\n- Build system: `{}`\n- Spring Boot major: `{}`\n- Recommended artifact: `net.tikeo:{}`\n\n## Dependency\n\n```\n{}\n```\n\n",
         project.project_root,
@@ -24,22 +28,24 @@ pub(crate) fn render_java_project_plan(project: &JavaProjectMigrationPlan) -> St
     );
     output.push_str("## Handler candidates\n\n");
     for handler in &project.handler_candidates {
-        output.push_str(&format!(
-            "- `{}` → `{}` ({})\n",
+        let _ = writeln!(
+            output,
+            "- `{}` → `{}` ({})",
             handler.path, handler.processor_name, handler.framework
-        ));
+        );
     }
     if project.handler_candidates.is_empty() {
         output.push_str("- No legacy handlers detected.\n");
     }
     output.push_str("\n## Review notes\n\n");
     for note in &project.review_notes {
-        output.push_str(&format!("- {note}\n"));
+        let _ = writeln!(output, "- {note}");
     }
     output
 }
 
-pub(crate) fn render_markdown_report(report: &MigrationReport) -> String {
+/// Render markdown report.
+pub fn render_markdown_report(report: &MigrationReport) -> String {
     let mut output = format!(
         "# Tikeo migration report\n\n- Source: `{}`\n- Mode: `{}`\n- Total: {}\n- Ready: {}\n- Needs review: {}\n- Skipped: {}\n\n",
         report.source,
@@ -66,15 +72,16 @@ pub(crate) fn render_markdown_report(report: &MigrationReport) -> String {
             .collect::<Vec<_>>()
             .join("; ")
             .replace('|', "\\|");
-        output.push_str(&format!(
-            "| `{}` | {} | {} | `{}` | `{}` | {} |\n",
+        let _ = writeln!(
+            output,
+            "| `{}` | {} | {} | `{}` | `{}` | {} |",
             job.source_id,
             job.source_name.replace('|', "\\|"),
             job.status,
             schedule,
             processor,
             notes
-        ));
+        );
     }
     output
 }

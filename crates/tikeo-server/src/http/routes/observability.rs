@@ -1,5 +1,3 @@
-#![allow(missing_docs, clippy::missing_errors_doc)]
-
 use std::sync::Arc;
 
 use axum::{Json, extract::State, http::HeaderMap};
@@ -13,6 +11,11 @@ use crate::http::{
 };
 
 #[utoipa::path(get, path = "/api/v1/observability/status", tag = "observability")]
+/// Observability status.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn observability_status(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,

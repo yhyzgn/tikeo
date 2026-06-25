@@ -26,6 +26,11 @@ pub(super) struct TaskRuntimeDirs {
 }
 
 impl TaskRuntimeDirs {
+    /// Create.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub(super) fn create(prefix: &str) -> Result<Self, WorkerSdkError> {
         let root = system_temp_dir(prefix);
         let data = root.join("data");
@@ -67,6 +72,7 @@ impl TaskRuntimeDirs {
         ]
     }
 
+    /// Allow write paths.
     pub(super) fn allow_write_paths(&self) -> Vec<String> {
         self.writable_directories()
             .into_iter()
@@ -87,6 +93,7 @@ impl TaskRuntimeDirs {
         ]
     }
 
+    /// Apply srt environment.
     pub(super) fn apply_srt_environment(&self, command: &mut Command) {
         self.apply_base_environment(command);
         for (name, value) in self.srt_environment_entries() {
@@ -94,12 +101,14 @@ impl TaskRuntimeDirs {
         }
     }
 
+    /// Apply powershell environment.
     pub(super) fn apply_powershell_environment(&self, command: &mut Command) {
         for (name, value) in self.powershell_environment_entries() {
             command.env(name, value);
         }
     }
 
+    /// Apply deno environment.
     pub(super) fn apply_deno_environment(&self, command: &mut Command) {
         self.apply_base_environment(command);
         for (name, value) in self.deno_environment_entries() {
@@ -145,10 +154,12 @@ impl TaskRuntimeDirs {
         vec![("DENO_DIR", self.deno_dir.clone().into_os_string())]
     }
 
+    /// Working dir.
     pub(super) fn working_dir(&self) -> &Path {
         &self.home
     }
 
+    /// Script file.
     pub(super) fn script_file(&self, extension: &str) -> PathBuf {
         self.home.join(format!(
             "script-{}-{}.{}",
@@ -163,6 +174,7 @@ impl TaskRuntimeDirs {
             .unwrap_or_else(|_| self.modules.clone().into_os_string())
     }
 
+    /// Is managed environment name.
     pub(super) fn is_managed_environment_name(name: &str) -> bool {
         matches!(
             name,
@@ -183,26 +195,31 @@ impl TaskRuntimeDirs {
         )
     }
 
+    /// Cleanup.
     pub(super) fn cleanup(&self) {
         let _ = std::fs::remove_dir_all(&self.root);
     }
 
     #[cfg(test)]
+    /// Root.
     pub(super) fn root(&self) -> &Path {
         &self.root
     }
 
     #[cfg(test)]
+    /// Home.
     pub(super) fn home(&self) -> &Path {
         &self.home
     }
 
     #[cfg(test)]
+    /// Tmp.
     pub(super) fn tmp(&self) -> &Path {
         &self.tmp
     }
 }
 
+/// System temp file.
 pub(super) fn system_temp_file(prefix: &str, extension: &str) -> PathBuf {
     std::env::temp_dir().join(format!(
         "{prefix}-{}-{}.{}",

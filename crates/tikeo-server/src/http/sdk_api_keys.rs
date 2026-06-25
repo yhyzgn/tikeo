@@ -74,6 +74,11 @@ pub struct UpdateSdkApiKeyRequest {
     tag = "management",
     request_body = CreateSdkApiKeyRequest
 )]
+/// Create sdk api key.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn create_sdk_api_key(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -132,6 +137,11 @@ pub async fn create_sdk_api_key(
 ///
 /// Returns unauthorized/forbidden for non-admin callers or storage errors.
 #[utoipa::path(get, path = "/api/v1/management/api-keys", tag = "management")]
+/// List sdk api keys.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn list_sdk_api_keys(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -155,6 +165,11 @@ pub async fn list_sdk_api_keys(
     tag = "management",
     request_body = UpdateSdkApiKeyRequest
 )]
+/// Update sdk api key.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn update_sdk_api_key(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -194,6 +209,11 @@ pub async fn update_sdk_api_key(
 ///
 /// Returns unauthorized/forbidden for non-admin callers, not found, or storage errors.
 #[utoipa::path(delete, path = "/api/v1/management/api-keys/{id}", tag = "management")]
+/// Revoke sdk api key.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn revoke_sdk_api_key(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -218,6 +238,11 @@ pub async fn revoke_sdk_api_key(
     Ok(Json(ApiResponse::success(EmptyData {})))
 }
 
+/// Authenticate sdk api key.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub(super) async fn authenticate_sdk_api_key(
     headers: &HeaderMap,
     state: &AppState,

@@ -17,10 +17,10 @@ fn write_sqlite_db(path: &Path, sql: &str) {
         .stdin(Stdio::piped())
         .spawn()
         .unwrap_or_else(|error| panic!("sqlite fixture writer should start: {error}"));
-    child
-        .stdin
-        .as_mut()
-        .expect("sqlite fixture writer stdin should be available")
+    let Some(stdin) = child.stdin.as_mut() else {
+        panic!("sqlite fixture writer stdin should be available");
+    };
+    stdin
         .write_all(sql.as_bytes())
         .unwrap_or_else(|error| panic!("sqlite fixture sql should be written: {error}"));
     let status = child
@@ -166,7 +166,7 @@ fn plan_command_falls_back_to_code_only_powerjob_handlers_without_scheduler_expo
         .unwrap_or_else(|error| panic!("project dir should be created: {error}"));
     fs::write(
         project_dir.join("pom.xml"),
-        r#"<project>
+        r"<project>
   <modelVersion>4.0.0</modelVersion>
   <parent><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-parent</artifactId><version>3.5.8</version></parent>
   <groupId>com.example</groupId>
@@ -184,7 +184,7 @@ fn plan_command_falls_back_to_code_only_powerjob_handlers_without_scheduler_expo
     <dependency><groupId>tech.powerjob</groupId><artifactId>powerjob-worker-spring-boot-starter</artifactId></dependency>
   </dependencies>
 </project>
-"#,
+",
     )
     .unwrap_or_else(|error| panic!("pom should be written: {error}"));
     fs::write(
@@ -250,7 +250,7 @@ fn plan_command_auto_exports_xxl_job_from_legacy_sqlite_fixture() {
     let db_path = project_dir.join("legacy-xxl-job.db");
     write_sqlite_db(
         &db_path,
-        r#"
+        r"
 create table xxl_job_info (
   id integer primary key,
   job_desc text,
@@ -263,7 +263,7 @@ create table xxl_job_info (
   executor_route_strategy text
 );
 insert into xxl_job_info values (1001, 'nightly billing', 'billing', 'CRON', '0 0 2 * * ?', 'billingProcessor', 2, 1, null);
-"#,
+",
     );
     fs::write(
         project_dir.join("src/main/resources/application.properties"),
@@ -308,7 +308,7 @@ fn plan_command_auto_exports_powerjob_from_explicit_legacy_sqlite_fixture() {
     let db_path = project_dir.join("legacy-powerjob.db");
     write_sqlite_db(
         &db_path,
-        r#"
+        r"
 create table pj_job_info (
   id integer primary key,
   job_name text,
@@ -321,7 +321,7 @@ create table pj_job_info (
   max_instance_num integer
 );
 insert into pj_job_info values (2001, 'etl fanout', 'data-platform', 4, 'PT30S', 'etlProcessor', 1, 'BROADCAST', 4);
-"#,
+",
     );
 
     let status = Command::new(&binary)
@@ -360,7 +360,7 @@ fn apply_command_transforms_powerjob_worker_in_place() {
         .unwrap_or_else(|error| panic!("resources dir should be created: {error}"));
     fs::write(
         project_dir.join("pom.xml"),
-        r#"<project>
+        r"<project>
   <modelVersion>4.0.0</modelVersion>
   <parent><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-parent</artifactId><version>3.5.8</version></parent>
   <groupId>com.example</groupId>
@@ -378,7 +378,7 @@ fn apply_command_transforms_powerjob_worker_in_place() {
     <dependency><groupId>tech.powerjob</groupId><artifactId>powerjob-worker-spring-boot-starter</artifactId></dependency>
   </dependencies>
 </project>
-"#,
+",
     )
     .unwrap_or_else(|error| panic!("pom should be written: {error}"));
     fs::write(

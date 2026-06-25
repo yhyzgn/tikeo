@@ -1,0 +1,61 @@
+server:
+  listen_addr: "0.0.0.0:9090"
+  worker_tunnel_addr: "0.0.0.0:9998"
+
+storage:
+  timestamp_offset: "+00:00"
+  database:
+    type: sqlite
+    path: ".dev/tikeo-dev.db"
+    params:
+      mode: rwc
+
+cluster:
+  mode: standalone
+  node_id: dev
+  peers: []
+  scheduler_shard_map_version: 1
+  scheduler_shard_count: 64
+
+auth:
+  local_login_enabled: true
+
+observability:
+  logging:
+    level: info
+    # log_dir: "./logs"
+  tracing:
+    enabled: false
+    headers: []
+
+transport_security:
+  http:
+    tls_enabled: false
+    mtls_required: false
+  worker_tunnel:
+    tls_enabled: false
+    mtls_required: false
+
+alert_retry:
+  enabled: true
+  interval_seconds: 60
+  batch_size: 50
+  max_attempts: 3
+  backoff_seconds: 300
+
+alert_secrets:
+  allow_env_refs: true
+  env_prefix: "TIKEO_ALERT_SECRET_"
+
+notification_delivery:
+  enabled: true
+  public_console_base_url: "http://localhost:5173"
+  interval_seconds: 60
+  batch_size: 50
+  max_attempts: 3
+  backoff_seconds: 300
+
+script_governance: {}
+# To require signed script releases locally, replace the empty object above with:
+# script_governance:
+#   release_signature_secret_ref: "env:TIKEO_SCRIPT_RELEASE_SIGNATURE_SECRET"

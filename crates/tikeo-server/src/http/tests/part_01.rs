@@ -265,7 +265,7 @@
             "email".to_owned(),
         ];
         let app = router_with_state(
-            AppState::new(
+            app_state!(
                 JobRepository::new(db.clone()),
                 JobInstanceRepository::new(db.clone()),
                 JobInstanceLogRepository::new(db.clone()),
@@ -313,7 +313,7 @@
         auth.oidc.client_id = Some("tikeo-web".to_owned());
         auth.oidc.client_secret = Some("super-secret".to_owned());
         let app = router_with_state(
-            AppState::new(
+            app_state!(
                 JobRepository::new(db.clone()),
                 JobInstanceRepository::new(db.clone()),
                 JobInstanceLogRepository::new(db.clone()),
@@ -441,7 +441,7 @@
         auth.oidc.client_id = Some("tikeo-web".to_owned());
         auth.oidc.client_secret = Some("super-secret".to_owned());
         let app = router_with_state(
-            AppState::new(
+            app_state!(
                 JobRepository::new(db.clone()),
                 JobInstanceRepository::new(db.clone()),
                 JobInstanceLogRepository::new(db.clone()),
@@ -521,7 +521,7 @@
         let db = connect_and_migrate("sqlite::memory:")
             .await
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
-        let app = router_with_state(AppState::new(
+        let app = router_with_state(app_state!(
             JobRepository::new(db.clone()),
             JobInstanceRepository::new(db.clone()),
             JobInstanceLogRepository::new(db.clone()),
@@ -610,7 +610,7 @@
         auth.oidc.client_id = Some("tikeo-web".to_owned());
         auth.oidc.client_secret = Some("super-secret".to_owned());
         let app = router_with_state(
-            AppState::new(
+            app_state!(
                 JobRepository::new(db.clone()),
                 JobInstanceRepository::new(db.clone()),
                 JobInstanceLogRepository::new(db.clone()),
@@ -691,7 +691,7 @@
             Some("https://collector.example.com/v1/traces".to_owned());
         observability.tracing.headers = vec!["authorization".to_owned(), "x-tenant".to_owned()];
         let app = router_with_state(
-            AppState::new(
+            app_state!(
                 JobRepository::new(db.clone()),
                 JobInstanceRepository::new(db.clone()),
                 JobInstanceLogRepository::new(db.clone()),
@@ -730,7 +730,6 @@
     }
 
     #[tokio::test]
-    #[allow(clippy::too_many_lines)]
     async fn transport_security_status_reports_defaults_and_partial_mtls_config() {
         let app = router().await;
         let default_status = app
@@ -758,7 +757,7 @@
         security.worker_tunnel.mtls_required = true;
         security.worker_tunnel.cert_path = Some("/certs/worker.crt".to_owned());
         let app = router_with_state(
-            AppState::new(
+            app_state!(
                 JobRepository::new(db.clone()),
                 JobInstanceRepository::new(db.clone()),
                 JobInstanceLogRepository::new(db.clone()),
@@ -813,7 +812,7 @@
         wired_security.http.key_path =
             Some(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/tls/server.key").to_owned());
         let app = router_with_state(
-            AppState::new(
+            app_state!(
                 JobRepository::new(db.clone()),
                 JobInstanceRepository::new(db.clone()),
                 JobInstanceLogRepository::new(db.clone()),
@@ -852,10 +851,11 @@
         transport.worker_tunnel.tls_enabled = true;
         transport.worker_tunnel.mtls_required = true;
         transport.worker_tunnel.cert_path = Some("/missing/worker.crt".to_owned());
-        let mut governance = ScriptGovernanceConfig::default();
-        governance.release_signature_secret_ref = Some("env:TIKEO_SCRIPT_RELEASE_SECRET".to_owned());
+        let governance = ScriptGovernanceConfig {
+            release_signature_secret_ref: Some("env:TIKEO_SCRIPT_RELEASE_SECRET".to_owned()),
+        };
         let app = router_with_state(
-            AppState::new(
+            app_state!(
                 JobRepository::new(db.clone()),
                 JobInstanceRepository::new(db.clone()),
                 JobInstanceLogRepository::new(db.clone()),
@@ -1001,7 +1001,7 @@
         })
         .await
         .unwrap_or_else(|error| panic!("remote member should persist: {error}"));
-        let app = router_with_state(AppState::new(
+        let app = router_with_state(app_state!(
             JobRepository::new(db.clone()),
             JobInstanceRepository::new(db.clone()),
             JobInstanceLogRepository::new(db.clone()),
@@ -1140,7 +1140,7 @@
             .await
             .unwrap_or_else(|error| panic!("outbox row should create: {error}"));
 
-        let app = router_with_state(AppState::new(
+        let app = router_with_state(app_state!(
             JobRepository::new(db.clone()),
             JobInstanceRepository::new(db.clone()),
             JobInstanceLogRepository::new(db.clone()),

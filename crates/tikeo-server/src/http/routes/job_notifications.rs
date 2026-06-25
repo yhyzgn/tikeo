@@ -1,5 +1,3 @@
-#![allow(missing_docs, clippy::missing_errors_doc)]
-
 use std::sync::Arc;
 
 use axum::{
@@ -15,7 +13,7 @@ use utoipa::ToSchema;
 
 use crate::http::{
     AppState, auth,
-    dto::{ApiResponse, EmptyData, MeResponse},
+    dto::{ApiResponse, EmptyData, MeResponse, NullableStringUpdate},
     error::ApiError,
 };
 
@@ -29,38 +27,54 @@ pub struct CreateJobNotificationBindingRequest {
     pub name: String,
     pub trigger: JobNotificationTrigger,
     #[serde(default)]
+    /// Event types value.
     pub event_types: Vec<String>,
     #[serde(default)]
+    /// Channel ids value.
     pub channel_ids: Vec<String>,
+    /// Template ref value.
     pub template_ref: Option<String>,
     #[serde(default = "default_enabled")]
+    /// Boolean state flag.
     pub enabled: bool,
     #[serde(default = "default_severity")]
     pub severity: String,
     #[serde(default = "default_dedupe_seconds")]
+    /// Dedupe seconds value.
     pub dedupe_seconds: i64,
     #[serde(default = "default_true")]
+    /// Include log link value.
     pub include_log_link: bool,
     #[serde(default)]
+    /// Include log excerpt value.
     pub include_log_excerpt: bool,
     #[serde(default = "default_log_excerpt_lines")]
+    /// Log excerpt lines value.
     pub log_excerpt_lines: u64,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, ToSchema)]
-#[allow(clippy::option_option)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateJobNotificationBindingRequest {
     pub name: Option<String>,
     pub trigger: Option<JobNotificationTrigger>,
+    /// Event types value.
     pub event_types: Option<Vec<String>>,
+    /// Channel ids value.
     pub channel_ids: Option<Vec<String>>,
-    pub template_ref: Option<Option<String>>,
+    /// Template ref value.
+    #[serde(default)]
+    pub template_ref: NullableStringUpdate,
+    /// Boolean state flag.
     pub enabled: Option<bool>,
     pub severity: Option<String>,
+    /// Dedupe seconds value.
     pub dedupe_seconds: Option<i64>,
+    /// Include log link value.
     pub include_log_link: Option<bool>,
+    /// Include log excerpt value.
     pub include_log_excerpt: Option<bool>,
+    /// Log excerpt lines value.
     pub log_excerpt_lines: Option<u64>,
 }
 
@@ -83,14 +97,22 @@ pub struct JobNotificationBindingSummary {
     pub job_id: String,
     pub name: String,
     pub trigger: String,
+    /// Event types value.
     pub event_types: Vec<String>,
+    /// Channel ids value.
     pub channel_ids: Vec<String>,
+    /// Template ref value.
     pub template_ref: Option<String>,
+    /// Boolean state flag.
     pub enabled: bool,
     pub severity: String,
+    /// Dedupe seconds value.
     pub dedupe_seconds: i64,
+    /// Include log link value.
     pub include_log_link: bool,
+    /// Include log excerpt value.
     pub include_log_excerpt: bool,
+    /// Log excerpt lines value.
     pub log_excerpt_lines: u64,
     pub policy: NotificationPolicySummary,
 }
@@ -99,9 +121,13 @@ pub struct JobNotificationBindingSummary {
 #[serde(rename_all = "camelCase")]
 pub struct JobNotificationBindingValidationSummary {
     pub valid: bool,
+    /// Event types value.
     pub event_types: Vec<String>,
+    /// Channel count value.
     pub channel_count: u64,
+    /// Missing channel ids value.
     pub missing_channel_ids: Vec<String>,
+    /// Disabled channel ids value.
     pub disabled_channel_ids: Vec<String>,
     pub issues: Vec<String>,
 }
@@ -111,13 +137,21 @@ pub struct JobNotificationBindingValidationSummary {
 pub struct JobNotificationBindingPreview {
     pub job_id: String,
     pub trigger: String,
+    /// Event types value.
     pub event_types: Vec<String>,
+    /// Sample context value.
     pub sample_context: serde_json::Value,
+    /// Rendered template value.
     pub rendered_template: Option<serde_json::Value>,
     pub validation: JobNotificationBindingValidationSummary,
 }
 
 #[utoipa::path(get, path = "/api/v1/jobs/{job}/notification-bindings", tag = "jobs")]
+/// List job notification bindings.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn list_job_notification_bindings(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -141,6 +175,11 @@ pub async fn list_job_notification_bindings(
 }
 
 #[utoipa::path(post, path = "/api/v1/jobs/{job}/notification-bindings", tag = "jobs", request_body = CreateJobNotificationBindingRequest)]
+/// Create job notification binding.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn create_job_notification_binding(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -202,6 +241,11 @@ pub async fn create_job_notification_binding(
     path = "/api/v1/jobs/{job}/notification-bindings/{binding}",
     tag = "jobs"
 )]
+/// Get job notification binding.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn get_job_notification_binding(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -214,6 +258,11 @@ pub async fn get_job_notification_binding(
 }
 
 #[utoipa::path(patch, path = "/api/v1/jobs/{job}/notification-bindings/{binding}", tag = "jobs", request_body = UpdateJobNotificationBindingRequest)]
+/// Update job notification binding.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn update_job_notification_binding(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -239,8 +288,7 @@ pub async fn update_job_notification_binding(
         .unwrap_or_else(|| existing_binding.channel_ids.clone());
     let template_ref = request
         .template_ref
-        .clone()
-        .unwrap_or_else(|| existing_binding.template_ref.clone());
+        .clone_or(existing_binding.template_ref.clone());
     let include_log_link = request
         .include_log_link
         .unwrap_or(existing_binding.include_log_link);
@@ -272,7 +320,7 @@ pub async fn update_job_notification_binding(
                     log_excerpt_lines,
                 ))),
                 channel_refs_json: Some(json_to_string(&channel_refs_json(&channel_ids))),
-                template_ref: Some(template_ref),
+                template_ref: request.template_ref.into_option_option(),
                 severity: request.severity,
                 enabled: request.enabled,
                 dedupe_seconds: request.dedupe_seconds,
@@ -303,6 +351,11 @@ pub async fn update_job_notification_binding(
     path = "/api/v1/jobs/{job}/notification-bindings/{binding}",
     tag = "jobs"
 )]
+/// Delete job notification binding.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn delete_job_notification_binding(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -333,6 +386,11 @@ pub async fn delete_job_notification_binding(
 }
 
 #[utoipa::path(post, path = "/api/v1/jobs/{job}/notification-bindings:validate", tag = "jobs", request_body = CreateJobNotificationBindingRequest)]
+/// Validate job notification binding.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn validate_job_notification_binding(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -353,6 +411,11 @@ pub async fn validate_job_notification_binding(
 }
 
 #[utoipa::path(post, path = "/api/v1/jobs/{job}/notification-bindings:preview", tag = "jobs", request_body = CreateJobNotificationBindingRequest)]
+/// Preview job notification binding.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn preview_job_notification_binding(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,

@@ -4,6 +4,7 @@ use tikeo_proto::worker::v1::{
 };
 use tikeo_storage::{ScriptSummary, ScriptVersionSummary};
 
+/// Script processor binding.
 pub(super) fn script_processor_binding(
     script: &ScriptSummary,
     version: &ScriptVersionSummary,
@@ -48,10 +49,12 @@ pub(super) fn script_processor_binding(
     }
 }
 
+/// Script policy.
 pub(super) fn script_policy(value: serde_json::Value) -> ScriptExecutionPolicy {
     serde_json::from_value(value).unwrap_or_default()
 }
 
+/// Wasm processor binding.
 pub(super) fn wasm_processor_binding(
     script: &ScriptSummary,
     version: &ScriptVersionSummary,
@@ -77,6 +80,7 @@ pub(super) fn wasm_processor_binding(
     }
 }
 
+/// Script version to wasm spec.
 pub(super) fn script_version_to_wasm_spec(version: &ScriptVersionSummary) -> WasmProcessorSpec {
     let mut spec = WasmProcessorSpec::default();
     spec.resources.timeout_ms = version
@@ -96,6 +100,7 @@ pub(super) fn script_version_to_wasm_spec(version: &ScriptVersionSummary) -> Was
     spec
 }
 
+/// Parse script language.
 pub(super) fn parse_script_language(language: &str) -> Option<ScriptLanguage> {
     language.parse::<ScriptLanguage>().ok()
 }

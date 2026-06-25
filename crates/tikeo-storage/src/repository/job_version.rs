@@ -17,24 +17,43 @@ pub const SYSTEM_ACTOR: &str = "system";
 /// Immutable job version summary returned by storage and HTTP APIs.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct JobVersionSummary {
+    /// Identifier value.
     pub id: String,
+    /// Identifier value.
     pub job_id: String,
+    /// Version number value.
     pub version_number: i64,
+    /// Name value.
     pub name: String,
+    /// Schedule type value.
     pub schedule_type: String,
+    /// Schedule expr value.
     pub schedule_expr: Option<String>,
+    /// Misfire policy value.
     pub misfire_policy: String,
+    /// Timestamp value.
     pub schedule_start_at: Option<String>,
+    /// Timestamp value.
     pub schedule_end_at: Option<String>,
+    /// Serialized data value.
     pub schedule_calendar_json: Option<String>,
+    /// Processor name value.
     pub processor_name: Option<String>,
+    /// Processor type value.
     pub processor_type: Option<String>,
+    /// Identifier value.
     pub script_id: Option<String>,
+    /// Boolean state flag.
     pub enabled: bool,
+    /// Retry policy value.
     pub retry_policy: JobRetryPolicy,
+    /// Created by value.
     pub created_by: String,
+    /// Change reason value.
     pub change_reason: String,
+    /// Rolled back from version value.
     pub rolled_back_from_version: Option<i64>,
+    /// Timestamp value.
     pub created_at: String,
 }
 
@@ -46,10 +65,16 @@ pub struct JobVersionRepository {
 
 impl JobVersionRepository {
     #[must_use]
+    /// New.
     pub const fn new(db: DatabaseConnection) -> Self {
         Self { db }
     }
 
+    /// Create version.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn create_version(
         &self,
         job: &job::Model,
@@ -61,6 +86,11 @@ impl JobVersionRepository {
             .await
     }
 
+    /// Create version in.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn create_version_in<C>(
         &self,
         db: &C,
@@ -140,6 +170,11 @@ impl JobVersionRepository {
         })
     }
 
+    /// List versions.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn list_versions(
         &self,
         job_id: &str,
@@ -152,6 +187,11 @@ impl JobVersionRepository {
         Ok(rows.into_iter().map(JobVersionSummary::from).collect())
     }
 
+    /// Get version by number.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn get_version_by_number(
         &self,
         job_id: &str,
@@ -165,11 +205,21 @@ impl JobVersionRepository {
         Ok(row.map(JobVersionSummary::from))
     }
 
+    /// Latest version number.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn latest_version_number(&self, job_id: &str) -> Result<i64, sea_orm::DbErr> {
         latest_version_number_in(&self.db, job_id).await
     }
 }
 
+/// Latest version number in.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn latest_version_number_in<C>(db: &C, job_id: &str) -> Result<i64, sea_orm::DbErr>
 where
     C: ConnectionTrait,

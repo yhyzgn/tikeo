@@ -8,6 +8,7 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     /// Script identifier.
     #[sea_orm(primary_key, auto_increment = false)]
+    /// Identifier value.
     pub id: String,
     /// Display name unique within namespace/app scope.
     pub name: String,

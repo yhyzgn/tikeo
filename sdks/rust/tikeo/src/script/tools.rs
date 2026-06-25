@@ -39,7 +39,6 @@ impl Default for SandboxToolResolver {
 
 impl SandboxToolResolver {
     const fn uses_strict_sandbox_isolation(&self) -> bool {
-        #[allow(deprecated)]
         {
             self.strict_sandbox_isolation || self.require_managed_tools
         }
@@ -47,6 +46,7 @@ impl SandboxToolResolver {
 
     /// Resolve Anthropic Sandbox Runtime.
     #[must_use]
+    /// Resolve srt.
     pub fn resolve_srt(&self) -> Option<PathBuf> {
         let timeout = self.install_timeout;
         self.resolve_tool("srt", move |dir, bin_dir| {
@@ -67,18 +67,21 @@ impl SandboxToolResolver {
 
     /// Resolve Node.js required by npm-installed SRT launchers.
     #[must_use]
+    /// Resolve node.
     pub fn resolve_node(&self) -> Option<PathBuf> {
         self.resolve_interpreter("node")
     }
 
     /// Resolve npm used to install SRT. Its parent directory is also useful for PATH repair.
     #[must_use]
+    /// Resolve npm.
     pub fn resolve_npm(&self) -> Option<PathBuf> {
         self.resolve_interpreter("npm")
     }
 
     /// Resolve ripgrep required by SRT.
     #[must_use]
+    /// Resolve ripgrep.
     pub fn resolve_ripgrep(&self) -> Option<PathBuf> {
         let timeout = self.install_timeout;
         self.resolve_tool("rg", move |dir, bin_dir| {
@@ -93,6 +96,7 @@ impl SandboxToolResolver {
 
     /// Resolve Deno for JavaScript/TypeScript sandboxing.
     #[must_use]
+    /// Resolve deno.
     pub fn resolve_deno(&self) -> Option<PathBuf> {
         let timeout = self.install_timeout;
         self.resolve_tool("deno", move |dir, bin_dir| {
@@ -106,6 +110,7 @@ impl SandboxToolResolver {
 
     /// Resolve Rhai CLI runner.
     #[must_use]
+    /// Resolve rhai.
     pub fn resolve_rhai(&self) -> Option<PathBuf> {
         let timeout = self.install_timeout;
         self.resolve_tool("rhai-run", move |dir, bin_dir| {
@@ -128,6 +133,7 @@ impl SandboxToolResolver {
 
     /// Resolve PowerShell Core for SRT-backed PowerShell script execution.
     #[must_use]
+    /// Resolve powershell.
     pub fn resolve_powershell(&self) -> Option<PathBuf> {
         let timeout = self.install_timeout;
         self.resolve_tool_with_local_binary("pwsh", "pwsh", move |dir, bin_dir| {
@@ -137,6 +143,7 @@ impl SandboxToolResolver {
 
     /// Resolve an already-installed native interpreter command used by SRT.
     #[must_use]
+    /// Resolve interpreter.
     pub fn resolve_interpreter(&self, binary: &str) -> Option<PathBuf> {
         if self.uses_strict_sandbox_isolation() {
             let command = Self::install_dir(binary).join("bin").join(binary);

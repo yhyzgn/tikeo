@@ -341,7 +341,7 @@ pub enum ScriptLanguage {
     Groovy,
     /// Rhai embedded script.
     Rhai,
-    /// WebAssembly module.
+    /// `WebAssembly` module.
     Wasm,
 }
 
@@ -545,6 +545,7 @@ impl FromStr for ScriptSandboxBackend {
 pub struct ScriptSandboxPolicy {
     /// Preferred backend. Auto lets worker choose according to language/content.
     #[serde(default)]
+    /// Backend value.
     pub backend: ScriptSandboxBackend,
 }
 
@@ -560,6 +561,7 @@ pub struct ScriptFilesystemPolicy {
 impl ScriptFilesystemPolicy {
     /// Returns true when any filesystem access has been requested.
     #[must_use]
+    /// Grants host access.
     pub const fn grants_host_access(&self) -> bool {
         !self.read_only_paths.is_empty() || !self.writable_paths.is_empty()
     }
@@ -586,21 +588,26 @@ pub struct ScriptSecretPolicy {
 pub struct ScriptReleaseGrantSet {
     /// URL hosts or URL policy references approved for this release.
     #[serde(default)]
+    /// Url value.
     pub url: Vec<String>,
     /// Read-only file paths or file policy references approved for this release.
     #[serde(default)]
+    /// File read value.
     pub file_read: Vec<String>,
     /// Writable file paths or file policy references approved for this release.
     #[serde(default)]
+    /// File write value.
     pub file_write: Vec<String>,
     /// Secret references approved for this release.
     #[serde(default)]
+    /// Secret value.
     pub secret: Vec<String>,
 }
 
 impl ScriptReleaseGrantSet {
     /// Returns true when no grant category is populated.
     #[must_use]
+    /// Is empty.
     pub const fn is_empty(&self) -> bool {
         self.url.is_empty()
             && self.file_read.is_empty()
@@ -711,6 +718,7 @@ pub struct ScriptExecutionPolicy {
     pub env_vars: Vec<String>,
     /// Sandbox backend selection. Defaults to auto.
     #[serde(default)]
+    /// Sandbox value.
     pub sandbox: ScriptSandboxPolicy,
 }
 

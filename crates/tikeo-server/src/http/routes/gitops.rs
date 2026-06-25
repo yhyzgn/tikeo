@@ -1,5 +1,3 @@
-#![allow(missing_docs)]
-
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,

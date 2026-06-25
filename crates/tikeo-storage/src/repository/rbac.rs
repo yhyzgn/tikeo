@@ -99,11 +99,16 @@ pub struct RbacRepository {
 impl RbacRepository {
     /// Create a repository using the provided database connection.
     #[must_use]
+    /// New.
     pub const fn new(db: DatabaseConnection) -> Self {
         Self { db }
     }
 
     /// List all roles with their permission matrices.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn list_roles(&self) -> Result<Vec<RoleSummary>, sea_orm::DbErr> {
         let roles = role::Entity::find().all(&self.db).await?;
         let mut summaries = Vec::with_capacity(roles.len());
@@ -115,6 +120,10 @@ impl RbacRepository {
     }
 
     /// Get one role by id.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn get_role(&self, id: &str) -> Result<Option<RoleSummary>, sea_orm::DbErr> {
         let Some(role_model) = role::Entity::find_by_id(id.to_owned())
             .one(&self.db)
@@ -126,6 +135,10 @@ impl RbacRepository {
     }
 
     /// Find a role by name.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn role_exists_by_name(&self, name: &str) -> Result<bool, sea_orm::DbErr> {
         Ok(role::Entity::find()
             .filter(role::Column::Name.eq(name.to_owned()))
@@ -135,6 +148,10 @@ impl RbacRepository {
     }
 
     /// Create a custom role.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn create_role(&self, input: CreateRole) -> Result<RoleSummary, sea_orm::DbErr> {
         let now = now_rfc3339();
         let role_id = new_id("role");
@@ -162,6 +179,10 @@ impl RbacRepository {
     }
 
     /// Update a role and replace all matrices atomically enough for the single metadata DB boundary.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn update_role(
         &self,
         id: &str,
@@ -189,6 +210,10 @@ impl RbacRepository {
     }
 
     /// Delete a non-builtin role.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn delete_role(&self, id: &str) -> Result<bool, sea_orm::DbErr> {
         let Some(existing) = role::Entity::find_by_id(id.to_owned())
             .one(&self.db)
@@ -218,6 +243,10 @@ impl RbacRepository {
     }
 
     /// List backend permission catalog items.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn list_permission_catalog(
         &self,
     ) -> Result<Vec<PermissionCatalogItem>, sea_orm::DbErr> {
@@ -241,6 +270,10 @@ impl RbacRepository {
     }
 
     /// List permissions granted to a role name.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn permissions_for_role(
         &self,
         role_name: &str,
@@ -257,6 +290,10 @@ impl RbacRepository {
     }
 
     /// List permissions granted across multiple roles.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn permissions_for_roles(
         &self,
         roles: &[String],
@@ -270,6 +307,10 @@ impl RbacRepository {
     }
 
     /// List every backend permission in the catalog.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn all_permissions(&self) -> Result<Vec<PermissionSummary>, sea_orm::DbErr> {
         let mut permissions = permission::Entity::find()
             .all(&self.db)
@@ -285,6 +326,10 @@ impl RbacRepository {
     }
 
     /// Check whether any role grants a resource/action permission.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn has_permission(
         &self,
         roles: &[String],
@@ -299,6 +344,10 @@ impl RbacRepository {
     }
 
     /// List menu keys across role names.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn menu_keys_for_roles(
         &self,
         roles: &[String],
@@ -321,6 +370,10 @@ impl RbacRepository {
     }
 
     /// List every menu key known to persisted role-menu bindings.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn all_menu_keys(&self) -> Result<Vec<String>, sea_orm::DbErr> {
         let mut keys = role_menu_permission::Entity::find()
             .all(&self.db)
@@ -334,6 +387,10 @@ impl RbacRepository {
     }
 
     /// List UI action keys across role names.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn ui_action_keys_for_roles(
         &self,
         roles: &[String],
@@ -356,6 +413,10 @@ impl RbacRepository {
     }
 
     /// List every UI action key known to persisted role-action bindings.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn all_ui_action_keys(&self) -> Result<Vec<String>, sea_orm::DbErr> {
         let mut keys = role_ui_action_permission::Entity::find()
             .all(&self.db)

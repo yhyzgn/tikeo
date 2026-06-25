@@ -14,7 +14,12 @@ def tracked_text_files() -> list[Path]:
     paths = []
     for line in output.splitlines():
         path = ROOT / line
-        if path.suffix in TEXT_SUFFIXES and "docs/build" not in line and "web/dist" not in line:
+        if (
+            path.exists()
+            and path.suffix in TEXT_SUFFIXES
+            and "docs/build" not in line
+            and "web/dist" not in line
+        ):
             paths.append(path)
     return paths
 

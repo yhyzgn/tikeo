@@ -20,6 +20,31 @@ use super::{
     session::{DbMokaSessionStore, SessionManager},
 };
 
+/// Required repositories and runtime handles for constructing `AppState`.
+#[derive(Debug, Clone)]
+pub struct AppStateParts {
+    /// Job repository.
+    pub jobs: JobRepository,
+    /// Job instance repository.
+    pub instances: JobInstanceRepository,
+    /// Job log repository.
+    pub logs: JobInstanceLogRepository,
+    /// Job attempt repository.
+    pub attempts: JobInstanceAttemptRepository,
+    /// User repository.
+    pub users: UserRepository,
+    /// Script repository.
+    pub scripts: ScriptRepository,
+    /// Workflow repository.
+    pub workflows: WorkflowRepository,
+    /// Audit repository.
+    pub audit: AuditLogRepository,
+    /// Worker registry.
+    pub registry: crate::tunnel::WorkerRegistry,
+    /// Cluster coordinator.
+    pub cluster: SharedClusterCoordinator,
+}
+
 /// Shared HTTP application state.
 #[derive(Debug, Clone)]
 pub struct AppState {
@@ -33,12 +58,18 @@ pub struct AppState {
     pub(crate) workflows: WorkflowRepository,
     pub(crate) audit: AuditLogRepository,
     pub(crate) alerts: AlertRepository,
+    /// Notification channels value.
     pub(crate) notification_channels: NotificationChannelRepository,
+    /// Notification policies value.
     pub(crate) notification_policies: NotificationPolicyRepository,
+    /// Notification templates value.
     pub(crate) notification_templates: NotificationTemplateRepository,
+    /// Notification messages value.
     pub(crate) notification_messages: NotificationMessageRepository,
+    /// Notification delivery attempts value.
     pub(crate) notification_delivery_attempts: NotificationDeliveryAttemptRepository,
     pub(crate) plugins: PluginRepository,
+    /// Auth config value.
     pub(crate) auth_config: AuthConfig,
     pub(crate) transport_security: TransportSecurityConfig,
     pub(crate) observability: ObservabilityConfig,
@@ -47,12 +78,18 @@ pub struct AppState {
     pub(crate) sessions: SessionManager,
     pub(crate) rbac: RbacService,
     pub(crate) registry: crate::tunnel::WorkerRegistry,
+    /// Worker lifecycle value.
     pub(crate) worker_lifecycle: WorkerLifecycleRepository,
+    /// Worker dispatch outbox value.
     pub(crate) worker_dispatch_outbox: WorkerDispatchOutboxRepository,
+    /// Shard ownership value.
     pub(crate) shard_ownership: ClusterShardOwnershipRepository,
     pub(crate) cluster: SharedClusterCoordinator,
+    /// Raft transport token value.
     pub(crate) raft_transport_token: Option<String>,
+    /// Notification public console base url value.
     pub(crate) notification_public_console_base_url: Option<String>,
+    /// Notification delivery trigger value.
     pub(crate) notification_delivery_trigger:
         Option<crate::notification::NotificationDeliveryTrigger>,
 }
@@ -60,19 +97,20 @@ pub struct AppState {
 impl AppState {
     /// Create shared HTTP state.
     #[must_use]
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        jobs: JobRepository,
-        instances: JobInstanceRepository,
-        logs: JobInstanceLogRepository,
-        attempts: JobInstanceAttemptRepository,
-        users: UserRepository,
-        scripts: ScriptRepository,
-        workflows: WorkflowRepository,
-        audit: AuditLogRepository,
-        registry: crate::tunnel::WorkerRegistry,
-        cluster: SharedClusterCoordinator,
-    ) -> Self {
+    /// New.
+    pub fn new(parts: AppStateParts) -> Self {
+        let AppStateParts {
+            jobs,
+            instances,
+            logs,
+            attempts,
+            users,
+            scripts,
+            workflows,
+            audit,
+            registry,
+            cluster,
+        } = parts;
         let db = users.db();
         let rbac = RbacService::new(RbacRepository::new(db.clone()));
         let raft = RaftRepository::new(db.clone());
@@ -127,6 +165,7 @@ impl AppState {
 
     /// Attach auth/SSO configuration metadata.
     #[must_use]
+    /// With auth config.
     pub fn with_auth_config(mut self, auth_config: AuthConfig) -> Self {
         self.auth_config = auth_config;
         self
@@ -134,6 +173,7 @@ impl AppState {
 
     /// Attach TLS/mTLS transport security configuration metadata.
     #[must_use]
+    /// With transport security config.
     pub fn with_transport_security_config(
         mut self,
         transport_security: TransportSecurityConfig,
@@ -144,6 +184,7 @@ impl AppState {
 
     /// Attach observability exporter configuration metadata.
     #[must_use]
+    /// With observability config.
     pub fn with_observability_config(mut self, observability: ObservabilityConfig) -> Self {
         self.observability = observability;
         self
@@ -151,6 +192,7 @@ impl AppState {
 
     /// Attach script release governance configuration.
     #[must_use]
+    /// With script governance config.
     pub fn with_script_governance_config(
         mut self,
         script_governance: ScriptGovernanceConfig,
@@ -161,6 +203,7 @@ impl AppState {
 
     /// Attach the optional internal Raft transport token.
     #[must_use]
+    /// With raft transport token.
     pub fn with_raft_transport_token(mut self, token: Option<String>) -> Self {
         self.raft_transport_token = token.filter(|value| !value.is_empty());
         self
@@ -168,6 +211,7 @@ impl AppState {
 
     /// Attach the optional externally reachable public console base URL for notification links.
     #[must_use]
+    /// With notification public console base url.
     pub fn with_notification_public_console_base_url(mut self, base_url: Option<String>) -> Self {
         self.notification_public_console_base_url = base_url
             .map(|value| value.trim().trim_end_matches('/').to_owned())
@@ -177,6 +221,7 @@ impl AppState {
 
     /// Attach the optional in-process Notification Center delivery trigger.
     #[must_use]
+    /// With notification delivery trigger.
     pub fn with_notification_delivery_trigger(
         mut self,
         trigger: Option<crate::notification::NotificationDeliveryTrigger>,
@@ -187,6 +232,7 @@ impl AppState {
 
     /// Build a Notification Center using the shared HTTP repositories and runtime trigger.
     #[must_use]
+    /// Notification center.
     pub(crate) fn notification_center(&self) -> crate::notification::NotificationCenter {
         crate::notification::NotificationCenter::new(
             self.notification_channels.clone(),

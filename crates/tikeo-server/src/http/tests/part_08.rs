@@ -1,5 +1,4 @@
     #[tokio::test]
-    #[allow(clippy::too_many_lines)]
     async fn workflow_notification_node_materializes_notification_center_message_and_attempt() {
         let app = router().await;
         let channel_created = app
@@ -340,7 +339,6 @@
     }
 
     #[tokio::test]
-    #[allow(clippy::too_many_lines)]
     async fn notification_message_trace_includes_job_instance_attempts_and_redacted_logs() {
         let db = connect_and_migrate("sqlite::memory:")
             .await
@@ -473,7 +471,7 @@
             .await
             .unwrap_or_else(|error| panic!("attempt should record: {error}"));
 
-        let app = router_with_state(AppState::new(
+        let app = router_with_state(app_state!(
             jobs,
             instances,
             logs,

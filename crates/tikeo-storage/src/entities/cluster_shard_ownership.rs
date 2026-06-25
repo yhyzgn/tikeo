@@ -8,6 +8,7 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     /// Scheduler shard id.
     #[sea_orm(primary_key, auto_increment = false)]
+    /// Identifier value.
     pub shard_id: i32,
     /// Shard map version used to compute this shard id.
     pub shard_map_version: i64,

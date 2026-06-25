@@ -40,6 +40,11 @@ use super::common::client_ip;
         (status = 403, description = "Forbidden", body = crate::http::dto::ErrorResponse)
     )
 )]
+/// Append entries.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn append_entries(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -83,6 +88,11 @@ pub async fn append_entries(
         (status = 403, description = "Forbidden or not leader", body = crate::http::dto::ErrorResponse)
     )
 )]
+/// Propose member change.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn propose_member_change(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,

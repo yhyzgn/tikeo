@@ -1,5 +1,3 @@
-#![allow(missing_docs)]
-
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
 };
@@ -11,51 +9,84 @@ use super::util::{new_id, now_rfc3339};
 
 #[derive(Debug, Clone)]
 pub struct CreateNotificationTemplate {
+    /// Template key value.
     pub template_key: String,
+    /// Name value.
     pub name: String,
+    /// Description value.
     pub description: Option<String>,
+    /// Provider value.
     pub provider: String,
+    /// Message type value.
     pub message_type: String,
+    /// Boolean state flag.
     pub enabled: bool,
+    /// Serialized data value.
     pub body_json: String,
+    /// Serialized data value.
     pub variables_json: String,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct UpdateNotificationTemplate {
+    /// Template key value.
     pub template_key: Option<String>,
+    /// Name value.
     pub name: Option<String>,
+    /// Description value.
     pub description: Option<Option<String>>,
+    /// Provider value.
     pub provider: Option<String>,
+    /// Message type value.
     pub message_type: Option<String>,
+    /// Boolean state flag.
     pub enabled: Option<bool>,
+    /// Serialized data value.
     pub body_json: Option<String>,
+    /// Serialized data value.
     pub variables_json: Option<String>,
+    /// Updated by value.
     pub updated_by: Option<Option<String>>,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct NotificationTemplateFilters {
+    /// Provider value.
     pub provider: Option<String>,
+    /// Message type value.
     pub message_type: Option<String>,
+    /// Boolean state flag.
     pub enabled: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationTemplateSummary {
+    /// Identifier value.
     pub id: String,
+    /// Template key value.
     pub template_key: String,
+    /// Name value.
     pub name: String,
+    /// Description value.
     pub description: Option<String>,
+    /// Provider value.
     pub provider: String,
+    /// Message type value.
     pub message_type: String,
+    /// Boolean state flag.
     pub enabled: bool,
+    /// Serialized data value.
     pub body_json: String,
+    /// Serialized data value.
     pub variables_json: String,
+    /// Created by value.
     pub created_by: Option<String>,
+    /// Updated by value.
     pub updated_by: Option<String>,
+    /// Timestamp value.
     pub created_at: String,
+    /// Timestamp value.
     pub updated_at: String,
 }
 
@@ -65,10 +96,17 @@ pub struct NotificationTemplateRepository {
 }
 
 impl NotificationTemplateRepository {
+    /// New.
+    #[must_use]
     pub const fn new(db: DatabaseConnection) -> Self {
         Self { db }
     }
 
+    /// Create template.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn create_template(
         &self,
         input: CreateNotificationTemplate,
@@ -94,6 +132,11 @@ impl NotificationTemplateRepository {
         Ok(NotificationTemplateSummary::from(model))
     }
 
+    /// Update template.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn update_template(
         &self,
         id: &str,
@@ -141,6 +184,11 @@ impl NotificationTemplateRepository {
             .map(Some)
     }
 
+    /// Get template.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn get_template(
         &self,
         id_or_key: &str,
@@ -158,6 +206,11 @@ impl NotificationTemplateRepository {
             .map(|row| row.map(NotificationTemplateSummary::from))
     }
 
+    /// List templates.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn list_templates(
         &self,
         filters: NotificationTemplateFilters,
@@ -182,6 +235,11 @@ impl NotificationTemplateRepository {
             .collect())
     }
 
+    /// Delete template.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn delete_template(&self, id: &str) -> Result<bool, sea_orm::DbErr> {
         let result = notification_template::Entity::delete_by_id(id.to_owned())
             .exec(&self.db)

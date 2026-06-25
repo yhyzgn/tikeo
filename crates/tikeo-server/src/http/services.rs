@@ -15,6 +15,7 @@ pub struct RbacService {
 impl RbacService {
     /// Build service from repository.
     #[must_use]
+    /// New.
     pub const fn new(repo: RbacRepository) -> Self {
         Self { repo }
     }
@@ -124,6 +125,7 @@ impl RbacService {
 
     /// Check whether a principal has a resource/action permission.
     #[must_use]
+    /// Principal has permission.
     pub fn principal_has_permission(
         &self,
         principal: &MeResponse,

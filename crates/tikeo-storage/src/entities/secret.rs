@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     /// Unique secret id.
     #[sea_orm(primary_key, auto_increment = false)]
+    /// Identifier value.
     pub id: String,
     /// Namespace scope.
     pub namespace: String,

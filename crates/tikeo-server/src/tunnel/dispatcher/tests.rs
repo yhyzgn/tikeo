@@ -18,10 +18,10 @@ use tikeo_storage::{
 use tokio::sync::mpsc;
 
 use super::{
-    DispatchTaskBuild, JobExecutor, ScriptGovernanceFailure, WorkerRegistry, build_dispatch_task,
-    complete_builtin_processor_outcome, dispatch_once, dispatch_once_if_owner,
-    dispatch_once_with_shards, execute_file_cleanup_processor, execute_grpc_processor,
-    execute_http_processor, execute_sql_processor, script_is_dispatchable,
+    BuiltinCompletion, DispatchTaskBuild, DispatcherRefs, JobExecutor, ScriptGovernanceFailure,
+    WorkerRegistry, build_dispatch_task, complete_builtin_processor_outcome, dispatch_once,
+    dispatch_once_if_owner, dispatch_once_with_shards, execute_file_cleanup_processor,
+    execute_grpc_processor, execute_http_processor, execute_sql_processor, script_is_dispatchable,
     script_version_is_dispatchable,
 };
 
@@ -57,6 +57,33 @@ fn notification_center(jobs: &JobRepository) -> crate::notification::Notificatio
     )
 }
 
+macro_rules! dispatcher_refs {
+    (
+        $jobs:expr,
+        $instances:expr,
+        $attempts:expr,
+        $outbox:expr,
+        $workflows:expr,
+        $scripts:expr,
+        $logs:expr,
+        $audit:expr,
+        $registry:expr,
+        $notifications:expr $(,)?
+    ) => {
+        DispatcherRefs {
+            jobs: $jobs,
+            instances: $instances,
+            attempts: $attempts,
+            outbox: $outbox,
+            workflows: $workflows,
+            scripts: $scripts,
+            logs: $logs,
+            audit: $audit,
+            registry: $registry,
+            notifications: $notifications,
+        }
+    };
+}
 include!("tests/part_01.rs");
 include!("tests/part_02.rs");
 include!("tests/part_03.rs");

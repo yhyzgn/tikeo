@@ -223,7 +223,7 @@ Keep SDK helper docs anchored to operator-verified API and protocol references:
 
 ## Live verification runbook
 
-1. Start the Server with `cargo run --bin tikeo -- serve --config config/dev.toml`.
+1. Start the Server with `cargo run --bin tikeo -- serve --config config/dev.yml`.
 2. Bootstrap an Owner or login to an existing local Owner.
 3. Create namespace/app/worker pool, service account, and SDK API key as shown in the quickstart.
 4. Start the language demo Worker with matching namespace/app and `TIKEO_WORKER_CONNECT=1` when the demo supports live mode.
@@ -251,7 +251,7 @@ The demo `DemoJobManagementController` is intentionally a local teaching surface
 
 ## Prerequisites
 
-Use the setup, authentication, and access requirements described in this page before running any command. For local examples, start the Server with `config/dev.toml`, use `127.0.0.1` as the client host, and keep tokens in shell variables rather than pasted into files.
+Use the setup, authentication, and access requirements described in this page before running any command. For local examples, start the Server with `config/dev.yml`, use `127.0.0.1` as the client host, and keep tokens in shell variables rather than pasted into files.
 
 ## Verify
 

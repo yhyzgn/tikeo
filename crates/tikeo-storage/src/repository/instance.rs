@@ -94,6 +94,7 @@ pub struct JobInstanceRepository {
 impl JobInstanceRepository {
     /// Create a repository using the provided database connection.
     #[must_use]
+    /// New.
     pub const fn new(db: DatabaseConnection) -> Self {
         Self { db }
     }
@@ -207,6 +208,11 @@ impl JobInstanceRepository {
 
     /// Test helper for deterministic duration statistics.
     #[doc(hidden)]
+    /// Set timestamps for test.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn set_timestamps_for_test(
         &self,
         instance_id: &str,
@@ -407,6 +413,11 @@ impl JobInstanceRepository {
     }
 }
 
+/// Job scope.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub(super) async fn job_scope(
     db: &DatabaseConnection,
     parent: &job::Model,

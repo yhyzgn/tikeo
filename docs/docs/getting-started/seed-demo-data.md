@@ -22,10 +22,10 @@ Required tools:
 Start the local Server in one terminal:
 
 ```bash
-cargo run --bin tikeo -- serve --config config/dev.toml
+cargo run --bin tikeo -- serve --config config/dev.yml
 ```
 
-`config/dev.toml` starts the HTTP API on port `9090`, the Worker Tunnel on port `9998`, and SQLite at `.dev/tikeo-dev.db`.
+`config/dev.yml` starts the HTTP API on port `9090`, the Worker Tunnel on port `9998`, and SQLite at `.dev/tikeo-dev.db`.
 
 Verify the Server from another terminal:
 
@@ -138,7 +138,7 @@ The smoke script starts isolated Server configs, runs `scripts/dev-integration-s
 
 | Symptom | Check |
 | --- | --- |
-| `healthz` or `readyz` fails | Server log, DB path permissions, occupied ports, invalid TOML or environment overrides. |
+| `healthz` or `readyz` fails | Server log, DB path permissions, occupied ports, invalid YAML or environment overrides. |
 | Seed script cannot authenticate | Bootstrap/login state for the current DB; `TIKEO_SMOKE_AUTH_TOKEN`, `TIKEO_ADMIN_USERNAME`, and `TIKEO_ADMIN_PASSWORD`. |
 | API returns permission errors | The token must have management permissions for namespaces, apps, worker pools, jobs, and plugins. |
 | Jobs exist but stay pending | Start a worker that advertises the matching namespace, app, worker pool, and processor name. |

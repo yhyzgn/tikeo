@@ -5,6 +5,11 @@ use crate::entities::instance_event;
 use super::{InstanceEventSummary, WorkflowRepository};
 
 impl WorkflowRepository {
+    /// List instance events.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn list_instance_events(
         &self,
         instance_id: &str,
@@ -17,6 +22,11 @@ impl WorkflowRepository {
         Ok(rows.into_iter().map(InstanceEventSummary::from).collect())
     }
 
+    /// List instance events after.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn list_instance_events_after(
         &self,
         instance_id: &str,

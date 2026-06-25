@@ -3210,3 +3210,16 @@ Verification:
 - SDK 全量：Node/Python/Go/Rust/Java ✅
 - Demo 全量：Node/Python/Go/Rust/Spring Boot 2/3/4 ✅
 - `python3 scripts/check-source-size.py && git diff --check` ✅
+
+## 2026-06-25 — Added no warning-suppression red line
+
+Agent:
+- Codex
+
+Work:
+- User established a red-line rule: do not add or keep `#[allow(...)]`, `#![allow(...)]`, `#[expect(...)]`, lint downgrades, or equivalent mechanisms to hide compiler/warning/lint failures.
+- Added the rule to global Codex constitution/AGENTS instructions and project prompt/AGENTS/memory.
+- Scanned current diff and found both newly added and historical allow attributes; all must be removed and fixed by root-cause changes before the feature can be claimed complete.
+
+Verification:
+- Pending after rule write: run `loom sync` for global instruction changes and re-scan diffs for suppression additions.

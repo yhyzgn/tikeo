@@ -159,17 +159,19 @@
             .await;
 
         dispatch_once(
-            &jobs,
-            &instances,
-            &attempts,
-            &outbox,
-            &workflows,
-            &scripts,
-            &logs,
-            &audit,
-            &registry,
+            dispatcher_refs!(
+                &jobs,
+                &instances,
+                &attempts,
+                &outbox,
+                &workflows,
+                &scripts,
+                &logs,
+                &audit,
+                &registry,
+                &notification_center(&jobs),
+            ),
             "test-fence",
-            &notification_center(&jobs),
         )
         .await
         .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
@@ -306,17 +308,19 @@
             .await;
 
         dispatch_once(
-            &jobs,
-            &instances,
-            &attempts,
-            &outbox,
-            &workflows,
-            &scripts,
-            &logs,
-            &audit,
-            &registry,
+            dispatcher_refs!(
+                &jobs,
+                &instances,
+                &attempts,
+                &outbox,
+                &workflows,
+                &scripts,
+                &logs,
+                &audit,
+                &registry,
+                &notification_center(&jobs),
+            ),
             "test-fence",
-            &notification_center(&jobs),
         )
         .await
         .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
@@ -424,22 +428,33 @@
             .await
             .unwrap_or_else(|error| panic!("instance should be running: {error}"));
 
+        let registry = WorkerRegistry::default();
+        let notifications = notification_center(&jobs);
         complete_builtin_processor_outcome(
-            &instances,
-            &workflows,
-            &logs,
-            &job,
-            &instance.id,
-            first_claim.item.attempt,
-            "builtin.test",
-            false,
-            "first attempt failed".to_owned(),
-            &notification_center(&jobs),
+            dispatcher_refs!(
+                &jobs,
+                &instances,
+                &attempts,
+                &outbox,
+                &workflows,
+                &scripts,
+                &logs,
+                &audit,
+                &registry,
+                &notifications,
+            ),
+            BuiltinCompletion {
+                job: &job,
+                instance_id: &instance.id,
+                attempt: first_claim.item.attempt,
+                worker_id: "builtin.test",
+                success: false,
+                message: "first attempt failed".to_owned(),
+            },
         )
         .await
         .unwrap_or_else(|error| panic!("failure should schedule retry: {error}"));
 
-        let registry = WorkerRegistry::default();
         let (tx, mut rx) = mpsc::channel(1);
         let worker = registry
             .register(
@@ -459,17 +474,19 @@
             .await;
 
         dispatch_once(
-            &jobs,
-            &instances,
-            &attempts,
-            &outbox,
-            &workflows,
-            &scripts,
-            &logs,
-            &audit,
-            &registry,
+            dispatcher_refs!(
+                &jobs,
+                &instances,
+                &attempts,
+                &outbox,
+                &workflows,
+                &scripts,
+                &logs,
+                &audit,
+                &registry,
+                &notification_center(&jobs),
+            ),
             "test-fence",
-            &notification_center(&jobs),
         )
         .await
         .unwrap_or_else(|error| panic!("retry dispatch should run: {error}"));
@@ -575,18 +592,21 @@
             .unwrap_or_else(|error| panic!("instance should be created: {error}"))
             .unwrap_or_else(|| panic!("job should exist"));
 
+        let registry = WorkerRegistry::default();
         dispatch_once(
-            &jobs,
-            &instances,
-            &attempts,
-            &outbox,
-            &workflows,
-            &scripts,
-            &logs,
-            &audit,
-            &WorkerRegistry::default(),
+            dispatcher_refs!(
+                &jobs,
+                &instances,
+                &attempts,
+                &outbox,
+                &workflows,
+                &scripts,
+                &logs,
+                &audit,
+                &registry,
+                &notification_center(&jobs),
+            ),
             "test-fence",
-            &notification_center(&jobs),
         )
         .await
         .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
@@ -710,17 +730,19 @@
             .await;
 
         dispatch_once(
-            &jobs,
-            &instances,
-            &attempts,
-            &outbox,
-            &workflows,
-            &scripts,
-            &logs,
-            &audit,
-            &registry,
+            dispatcher_refs!(
+                &jobs,
+                &instances,
+                &attempts,
+                &outbox,
+                &workflows,
+                &scripts,
+                &logs,
+                &audit,
+                &registry,
+                &notification_center(&jobs),
+            ),
             "test-fence",
-            &notification_center(&jobs),
         )
         .await
         .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
@@ -839,17 +861,19 @@
             .await;
 
         dispatch_once(
-            &jobs,
-            &instances,
-            &attempts,
-            &outbox,
-            &workflows,
-            &scripts,
-            &logs,
-            &audit,
-            &registry,
+            dispatcher_refs!(
+                &jobs,
+                &instances,
+                &attempts,
+                &outbox,
+                &workflows,
+                &scripts,
+                &logs,
+                &audit,
+                &registry,
+                &notification_center(&jobs),
+            ),
             "test-fence",
-            &notification_center(&jobs),
         )
         .await
         .unwrap_or_else(|error| panic!("dispatch should run: {error}"));

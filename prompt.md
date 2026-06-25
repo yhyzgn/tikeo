@@ -30,6 +30,7 @@
 12. **依赖库尽量使用最新版**：新增 Rust crate、前端 npm/bun 包、构建工具和运行时依赖时，默认选择当前最新稳定版；若不能使用最新版，必须在 `./.memory/decisions.md` 记录原因、锁定版本和升级条件。
 13. **HTTP 业务接口必须统一返回 `{code,message,data}`**：`code` 是成功判断标准，整数 `0` 表示成功，非 0 表示失败；`message` 是响应信息；`data` 是响应数据，即使为 `null` 也必须显式返回。
 14. **源码单文件禁止超过 1500 行**：Rust、Web、SDK、示例等源文件必须保持单文件 `<=1500` 行；`mod.rs`、`lib.rs` 这类文件只作为模块入口/声明/re-export，不得堆实现、测试或业务逻辑。接近上限时必须同阶段按职责拆分。
+15. **严禁 warning/错误屏蔽绕过**：不得新增或保留 `#[allow(...)]`、`#![allow(...)]`、`#[expect(...)]`、lint 降级配置或等价机制来压制编译、Clippy、lint、typecheck、测试、文档或 CI 的错误/警告。必须通过重构、拆分、类型修正、显式转换、测试修正或生成代码隔离解决根因；历史 allow 必须通过修根因清理掉，不能复制、保留或扩大。若第三方/生成代码确需例外，必须先记录阻塞并交由人工明确审查，不能静默添加。
 
 ---
 
@@ -182,7 +183,7 @@ cargo build --workspace --all-features
 运行/冒烟验证示例：
 
 ```bash
-cargo run --bin tikeo -- serve --config config/dev.toml
+cargo run --bin tikeo -- serve --config config/dev.yml
 curl -fsS http://0.0.0.0:9090/healthz
 curl -fsS http://0.0.0.0:9090/api-docs/openapi.json
 ```

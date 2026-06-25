@@ -14,7 +14,7 @@ From the repository root:
 ```bash
 pwd
 git rev-parse --short HEAD
-cargo run --bin tikeo -- serve --config config/dev.toml
+cargo run --bin tikeo -- serve --config config/dev.yml
 ```
 
 From a second shell:
@@ -39,15 +39,15 @@ Keep these details with any incident report:
 ### Check command and config
 
 ```bash
-cargo run --bin tikeo -- serve --config config/dev.toml
+cargo run --bin tikeo -- serve --config config/dev.yml
 ```
 
-`config/dev.toml` defaults to:
+`config/dev.yml` defaults to:
 
 | Setting | Local value |
 | --- | --- |
-| HTTP API | `config/dev.toml` binds all interfaces on port `9090`; use `http://127.0.0.1:9090` from local clients |
-| Worker Tunnel | `config/dev.toml` binds all interfaces on port `9998`; use `http://127.0.0.1:9998` from local workers |
+| HTTP API | `config/dev.yml` binds all interfaces on port `9090`; use `http://127.0.0.1:9090` from local clients |
+| Worker Tunnel | `config/dev.yml` binds all interfaces on port `9998`; use `http://127.0.0.1:9998` from local workers |
 | Storage | `sqlite://.dev/tikeo-dev.db?mode=rwc` |
 | Local login | enabled |
 
@@ -56,7 +56,7 @@ cargo run --bin tikeo -- serve --config config/dev.toml
 | Symptom | Check | Fix |
 | --- | --- | --- |
 | Address already in use | Another Server or test process owns port `9090` or `9998`. | Stop the old process or use a separate config with different ports. |
-| Config parse error | TOML syntax or invalid environment override. | Re-run with `config/dev.toml`, then reapply overrides one by one. |
+| Config parse error | YAML syntax or invalid environment override. | Re-run with `config/dev.yml`, then reapply overrides one by one. |
 | SQLite open error | DB file path permissions or stale directory. | Start from a writable directory or remove only disposable local DB files. |
 | PostgreSQL/MySQL connect error | DB host, credentials, TLS, or database not created. | Verify with the native DB client before restarting Tikeo. |
 | TLS/plaintext mismatch | Client uses HTTPS or mTLS against a plaintext local listener, or the reverse. | Align `transport_security.http` and `transport_security.worker_tunnel` with client endpoints. |
@@ -80,7 +80,7 @@ Next checks:
 1. Read the Server log from startup to the first readiness failure.
 2. Confirm the configured DB exists and is writable.
 3. Confirm migrations completed.
-4. Confirm no environment variables override the TOML unexpectedly.
+4. Confirm no environment variables override the YAML unexpectedly.
 5. For container or Kubernetes runs, compare the pod/container readiness probe path with `/readyz`.
 
 ## Auth and bootstrap problems
@@ -297,7 +297,7 @@ When handing an issue to another operator, include:
 
 ## Prerequisites
 
-Use the setup, authentication, and access requirements described in this page before running any command. For local examples, start the Server with `config/dev.toml`, use `127.0.0.1` as the client host, and keep tokens in shell variables rather than pasted into files.
+Use the setup, authentication, and access requirements described in this page before running any command. For local examples, start the Server with `config/dev.yml`, use `127.0.0.1` as the client host, and keep tokens in shell variables rather than pasted into files.
 
 ## Verify
 

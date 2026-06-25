@@ -8,6 +8,7 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     /// Stable channel identifier.
     #[sea_orm(primary_key, auto_increment = false)]
+    /// Identifier value.
     pub id: String,
     /// Visibility scope: `global`, `namespace`, `app`, or `worker_pool`.
     pub scope_type: String,

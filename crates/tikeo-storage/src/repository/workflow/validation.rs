@@ -8,6 +8,8 @@ use super::types::{
     WorkflowDefinition, WorkflowEdgeSpec, WorkflowNodeSpec, WorkflowValidationResult,
 };
 
+/// Validate workflow definition.
+#[must_use]
 pub fn validate_workflow_definition(definition: &WorkflowDefinition) -> WorkflowValidationResult {
     let mut errors = Vec::new();
     if definition.nodes.is_empty() {
@@ -206,6 +208,7 @@ fn validate_edges(
     }
 }
 
+/// Workflow config string.
 pub(super) fn workflow_config_string<'a>(node: &'a WorkflowNodeSpec, key: &str) -> Option<&'a str> {
     node.config
         .as_ref()
@@ -214,6 +217,7 @@ pub(super) fn workflow_config_string<'a>(node: &'a WorkflowNodeSpec, key: &str) 
         .filter(|value| !value.trim().is_empty())
 }
 
+/// Workflow config i64.
 pub(super) fn workflow_config_i64(node: &WorkflowNodeSpec, key: &str) -> Option<i64> {
     node.config
         .as_ref()
@@ -225,6 +229,7 @@ pub(super) fn workflow_config_i64(node: &WorkflowNodeSpec, key: &str) -> Option<
         })
 }
 
+/// Workflow config bool.
 pub(super) fn workflow_config_bool(node: &WorkflowNodeSpec, key: &str) -> Option<bool> {
     node.config
         .as_ref()
@@ -240,6 +245,7 @@ pub(super) fn workflow_config_bool(node: &WorkflowNodeSpec, key: &str) -> Option
         })
 }
 
+/// Next nodes for status.
 pub(super) fn next_nodes_for_status(
     definition: &WorkflowDefinition,
     node_key: &str,
@@ -256,6 +262,11 @@ pub(super) fn next_nodes_for_status(
         .collect()
 }
 
+/// All predecessors satisfied.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub(super) async fn all_predecessors_satisfied<C>(
     definition: &WorkflowDefinition,
     node_key: &str,
@@ -295,6 +306,7 @@ fn edge_condition_satisfied(status: &str, condition: &str) -> bool {
     }
 }
 
+/// Start node keys.
 pub(super) fn start_node_keys(definition: &WorkflowDefinition) -> HashSet<String> {
     let targets: HashSet<_> = definition
         .edges

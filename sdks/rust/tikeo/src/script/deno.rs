@@ -19,6 +19,7 @@ pub struct DenoScriptRunner {
 impl DenoScriptRunner {
     /// Create a Deno runner for JavaScript or TypeScript.
     #[must_use]
+    /// New.
     pub fn new(kind: ScriptRunnerKind, runtime_command: impl Into<PathBuf>) -> Self {
         Self {
             kind,

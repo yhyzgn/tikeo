@@ -15,7 +15,7 @@ fn plans_xxl_job_export_into_tikeo_drafts_with_review_flags() {
     let report = plan_migration(
         MigrationSource::XxlJob,
         input,
-        MigrationDefaults {
+        &MigrationDefaults {
             namespace: "ops".to_owned(),
             app: "billing".to_owned(),
         },
@@ -208,7 +208,7 @@ fn plans_powerjob_export_with_review_flags() {
     let report = plan_migration(
         MigrationSource::PowerJob,
         input,
-        MigrationDefaults {
+        &MigrationDefaults {
             namespace: "default".to_owned(),
             app: "fallback".to_owned(),
         },

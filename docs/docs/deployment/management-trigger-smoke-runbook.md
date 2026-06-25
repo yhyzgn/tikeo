@@ -92,7 +92,7 @@ Key files:
 
 | File pattern | Meaning |
 |---|---|
-| `*-config.toml` | Generated server config with isolated SQLite and plaintext local listeners. |
+| `*-config.yml` | Generated server config with isolated SQLite and plaintext local listeners. |
 | `*-server.log` | Server startup, auth, storage, and dispatch logs. |
 | `*-nodejs-worker.log` | Node.js demo worker startup and Worker Tunnel logs. |
 | `*-service-account.json` | Service Account creation response. |
@@ -109,7 +109,7 @@ Key files:
 
 Use the failure point to decide which subsystem regressed:
 
-1. **Server never reaches `/readyz`**: inspect `*-server.log`, generated `*-config.toml`, and whether `TIKEO_HTTP_URL` or `TIKEO_WORKER_ENDPOINT` ports are already in use.
+1. **Server never reaches `/readyz`**: inspect `*-server.log`, generated `*-config.yml`, and whether `TIKEO_HTTP_URL` or `TIKEO_WORKER_ENDPOINT` ports are already in use.
 2. **Service Account or API key creation fails**: inspect `/api/v1/management/service-accounts`, `/api/v1/management/api-keys`, `x-tikeo-api-key`, auth bootstrap, and RBAC scope changes.
 3. **Worker never appears online**: inspect `*-nodejs-worker.log`, `TIKEO_WORKER_CONNECT=1`, `TIKEO_WORKER_ENDPOINT`, `/api/v1/workers`, `clientInstanceId`, namespace/app/pool values, and `structuredCapabilities.normalProcessors` for `demo.echo`.
 4. **SDK create/trigger fails**: inspect `sdks/nodejs/tikeo/src/management.ts`, helper names `apiJob` and `apiTrigger`, endpoint `/api/v1/jobs`, endpoint `/api/v1/jobs/{job}:trigger`, and default `executionMode=single`.

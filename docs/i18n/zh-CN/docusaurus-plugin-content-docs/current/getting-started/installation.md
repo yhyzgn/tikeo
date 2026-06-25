@@ -33,7 +33,7 @@ cd tikeo
 find . -maxdepth 2 -type d | sort | sed -n '1,80p'
 ```
 
-关键目录：`config/` 是 Server TOML 示例；`crates/` 是 Rust library crates；`src/main.rs` 是二进制入口；`web/` 是控制台；`docs/` 是文档站；`sdks/` 是语言 SDK；`examples/` 是 Worker demo；`deploy/` 是 Compose/Helm/K8s/systemd/Terraform/smoke；`scripts/` 是本地开发和验收脚本；`.github/tests/` 是契约测试。
+关键目录：`config/` 是 Server YAML 示例；`crates/` 是 Rust library crates；`src/main.rs` 是二进制入口；`web/` 是控制台；`docs/` 是文档站；`sdks/` 是语言 SDK；`examples/` 是 Worker demo；`deploy/` 是 Compose/Helm/K8s/systemd/Terraform/smoke；`scripts/` 是本地开发和验收脚本；`.github/tests/` 是契约测试。
 
 ## 验证工具链
 
@@ -121,13 +121,13 @@ python3 .github/tests/management_smoke_contract_test.py
 ## 最小本地启动
 
 ```bash
-cargo run --bin tikeo -- serve --config config/dev.toml
+cargo run --bin tikeo -- serve --config config/dev.yml
 curl -fsS http://127.0.0.1:9090/healthz
 curl -fsS http://127.0.0.1:9090/readyz
 curl -fsS http://127.0.0.1:9090/api-docs/openapi.json >/tmp/tikeo-openapi.json
 ```
 
-`config/dev.toml` 绑定 HTTP `0.0.0.0:9090`、Worker Tunnel `0.0.0.0:9998`，SQLite 是 `.dev/tikeo-dev.db`，时间偏移是 `+08:00`。库默认值是 `+00:00`，跨环境比较时间时要读配置参考。
+`config/dev.yml` 绑定 HTTP `0.0.0.0:9090`、Worker Tunnel `0.0.0.0:9998`，SQLite 是 `.dev/tikeo-dev.db`，时间偏移是 `+00:00`。跨环境比较时间时要读配置参考。
 
 ## 常见安装错误
 
@@ -158,7 +158,7 @@ curl -fsS http://127.0.0.1:9090/api-docs/openapi.json >/tmp/tikeo-openapi.json
 
 ## 前置条件
 
-执行本页命令前，请先满足页面列出的安装、认证和权限要求。本地示例默认 Server 使用 `config/dev.toml`，客户端访问 `127.0.0.1`，令牌保存在 shell 变量中，不写入文件或截图。
+执行本页命令前，请先满足页面列出的安装、认证和权限要求。本地示例默认 Server 使用 `config/dev.yml`，客户端访问 `127.0.0.1`，令牌保存在 shell 变量中，不写入文件或截图。
 
 ## 验收
 

@@ -13,6 +13,11 @@ use super::types::{
 };
 
 impl WorkflowSummary {
+    /// From model.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub(super) fn from_model(model: workflow::Model) -> Result<Self, sea_orm::DbErr> {
         let definition = serde_json::from_str(&model.definition)
             .map_err(|error| sea_orm::DbErr::Custom(error.to_string()))?;
@@ -29,6 +34,7 @@ impl WorkflowSummary {
 }
 
 impl WorkflowNodeInstanceSummary {
+    /// From.
     pub(super) fn from(model: workflow_node_instance::Model) -> Self {
         Self {
             id: model.id,
@@ -44,6 +50,7 @@ impl WorkflowNodeInstanceSummary {
 }
 
 impl WorkflowInstanceSummary {
+    /// From model.
     pub(super) fn from_model(
         model: workflow_instance::Model,
         nodes: Vec<WorkflowNodeInstanceSummary>,
@@ -60,6 +67,11 @@ impl WorkflowInstanceSummary {
     }
 }
 
+/// Ensure workflow job soft link.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub(super) async fn ensure_workflow_job_soft_link<C>(
     db: &C,
     job_id: &str,
@@ -170,6 +182,7 @@ impl From<dispatch_queue::Model> for DispatchQueueSummary {
     }
 }
 
+/// Dispatch queue age seconds.
 pub(super) fn dispatch_queue_age_seconds(created_at: &str, now: time::OffsetDateTime) -> u64 {
     time::OffsetDateTime::parse(created_at, &time::format_description::well_known::Rfc3339)
         .ok()
@@ -177,6 +190,7 @@ pub(super) fn dispatch_queue_age_seconds(created_at: &str, now: time::OffsetDate
         .unwrap_or(0)
 }
 
+/// Elapsed seconds.
 pub(super) fn elapsed_seconds(start: &str, end: &str) -> u64 {
     let Ok(start) =
         time::OffsetDateTime::parse(start, &time::format_description::well_known::Rfc3339)
@@ -190,15 +204,22 @@ pub(super) fn elapsed_seconds(start: &str, end: &str) -> u64 {
     (end - start).whole_seconds().try_into().unwrap_or(0)
 }
 
-#[allow(clippy::cast_precision_loss)]
+/// Success ratio.
 pub(super) fn success_ratio(successes: u64, failures: u64) -> f64 {
     let terminal = successes.saturating_add(failures);
     if terminal == 0 {
         return 1.0;
     }
-    successes as f64 / terminal as f64
+    let bounded_successes = u32::try_from(successes).unwrap_or(u32::MAX);
+    let bounded_terminal = u32::try_from(terminal).unwrap_or(u32::MAX);
+    f64::from(bounded_successes) / f64::from(bounded_terminal)
 }
 
+/// Normalize terminal status.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub(super) fn normalize_terminal_status(status: &str) -> Result<String, sea_orm::DbErr> {
     match status {
         "succeeded" | "failed" => Ok(status.to_owned()),
@@ -215,6 +236,7 @@ pub(super) enum DispatchQueueClaimKind {
     JobInstance,
 }
 
+/// Normalize processor name.
 pub(super) fn normalize_processor_name(value: Option<String>) -> Option<String> {
     value.and_then(|name| {
         let trimmed = name.trim();
@@ -226,6 +248,7 @@ pub(super) fn normalize_processor_name(value: Option<String>) -> Option<String> 
     })
 }
 
+/// Node kind.
 pub(super) fn node_kind(node: &WorkflowNodeSpec) -> &str {
     node.kind.as_deref().unwrap_or("job")
 }

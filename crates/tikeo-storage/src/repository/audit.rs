@@ -104,11 +104,13 @@ pub struct AuditLogRepository {
 impl AuditLogRepository {
     /// Create a repository using the provided database connection.
     #[must_use]
+    /// New.
     pub const fn new(db: DatabaseConnection) -> Self {
         Self { db }
     }
 
     #[must_use]
+    /// Db.
     pub fn db(&self) -> DatabaseConnection {
         self.db.clone()
     }

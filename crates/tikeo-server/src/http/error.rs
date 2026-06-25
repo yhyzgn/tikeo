@@ -62,6 +62,7 @@ pub enum ApiError {
 impl ApiError {
     /// Build a storage API error.
     #[must_use]
+    /// Storage.
     pub fn storage(error: &tikeo_storage::DbErr) -> Self {
         Self::Storage {
             message: format!("storage operation failed: {error}"),
@@ -70,6 +71,7 @@ impl ApiError {
 
     /// Build a bad request API error.
     #[must_use]
+    /// Bad request.
     pub fn bad_request(message: impl Into<String>) -> Self {
         Self::BadRequest {
             message: message.into(),
@@ -78,6 +80,7 @@ impl ApiError {
 
     /// Build a not found API error.
     #[must_use]
+    /// Not found.
     pub fn not_found(message: impl Into<String>) -> Self {
         Self::NotFound {
             message: message.into(),
@@ -86,6 +89,7 @@ impl ApiError {
 
     /// Build an unauthorized API error.
     #[must_use]
+    /// Unauthorized.
     pub fn unauthorized(message: impl Into<String>) -> Self {
         Self::Unauthorized {
             message: message.into(),
@@ -94,6 +98,7 @@ impl ApiError {
 
     /// Build a forbidden API error.
     #[must_use]
+    /// Forbidden.
     pub fn forbidden(message: impl Into<String>) -> Self {
         Self::Forbidden {
             message: message.into(),
@@ -102,6 +107,7 @@ impl ApiError {
 
     /// Build a conflict API error.
     #[must_use]
+    /// Conflict.
     pub fn conflict(message: impl Into<String>) -> Self {
         Self::Conflict {
             message: message.into(),
@@ -134,6 +140,7 @@ impl ApiError {
 
     /// Return the human-readable API error message.
     #[must_use]
+    /// Message.
     pub fn message(&self) -> String {
         match self {
             Self::NotImplemented { message }

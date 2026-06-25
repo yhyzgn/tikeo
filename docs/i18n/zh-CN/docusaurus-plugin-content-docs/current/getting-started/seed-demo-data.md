@@ -32,7 +32,7 @@ export TIKEO_HTTP_URL=http://127.0.0.1:9090
 启动 Server：
 
 ```bash
-cargo run --bin tikeo -- serve --config config/dev.toml
+cargo run --bin tikeo -- serve --config config/dev.yml
 ```
 
 另开一个终端确认健康状态：
@@ -42,7 +42,7 @@ curl -fsS http://127.0.0.1:9090/healthz
 curl -fsS http://127.0.0.1:9090/readyz
 ```
 
-`config/dev.toml` 默认使用 SQLite：`sqlite://.dev/tikeo-dev.db?mode=rwc`。首次启动后需要在 Web 控制台或 bootstrap API 创建 Owner；后续 API 示例需要带本地登录得到的 Bearer token，或使用已有管理 token。
+`config/dev.yml` 默认使用 SQLite：`sqlite://.dev/tikeo-dev.db?mode=rwc`。首次启动后需要在 Web 控制台或 bootstrap API 创建 Owner；后续 API 示例需要带本地登录得到的 Bearer token，或使用已有管理 token。
 
 ```bash
 export TIKEO_TOKEN='<local-admin-token>'
@@ -160,7 +160,7 @@ scripts/start-java-demo-workers.sh
 `scripts/dev-seed.sh` 会把 `scripts/dev-seed.sql` 写入本地 SQLite 数据库，并输出 namespace、app、worker pool、job、script、workflow、queue 的行数。直接 SQL seed 现在与 API seed 和各语言 demo 默认值使用同一套拓扑；按默认配置启动的 Worker 可以匹配 `dev-alpha/orders` 下的演示 Job。它只适合一次性本地展示或开发排查，不适合生产、共享环境或对审计链路有要求的验收。脚本默认不会覆盖已有 `ns-dev-*` seed 数据；只有显式执行 `scripts/dev-seed.sh --refresh .dev/tikeo-dev.db` 或设置 `TIKEO_DEV_SEED_REFRESH=1` 时才会刷新这些演示行。
 
 ```bash
-cargo run --bin tikeo -- serve --config config/dev.toml
+cargo run --bin tikeo -- serve --config config/dev.yml
 # 等 migrations 完成后停止 Server，再执行：
 scripts/dev-seed.sh .dev/tikeo-dev.db
 ```
@@ -208,8 +208,8 @@ curl -fsS -X POST "http://127.0.0.1:9090/api/v1/events/webhooks/${TIKEO_DEMO_JOB
 
 | 现象 | 检查项 | 处理 |
 |---|---|---|
-| `/healthz` 不通 | Server 是否运行、端口是否被占用 | 用 `cargo run --bin tikeo -- serve --config config/dev.toml` 重新启动，确认监听端口。 |
-| `/readyz` 失败 | SQLite 文件权限、migration 日志、配置覆盖 | 查看 Server 日志和 `config/dev.toml` 中 `storage.database.*`。 |
+| `/healthz` 不通 | Server 是否运行、端口是否被占用 | 用 `cargo run --bin tikeo -- serve --config config/dev.yml` 重新启动，确认监听端口。 |
+| `/readyz` 失败 | SQLite 文件权限、migration 日志、配置覆盖 | 查看 Server 日志和 `config/dev.yml` 中 `storage.database.*`。 |
 | API 返回 401/403 | token、角色权限、scope 绑定 | 重新登录或使用有 `jobs:write`、`jobs:read`、`instances:execute`、`tenants:manage` 权限的账号。 |
 | Job 一直 pending | 没有在线 Worker 或 capability 不匹配 | 启动对应 demo Worker，确认它广告 `demo.echo` 等 processor。不要用宽泛 wildcard capability 掩盖问题。 |
 | 入站 Webhook 返回签名错误 | `secretRef`、`timestamp`、`nonce`、`signature` | 确认 `secretRef` 指向进程环境变量；timestamp 与当前时间相差不要超过 300 秒；nonce 不要复用。 |

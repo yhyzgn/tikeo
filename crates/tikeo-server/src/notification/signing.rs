@@ -8,6 +8,7 @@ use time::OffsetDateTime;
 
 /// Return a `DingTalk` custom-robot URL with `timestamp` and `sign` query params.
 #[must_use]
+/// Signed dingtalk url.
 pub(super) fn signed_dingtalk_url(url: &str, secret: &str) -> String {
     let timestamp = OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000_000;
     let string_to_sign = format!("{timestamp}\n{secret}");

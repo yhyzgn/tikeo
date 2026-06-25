@@ -1,5 +1,3 @@
-#![allow(clippy::redundant_pub_crate)]
-
 use std::{collections::HashMap, time::Duration};
 
 use async_trait::async_trait;
@@ -49,6 +47,7 @@ pub enum ScriptRunnerKind {
 impl ScriptRunnerKind {
     /// Parse a wire language value into a runner kind.
     #[must_use]
+    /// From language.
     pub fn from_language(language: &str) -> Option<Self> {
         match language.trim().to_ascii_lowercase().as_str() {
             "shell" | "sh" | "bash" => Some(Self::Shell),
@@ -65,7 +64,7 @@ impl ScriptRunnerKind {
 
     /// Stable runner name.
     #[must_use]
-    pub const fn as_str(self) -> &'static str {
+        pub const fn as_str(self) -> &'static str {
         match self {
             Self::Shell => "shell",
             Self::Python => "python",
@@ -203,6 +202,7 @@ pub struct ScriptRunnerRegistry {
 impl ScriptRunnerRegistry {
     /// Create an empty registry.
     #[must_use]
+    /// New.
     pub fn new() -> Self {
         Self::default()
     }
@@ -215,12 +215,14 @@ impl ScriptRunnerRegistry {
         self.runners.insert(runner.kind(), Box::new(runner));
     }
 
+    /// Get.
     pub(crate) fn get(&self, kind: ScriptRunnerKind) -> Option<&dyn ScriptRunner> {
         self.runners.get(&kind).map(std::convert::AsRef::as_ref)
     }
 
     /// Structured capabilities advertised for registered executable runners.
     #[must_use]
+    /// Structured capabilities.
     pub fn structured_capabilities(&self) -> Vec<ScriptRunnerCapability> {
         let mut runners = self
             .runners
@@ -241,6 +243,7 @@ impl ScriptRunnerRegistry {
 
 /// Future non-WASM dynamic script runner contract.
 #[async_trait]
+/// ScriptRunner behavior contract.
 pub trait ScriptRunner: Send + Sync + 'static {
     /// Runner language/kind.
     fn kind(&self) -> ScriptRunnerKind;
@@ -276,12 +279,14 @@ pub struct ScriptRunnerTask {
 }
 
 impl ScriptRunnerTask {
+    /// With log sink.
     pub(crate) fn with_log_sink(mut self, log: TaskLogger) -> Self {
         self.log = Some(log);
         self
     }
 }
 
+/// Default script command.
 pub(super) const fn default_script_command(
     kind: ScriptRunnerKind,
 ) -> (&'static str, &'static [&'static str]) {
@@ -298,6 +303,11 @@ pub(super) const fn default_script_command(
     }
 }
 
+/// Validate script runner task.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub(super) fn validate_script_runner_task(
     kind: ScriptRunnerKind,
     task: &ScriptRunnerTask,
@@ -335,6 +345,7 @@ pub(super) fn validate_script_runner_task(
     Ok(())
 }
 
+/// Emit script output.
 pub(super) fn emit_script_output(task: &ScriptRunnerTask, level: &str, output: &[u8]) {
     let Some(log) = task.log.as_ref() else {
         return;
@@ -348,6 +359,11 @@ pub(super) fn emit_script_output(task: &ScriptRunnerTask, level: &str, output: &
     }
 }
 
+/// Run script command.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub(super) async fn run_script_command(
     mut command: Command,
     kind: ScriptRunnerKind,
@@ -447,6 +463,7 @@ impl Default for UnsupportedScriptRunner {
 impl UnsupportedScriptRunner {
     /// Create an unavailable runner for one language with an operator-facing reason.
     #[must_use]
+    /// New.
     pub fn new(kind: ScriptRunnerKind, reason: impl Into<String>) -> Self {
         Self {
             kind,

@@ -92,17 +92,19 @@
             .unwrap_or_else(|| panic!("job should exist"));
 
         dispatch_once(
-            &jobs,
-            &instances,
-            &attempts,
-            &outbox,
-            &workflows,
-            &scripts,
-            &logs,
-            &audit,
-            &registry,
+            dispatcher_refs!(
+                &jobs,
+                &instances,
+                &attempts,
+                &outbox,
+                &workflows,
+                &scripts,
+                &logs,
+                &audit,
+                &registry,
+                &notification_center(&jobs),
+            ),
             "test-fence",
-            &notification_center(&jobs),
         )
         .await
         .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
@@ -215,17 +217,19 @@
             .unwrap_or_else(|| panic!("job should exist"));
 
         dispatch_once(
-            &jobs,
-            &instances,
-            &attempts,
-            &outbox,
-            &workflows,
-            &scripts,
-            &logs,
-            &audit,
-            &registry,
+            dispatcher_refs!(
+                &jobs,
+                &instances,
+                &attempts,
+                &outbox,
+                &workflows,
+                &scripts,
+                &logs,
+                &audit,
+                &registry,
+                &notification_center(&jobs),
+            ),
             "test-fence",
-            &notification_center(&jobs),
         )
         .await
         .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
@@ -310,17 +314,19 @@
         let registry = WorkerRegistry::default();
 
         dispatch_once(
-            &jobs,
-            &instances,
-            &attempts,
-            &outbox,
-            &workflows,
-            &scripts,
-            &logs,
-            &audit,
-            &registry,
+            dispatcher_refs!(
+                &jobs,
+                &instances,
+                &attempts,
+                &outbox,
+                &workflows,
+                &scripts,
+                &logs,
+                &audit,
+                &registry,
+                &notification_center(&jobs),
+            ),
             "test-fence",
-            &notification_center(&jobs),
         )
         .await
         .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
@@ -394,18 +400,21 @@
             detail: "test leader without projected shards".to_owned(),
         });
 
+        let notifications = notification_center(&jobs);
         dispatch_once_if_owner(
-            &jobs,
-            &instances,
-            &attempts,
-            &outbox,
-            &workflows,
-            &scripts,
-            &logs,
-            &audit,
-            &registry,
+            dispatcher_refs!(
+                &jobs,
+                &instances,
+                &attempts,
+                &outbox,
+                &workflows,
+                &scripts,
+                &logs,
+                &audit,
+                &registry,
+                &notifications,
+            ),
             &leader,
-            &notification_center(&jobs),
         )
         .await
         .unwrap_or_else(|error| panic!("dispatch gate should run: {error}"));
@@ -511,18 +520,21 @@
             detail: "test follower".to_owned(),
         });
 
+        let notifications = notification_center(&jobs);
         dispatch_once_if_owner(
-            &jobs,
-            &instances,
-            &attempts,
-            &outbox,
-            &workflows,
-            &scripts,
-            &logs,
-            &audit,
-            &registry,
+            dispatcher_refs!(
+                &jobs,
+                &instances,
+                &attempts,
+                &outbox,
+                &workflows,
+                &scripts,
+                &logs,
+                &audit,
+                &registry,
+                &notifications,
+            ),
             &follower,
-            &notification_center(&jobs),
         )
         .await
         .unwrap_or_else(|error| panic!("dispatch gate should run: {error}"));
@@ -639,20 +651,23 @@
                 tx,
             )
             .await;
+        let notifications = notification_center(&jobs);
         dispatch_once_with_shards(
-            &jobs,
-            &instances,
-            &attempts,
-            &outbox,
-            &workflows,
-            &scripts,
-            &logs,
-            &audit,
-            &registry,
+            dispatcher_refs!(
+                &jobs,
+                &instances,
+                &attempts,
+                &outbox,
+                &workflows,
+                &scripts,
+                &logs,
+                &audit,
+                &registry,
+                &notifications,
+            ),
             "node-b",
             "",
             std::slice::from_ref(&owner),
-            &notification_center(&jobs),
         )
         .await
         .unwrap_or_else(|error| panic!("explicit shard owner dispatch should run: {error}"));
@@ -779,20 +794,23 @@
             .unwrap_or_else(|error| panic!("matching shard owner should persist: {error}"))
             .unwrap_or_else(|| panic!("newer matching shard owner should be accepted"));
         let registry = WorkerRegistry::default();
+        let notifications = notification_center(&jobs);
         dispatch_once_with_shards(
-            &jobs,
-            &instances,
-            &attempts,
-            &outbox,
-            &workflows,
-            &scripts,
-            &logs,
-            &audit,
-            &registry,
+            dispatcher_refs!(
+                &jobs,
+                &instances,
+                &attempts,
+                &outbox,
+                &workflows,
+                &scripts,
+                &logs,
+                &audit,
+                &registry,
+                &notifications,
+            ),
             "node-b",
             "",
             std::slice::from_ref(&owner),
-            &notification_center(&jobs),
         )
         .await
         .unwrap_or_else(|error| panic!("explicit shard owner dispatch should run: {error}"));
@@ -909,20 +927,23 @@
             .unwrap_or_else(|error| panic!("broadcast owner should persist: {error}"))
             .unwrap_or_else(|| panic!("newer broadcast owner should be accepted"));
 
+        let notifications = notification_center(&jobs);
         dispatch_once_with_shards(
-            &jobs,
-            &instances,
-            &attempts,
-            &outbox,
-            &workflows,
-            &scripts,
-            &logs,
-            &audit,
-            &registry,
+            dispatcher_refs!(
+                &jobs,
+                &instances,
+                &attempts,
+                &outbox,
+                &workflows,
+                &scripts,
+                &logs,
+                &audit,
+                &registry,
+                &notifications,
+            ),
             "node-b",
             "fallback-not-used",
             std::slice::from_ref(&owner),
-            &notification_center(&jobs),
         )
         .await
         .unwrap_or_else(|error| panic!("owned broadcast dispatch should run: {error}"));

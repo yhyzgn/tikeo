@@ -15,6 +15,7 @@
 - 各类依赖库、构建工具和运行时依赖尽量使用当前最新稳定版；不能使用最新版时必须记录原因。
 - 每次开发推进必须编译、测试、运行/冒烟，通过后提交并推送。
 - 每次推进后必须更新 `.memory` 和后续 `.prompt`。
+- 严禁新增或保留 `#[allow(...)]`、`#![allow(...)]`、`#[expect(...)]`、lint 降级或等价机制来屏蔽编译/Clippy/lint/typecheck/test/docs/CI 错误和警告；必须修根因，历史 allow 也要肃清。
 
 设计源：`design/tikeo-architecture-design.md`。
 

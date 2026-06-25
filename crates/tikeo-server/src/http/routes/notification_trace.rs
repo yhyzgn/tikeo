@@ -1,5 +1,3 @@
-#![allow(missing_docs, clippy::missing_errors_doc)]
-
 use std::sync::Arc;
 
 use axum::{
@@ -38,7 +36,9 @@ pub struct NotificationTraceInstance {
     pub id: String,
     pub job_id: String,
     pub status: String,
+    /// Trigger type value.
     pub trigger_type: String,
+    /// Execution mode value.
     pub execution_mode: String,
     pub created_at: String,
     pub updated_at: String,
@@ -68,6 +68,11 @@ pub struct NotificationTraceLogLine {
     path = "/api/v1/public/job-instances/{id}/trace",
     tag = "notifications"
 )]
+/// Get public job instance trace.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn get_public_job_instance_trace(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
@@ -92,6 +97,11 @@ pub async fn get_public_job_instance_trace(
     path = "/api/v1/notification-messages/{id}/trace",
     tag = "notifications"
 )]
+/// Get notification message trace.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn get_notification_message_trace(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,

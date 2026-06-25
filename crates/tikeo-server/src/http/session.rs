@@ -49,6 +49,7 @@ pub struct SessionCreate {
 
 /// Pluggable session store contract.
 #[async_trait]
+/// `SessionStore` behavior contract.
 pub trait SessionStore: Send + Sync {
     /// Create a new session and return the bearer token to the caller.
     async fn create_session(&self, input: SessionCreate) -> Result<AuthSession, ApiError>;
@@ -81,6 +82,7 @@ pub struct SessionManager {
 impl SessionManager {
     /// Wrap a concrete session store.
     #[must_use]
+    /// New.
     pub fn new(store: impl SessionStore + 'static) -> Self {
         Self {
             inner: Arc::new(store),
@@ -172,6 +174,7 @@ pub struct DbMokaSessionStore {
 impl DbMokaSessionStore {
     /// Build the default DB+moka session store.
     #[must_use]
+    /// New.
     pub fn new(repo: AuthSessionRepository, rbac: RbacRepository) -> Self {
         Self {
             repo,

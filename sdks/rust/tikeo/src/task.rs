@@ -1,5 +1,3 @@
-#![allow(clippy::redundant_pub_crate)]
-
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -8,6 +6,7 @@ use crate::{error::WorkerSdkError, proto::worker::v1::DispatchTask};
 
 /// User-provided async processor interface for Worker task dispatch.
 #[async_trait]
+/// TaskProcessor behavior contract.
 pub trait TaskProcessor: Send + Sync + 'static {
     /// Execute one task payload.
     async fn process(&self, task: TaskContext) -> Result<TaskOutcome, WorkerSdkError>;
@@ -55,6 +54,7 @@ pub enum TaskOutcome {
 }
 
 impl TaskOutcome {
+    /// Message.
     pub(crate) fn message(&self) -> Option<String> {
         match self {
             Self::Succeeded => None,
@@ -64,12 +64,14 @@ impl TaskOutcome {
 
     /// Whether this outcome should be reported as a successful task result.
     #[must_use]
+    /// Is success.
     pub const fn is_success(&self) -> bool {
         matches!(self, Self::Succeeded | Self::Success(_))
     }
 
     /// Stable governance failure class extracted from the failure message when available.
     #[must_use]
+    /// Failure class.
     pub fn failure_class(&self) -> Option<&'static str> {
         match self {
             Self::Succeeded | Self::Success(_) => None,
@@ -102,6 +104,7 @@ fn classify_failure_message(message: &str) -> Option<&'static str> {
     }
 }
 
+/// Task context.
 pub(crate) fn task_context(task: &DispatchTask, logger: TaskLogger) -> TaskContext {
     let processor_name = if task.processor_name.is_empty() {
         task.job_id.clone()

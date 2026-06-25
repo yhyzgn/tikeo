@@ -15,7 +15,7 @@ Primary sources:
 - HTTP routes and OpenAPI annotations: `crates/tikeo-server/src/http/routes/notifications.rs`, `crates/tikeo-server/src/http/routes/notification_templates.rs`
 - Storage repositories and redaction: `crates/tikeo-storage/src/repository/notification.rs`, `crates/tikeo-storage/src/repository/notification_template.rs`
 - Storage entities/migration: `crates/tikeo-storage/src/entities/notification_*.rs`, `crates/tikeo-storage/src/migration/notification_center.rs`
-- Config defaults: `crates/tikeo-config/src/lib.rs`, `config/dev.toml`, `config/tikeo.toml`
+- Config defaults: `crates/tikeo-config/src/lib.rs`, `config/dev.yml`, `config/tikeo.yml`
 - Web UI: `web/src/pages/NotificationCenterPage.tsx`, `web/src/api/notifications.ts`
 
 ## Domain model
@@ -34,15 +34,15 @@ The migration follows the repository convention of soft links instead of databas
 
 Generic delivery worker settings are under `notification_delivery`.
 
-```toml
-[notification_delivery]
-enabled = true
-# Optional. Set to the externally reachable Web base URL for notification card buttons.
-# public_console_base_url = "https://tikeo.example.com"
-interval_seconds = 60
-batch_size = 50
-max_attempts = 3
-backoff_seconds = 300
+```yaml
+notification_delivery:
+  enabled: true
+  # Optional. Set to the externally reachable Web base URL for notification card buttons.
+  # public_console_base_url: "https://tikeo.example.com"
+  interval_seconds: 60
+  batch_size: 50
+  max_attempts: 3
+  backoff_seconds: 300
 ```
 
 | Key | Default | Environment variable | Meaning |

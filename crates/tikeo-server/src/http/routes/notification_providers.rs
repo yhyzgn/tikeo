@@ -1,5 +1,3 @@
-#![allow(missing_docs)]
-
 use serde::Serialize;
 use tikeo_storage::ScopeRepository;
 use utoipa::ToSchema;
@@ -12,19 +10,27 @@ use crate::{
 #[derive(Debug, Clone, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationChannelTypeSummary {
+    /// Record type discriminator.
     pub r#type: String,
     pub label: String,
     pub category: String,
+    /// Target kind value.
     pub target_kind: String,
     pub description: String,
+    /// Required config keys value.
     pub required_config_keys: Vec<String>,
+    /// Required target keys value.
     pub required_target_keys: Vec<String>,
+    /// Secret config keys value.
     pub secret_config_keys: Vec<String>,
+    /// Supports test send value.
     pub supports_test_send: bool,
+    /// Plugin provided value.
     pub plugin_provided: bool,
     pub template: serde_json::Value,
 }
 
+/// Builtin channel types.
 pub(super) fn builtin_channel_types() -> Vec<NotificationChannelTypeSummary> {
     [
         (
@@ -259,16 +265,25 @@ fn builtin_channel_template(provider: &str) -> serde_json::Value {
 }
 
 pub(super) struct ChannelValidationInput<'a> {
+    /// Scope type value.
     pub(super) scope_type: &'a str,
     pub(super) namespace: Option<&'a str>,
     pub(super) app: Option<&'a str>,
+    /// Worker pool value.
     pub(super) worker_pool: Option<&'a str>,
     pub(super) provider: &'a str,
     pub(super) name: &'a str,
+    /// Serialized data value.
     pub(super) config: &'a serde_json::Value,
+    /// Secret refs value.
     pub(super) secret_refs: &'a serde_json::Value,
 }
 
+/// Validate channel request.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub(super) async fn validate_channel_request(
     state: &AppState,
     input: ChannelValidationInput<'_>,
@@ -488,6 +503,11 @@ fn json_value_present(value: &serde_json::Value) -> bool {
     }
 }
 
+/// Validate provider message template for state.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub(super) async fn validate_provider_message_template_for_state(
     state: &AppState,
     provider: &str,
@@ -509,6 +529,11 @@ pub(super) async fn validate_provider_message_template_for_state(
     validate_provider_message_template_from_metadata(provider, &plugin_type.template, config, false)
 }
 
+/// Validate provider message template.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub(super) fn validate_provider_message_template(
     provider: &str,
     config: &serde_json::Value,
@@ -585,6 +610,7 @@ fn validate_provider_message_template_from_metadata(
     Ok(())
 }
 
+/// Is builtin provider.
 pub(super) fn is_builtin_provider(provider: &str) -> bool {
     builtin_channel_types()
         .iter()
@@ -702,6 +728,7 @@ const fn json_kind_label(kind: JsonFieldKind) -> &'static str {
     }
 }
 
+/// Valid slug.
 pub(super) fn valid_slug(value: &str) -> bool {
     !value.is_empty()
         && value
@@ -722,6 +749,7 @@ fn json_field_present_any(value: &serde_json::Value, keys: &[&str]) -> bool {
     keys.iter().any(|key| json_field_present(value, key))
 }
 
+/// Json to string.
 pub(super) fn json_to_string<T: serde::Serialize + ?Sized>(value: &T) -> String {
     serde_json::to_string(value).unwrap_or_else(|_| "{}".to_owned())
 }

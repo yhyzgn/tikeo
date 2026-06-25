@@ -7,15 +7,14 @@ use tikeo_core::InstanceStatus;
 use super::{
     AdvanceWorkflowInput, CompleteWorkflowShardInput, CompleteWorkflowShardResult,
     CompletedShardContext, DispatchQueueClaim, DispatchQueueClaimKind, DispatchQueueShardOwner,
-    DispatchQueueSloSummary, DispatchQueueSummary, RebalanceWorkflowShardsInput,
-    RebalanceWorkflowShardsResult, RecoverWorkflowNodeInput, RecoverWorkflowNodeResult,
-    ShardCompletionEventInput, WorkflowInstanceSummary, WorkflowJobBindingSummary,
-    WorkflowJobResultOutcome, WorkflowNodeInstanceSummary, WorkflowRepository,
-    WorkflowShardSummary, WorkflowSloSummary, aggregate_shard_node_status,
-    dispatch_queue_age_seconds, elapsed_seconds, insert_shard_completion_event, json_string,
-    maybe_persist_map_reduce_result, new_id, node_kind, normalize_processor_name,
-    normalize_terminal_status, now_rfc3339, rfc3339_after_seconds, scheduler_shard_policy,
-    success_ratio, update_shard_terminal, workflow_config_i64, workflow_config_string,
+    DispatchQueueSloSummary, DispatchQueueSummary, ShardCompletionEventInput,
+    WorkflowInstanceSummary, WorkflowJobBindingSummary, WorkflowJobResultOutcome,
+    WorkflowNodeInstanceSummary, WorkflowRepository, WorkflowShardSummary, WorkflowSloSummary,
+    aggregate_shard_node_status, dispatch_queue_age_seconds, elapsed_seconds,
+    insert_shard_completion_event, json_string, maybe_persist_map_reduce_result, new_id, node_kind,
+    normalize_processor_name, normalize_terminal_status, now_rfc3339, rfc3339_after_seconds,
+    scheduler_shard_policy, success_ratio, update_shard_terminal, workflow_config_i64,
+    workflow_config_string,
 };
 use crate::entities::{
     app as app_entity, dispatch_queue, instance_event, job_instance, namespace as namespace_entity,
@@ -45,6 +44,11 @@ fn dispatch_queue_current_shard_owner(
 }
 
 impl WorkflowRepository {
+    /// Expire timed out approval nodes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn expire_timed_out_approval_nodes(&self) -> Result<u64, sea_orm::DbErr> {
         let now = now_rfc3339();
         let running = workflow_node_instance::Entity::find()
@@ -106,6 +110,11 @@ impl WorkflowRepository {
         Ok(expired)
     }
 
+    /// Job binding for instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn job_binding_for_instance(
         &self,
         job_instance_id: &str,
@@ -161,6 +170,11 @@ impl WorkflowRepository {
         Ok(None)
     }
 
+    /// Processor name for job instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn processor_name_for_job_instance(
         &self,
         job_instance_id: &str,
@@ -171,6 +185,11 @@ impl WorkflowRepository {
             .and_then(|binding| binding.processor_name))
     }
 
+    /// Get node by job instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn get_node_by_job_instance(
         &self,
         job_instance_id: &str,
@@ -182,6 +201,11 @@ impl WorkflowRepository {
             .map(|model| model.map(WorkflowNodeInstanceSummary::from))
     }
 
+    /// Complete job node from result.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn complete_job_node_from_result(
         &self,
         job_instance_id: &str,
@@ -294,6 +318,11 @@ impl WorkflowRepository {
         Ok(())
     }
 
+    /// List workflow shards.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn list_workflow_shards(
         &self,
         instance_id: &str,
@@ -306,6 +335,11 @@ impl WorkflowRepository {
         Ok(rows.into_iter().map(WorkflowShardSummary::from).collect())
     }
 
+    /// Complete workflow shard.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn complete_workflow_shard(
         &self,
         shard_id: &str,
@@ -415,6 +449,11 @@ impl WorkflowRepository {
         })
     }
 
+    /// Propagate child workflow completion.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub(super) async fn propagate_child_workflow_completion(
         &self,
         child_instance: &WorkflowInstanceSummary,
@@ -455,6 +494,11 @@ impl WorkflowRepository {
         Ok(())
     }
 
+    /// Claim next dispatch queue item.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn claim_next_dispatch_queue_item(
         &self,
         lease_owner: &str,
@@ -464,6 +508,11 @@ impl WorkflowRepository {
             .await
     }
 
+    /// Claim next dispatch queue item with fencing.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn claim_next_dispatch_queue_item_with_fencing(
         &self,
         lease_owner: &str,
@@ -480,6 +529,11 @@ impl WorkflowRepository {
         .await
     }
 
+    /// Claim next workflow node queue item.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn claim_next_workflow_node_queue_item(
         &self,
         lease_owner: &str,
@@ -493,6 +547,11 @@ impl WorkflowRepository {
         .await
     }
 
+    /// Claim next workflow node queue item with fencing.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn claim_next_workflow_node_queue_item_with_fencing(
         &self,
         lease_owner: &str,
@@ -509,6 +568,11 @@ impl WorkflowRepository {
         .await
     }
 
+    /// Claim next job queue item.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn claim_next_job_queue_item(
         &self,
         lease_owner: &str,
@@ -518,6 +582,11 @@ impl WorkflowRepository {
             .await
     }
 
+    /// Claim next workflow node queue item for shard owner.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn claim_next_workflow_node_queue_item_for_shard_owner(
         &self,
         owner: DispatchQueueShardOwner,
@@ -546,6 +615,11 @@ impl WorkflowRepository {
         .await
     }
 
+    /// Claim next job queue item with fencing.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn claim_next_job_queue_item_with_fencing(
         &self,
         lease_owner: &str,
@@ -562,6 +636,11 @@ impl WorkflowRepository {
         .await
     }
 
+    /// Claim next job queue item for shard owner.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn claim_next_job_queue_item_for_shard_owner(
         &self,
         owner: DispatchQueueShardOwner,
@@ -652,6 +731,11 @@ impl WorkflowRepository {
         .await
     }
 
+    /// Claim dispatch queue item.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn claim_dispatch_queue_item(
         &self,
         queue_id: &str,
@@ -725,6 +809,11 @@ impl WorkflowRepository {
             && running_depth >= usize::try_from(scope.max_concurrency).unwrap_or(usize::MAX))
     }
 
+    /// Claim dispatch queue item with fencing.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn claim_dispatch_queue_item_with_fencing(
         &self,
         queue_id: &str,
@@ -821,6 +910,11 @@ impl WorkflowRepository {
         }))
     }
 
+    /// Mark dispatch queue running.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn mark_dispatch_queue_running(
         &self,
         queue_id: &str,
@@ -851,6 +945,11 @@ impl WorkflowRepository {
         Ok(result.rows_affected > 0)
     }
 
+    /// Requeue stale running job dispatches.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn requeue_stale_running_job_dispatches(
         &self,
         stale_after_seconds: i64,
@@ -907,6 +1006,11 @@ impl WorkflowRepository {
         Ok(queue_result.rows_affected)
     }
 
+    /// Clear expired dispatch queue leases.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn clear_expired_dispatch_queue_leases(&self) -> Result<u64, sea_orm::DbErr> {
         let now = now_rfc3339();
         let result = dispatch_queue::Entity::update_many()
@@ -931,6 +1035,11 @@ impl WorkflowRepository {
         Ok(result.rows_affected)
     }
 
+    /// Dispatch queue for instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn dispatch_queue_for_instance(
         &self,
         instance_id: &str,
@@ -942,6 +1051,11 @@ impl WorkflowRepository {
         Ok(row.map(DispatchQueueSummary::from))
     }
 
+    /// Requeue dispatch queue for retry.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn requeue_dispatch_queue_for_retry(
         &self,
         instance_id: &str,
@@ -987,6 +1101,11 @@ impl WorkflowRepository {
         Ok(Some(DispatchQueueSummary::from(updated)))
     }
 
+    /// Mark dispatch queue done by instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn mark_dispatch_queue_done_by_instance(
         &self,
         instance_id: &str,
@@ -1016,6 +1135,11 @@ impl WorkflowRepository {
         Ok(result.rows_affected > 0)
     }
 
+    /// Mark dispatch queue failed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn mark_dispatch_queue_failed(
         &self,
         queue_id: &str,
@@ -1046,6 +1170,11 @@ impl WorkflowRepository {
         Ok(result.rows_affected > 0)
     }
 
+    /// Release dispatch queue item.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn release_dispatch_queue_item(
         &self,
         queue_id: &str,
@@ -1055,6 +1184,11 @@ impl WorkflowRepository {
             .await
     }
 
+    /// Release dispatch queue item after.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn release_dispatch_queue_item_after(
         &self,
         queue_id: &str,
@@ -1082,6 +1216,11 @@ impl WorkflowRepository {
         Ok(true)
     }
 
+    /// Dispatch queue slo summary.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn dispatch_queue_slo_summary(
         &self,
     ) -> Result<DispatchQueueSloSummary, sea_orm::DbErr> {
@@ -1159,6 +1298,11 @@ impl WorkflowRepository {
         Ok(summary)
     }
 
+    /// Workflow slo summary.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn workflow_slo_summary(&self) -> Result<WorkflowSloSummary, sea_orm::DbErr> {
         let instances = workflow_instance::Entity::find().all(&self.db).await?;
         let shards = workflow_shard::Entity::find().all(&self.db).await?;
@@ -1235,6 +1379,11 @@ impl WorkflowRepository {
         Ok(summary)
     }
 
+    /// Cancel job instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn cancel_job_instance(&self, job_instance_id: &str) -> Result<bool, sea_orm::DbErr> {
         let now = now_rfc3339();
         let txn = self.db.begin().await?;
@@ -1296,210 +1445,5 @@ impl WorkflowRepository {
         .await?;
         txn.commit().await?;
         Ok(instance_result.rows_affected > 0)
-    }
-
-    pub async fn rebalance_workflow_shards(
-        &self,
-        instance_id: &str,
-        input: RebalanceWorkflowShardsInput,
-    ) -> Result<Option<RebalanceWorkflowShardsResult>, sea_orm::DbErr> {
-        let instance_exists = workflow_instance::Entity::find_by_id(instance_id.to_owned())
-            .one(&self.db)
-            .await?
-            .is_some();
-        if !instance_exists {
-            return Ok(None);
-        }
-        let statuses = input.statuses.unwrap_or_else(|| vec!["failed".to_owned()]);
-        let now = now_rfc3339();
-        let mut query = workflow_shard::Entity::find()
-            .filter(workflow_shard::Column::WorkflowInstanceId.eq(instance_id.to_owned()))
-            .filter(workflow_shard::Column::Status.is_in(statuses));
-        if let Some(node_key) = input
-            .node_key
-            .as_ref()
-            .filter(|value| !value.trim().is_empty())
-        {
-            query = query.filter(workflow_shard::Column::NodeKey.eq(node_key.trim().to_owned()));
-        }
-        let shards = query.all(&self.db).await?;
-        let txn = self.db.begin().await?;
-        let mut requeued = Vec::new();
-        for shard in shards {
-            let next_retry_count = shard.retry_count.saturating_add(1);
-            let job_instance_id = new_id("inst");
-            crate::entities::job_instance::ActiveModel {
-                id: Set(job_instance_id.clone()),
-                job_id: Set(format!(
-                    "workflow-shard-{}-{}",
-                    shard.workflow_instance_id, shard.node_key
-                )),
-                status: Set("pending".to_owned()),
-                trigger_type: Set("workflow_shard".to_owned()),
-                execution_mode: Set("single".to_owned()),
-                result_worker_id: Set(None),
-                result_success: Set(None),
-                result_message: Set(None),
-                result_completed_at: Set(None),
-                created_at: Set(now.clone()),
-                updated_at: Set(now.clone()),
-            }
-            .insert(&txn)
-            .await?;
-            let (shard_id, shard_map_version, shard_count) =
-                workflow_runtime_dispatch_shard("workflow", instance_id, &job_instance_id);
-            dispatch_queue::ActiveModel {
-                id: Set(new_id("dq")),
-                job_instance_id: Set(Some(job_instance_id.clone())),
-                workflow_node_instance_id: Set(None),
-                shard_id: Set(Some(shard_id)),
-                shard_map_version: Set(Some(shard_map_version)),
-                shard_count: Set(Some(shard_count)),
-                owner_epoch: Set(None),
-                owner_fencing_token: Set(None),
-                priority: Set(0),
-                run_after: Set(now.clone()),
-                status: Set("pending".to_owned()),
-                attempt: Set(0),
-                lease_owner: Set(None),
-                lease_until: Set(None),
-                fencing_token: Set(None),
-                worker_selector: Set(None),
-                namespace: Set(None),
-                app: Set(None),
-                worker_pool: Set(None),
-                created_at: Set(now.clone()),
-                updated_at: Set(now.clone()),
-            }
-            .insert(&txn)
-            .await?;
-            let mut active: workflow_shard::ActiveModel = shard.into();
-            active.status = Set("pending".to_owned());
-            active.output = Set(None);
-            active.retry_count = Set(next_retry_count);
-            active.job_instance_id = Set(Some(job_instance_id));
-            active.updated_at = Set(now.clone());
-            let updated = active.update(&txn).await?;
-            requeued.push(WorkflowShardSummary::from(updated));
-        }
-        instance_event::ActiveModel {
-            id: Set(new_id("evt")),
-            instance_id: Set(instance_id.to_owned()),
-            instance_type: Set("workflow".to_owned()),
-            event_type: Set("workflow.shards.rebalanced".to_owned()),
-            message: Set(input
-                .message
-                .unwrap_or_else(|| format!("rebalanced {} workflow shards", requeued.len()))),
-            payload: Set(Some(
-                serde_json::to_string(&requeued)
-                    .map_err(|error| sea_orm::DbErr::Custom(error.to_string()))?,
-            )),
-            created_at: Set(now),
-        }
-        .insert(&txn)
-        .await?;
-        txn.commit().await?;
-        Ok(Some(RebalanceWorkflowShardsResult {
-            requeued_shards: requeued,
-        }))
-    }
-
-    pub async fn recover_workflow_node(
-        &self,
-        instance_id: &str,
-        input: RecoverWorkflowNodeInput,
-    ) -> Result<Option<RecoverWorkflowNodeResult>, sea_orm::DbErr> {
-        let status = match input.action.as_str() {
-            "retry" => "queued",
-            "skip" => "skipped",
-            "fail" => "failed",
-            "succeed" => "succeeded",
-            other => {
-                return Err(sea_orm::DbErr::Custom(format!(
-                    "unsupported recovery action: {other}"
-                )));
-            }
-        };
-        let Some(node) = workflow_node_instance::Entity::find()
-            .filter(workflow_node_instance::Column::WorkflowInstanceId.eq(instance_id.to_owned()))
-            .filter(workflow_node_instance::Column::NodeKey.eq(input.node_key.clone()))
-            .one(&self.db)
-            .await?
-        else {
-            return Ok(None);
-        };
-        let now = now_rfc3339();
-        let txn = self.db.begin().await?;
-        let mut node_active: workflow_node_instance::ActiveModel = node.into();
-        node_active.status = Set(status.to_owned());
-        node_active.updated_at = Set(now.clone());
-        let updated = node_active.update(&txn).await?;
-        if input.action == "retry" {
-            let (shard_id, shard_map_version, shard_count) = workflow_runtime_dispatch_shard(
-                "workflow",
-                instance_id,
-                &format!("{instance_id}:{}", updated.node_key),
-            );
-            dispatch_queue::ActiveModel {
-                id: Set(new_id("dq")),
-                job_instance_id: Set(None),
-                workflow_node_instance_id: Set(Some(updated.id.clone())),
-                shard_id: Set(Some(shard_id)),
-                shard_map_version: Set(Some(shard_map_version)),
-                shard_count: Set(Some(shard_count)),
-                owner_epoch: Set(None),
-                owner_fencing_token: Set(None),
-                priority: Set(0),
-                run_after: Set(now.clone()),
-                status: Set("pending".to_owned()),
-                attempt: Set(0),
-                lease_owner: Set(None),
-                lease_until: Set(None),
-                fencing_token: Set(None),
-                worker_selector: Set(None),
-                namespace: Set(None),
-                app: Set(None),
-                worker_pool: Set(None),
-                created_at: Set(now.clone()),
-                updated_at: Set(now.clone()),
-            }
-            .insert(&txn)
-            .await?;
-        }
-        instance_event::ActiveModel {
-            id: Set(new_id("evt")),
-            instance_id: Set(instance_id.to_owned()),
-            instance_type: Set("workflow".to_owned()),
-            event_type: Set(format!("workflow.node.recovery.{}", input.action)),
-            message: Set(input
-                .message
-                .unwrap_or_else(|| format!("node {} {}", input.node_key, input.action))),
-            payload: Set(None),
-            created_at: Set(now),
-        }
-        .insert(&txn)
-        .await?;
-        txn.commit().await?;
-        let advance = if matches!(input.action.as_str(), "skip" | "fail" | "succeed") {
-            self.advance_workflow(
-                instance_id,
-                AdvanceWorkflowInput {
-                    node_key: input.node_key,
-                    status: status.to_owned(),
-                    message: None,
-                },
-            )
-            .await?
-        } else {
-            None
-        };
-        let instance = self
-            .get_workflow_instance(instance_id)
-            .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(instance_id.to_owned()))?;
-        Ok(Some(RecoverWorkflowNodeResult {
-            instance,
-            queued_nodes: advance.map_or_else(Vec::new, |result| result.queued_nodes),
-        }))
     }
 }

@@ -674,3 +674,16 @@ Constraint:
 - Future channel UI changes must preserve metadata-only edit safety and must not echo or overwrite saved secrets unless the explicit credential replacement switch is enabled.
 
 - 2026-06-13: Channel drawer hierarchy should model operator mental domains instead of linear setup steps. Replacement toggles must remain next to the exact data class they overwrite; advanced JSON stays collapsed by default.
+
+## 2026-06-25 — No warning-suppression bypass red line
+
+Decision:
+- Tikeo work must not add or keep `#[allow(...)]`, `#![allow(...)]`, `#[expect(...)]`, lint-level downgrades, or equivalent suppression mechanisms to hide compiler, Clippy, lint, typecheck, test, docs, or CI failures.
+- Warnings/errors must be fixed at the root: refactor oversized functions/modules, improve types and conversions, isolate generated code properly, or add/repair real tests.
+
+Rejected:
+- Adding allow/expect attributes just to make validation pass.
+- Treating historical suppressions as acceptable precedent; they must be removed by root-cause fixes.
+
+Constraint:
+- If generated or third-party code appears to require an exception, record an explicit blocker for human review instead of silently adding the bypass.

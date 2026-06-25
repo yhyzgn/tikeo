@@ -56,6 +56,7 @@ pub enum JobNotificationEvent {
 impl JobNotificationEvent {
     /// Stable event type used by policies/messages.
     #[must_use]
+    /// Event type.
     pub const fn event_type(&self) -> &'static str {
         match self {
             Self::Running => "job_instance.running",
@@ -98,6 +99,7 @@ impl JobNotificationEvent {
 
     /// Derive a terminal event from an instance status when applicable.
     #[must_use]
+    /// From terminal status.
     pub const fn from_terminal_status(status: InstanceStatus) -> Option<Self> {
         match status {
             InstanceStatus::Succeeded => Some(Self::Succeeded),
@@ -174,6 +176,7 @@ pub struct NotificationCenter {
 impl NotificationCenter {
     /// Build a Notification Center from storage repositories.
     #[must_use]
+    /// New.
     pub const fn new(
         channels: NotificationChannelRepository,
         policies: NotificationPolicyRepository,
@@ -196,6 +199,7 @@ impl NotificationCenter {
 
     /// Attach an optional externally reachable base URL for public console links in outbound cards.
     #[must_use]
+    /// With public console base url.
     pub fn with_public_console_base_url(mut self, base_url: Option<impl Into<String>>) -> Self {
         self.public_console_base_url = base_url
             .map(Into::into)
@@ -207,6 +211,7 @@ impl NotificationCenter {
     /// Attach an in-process delivery worker trigger. When attempts are created this wakes the
     /// local worker immediately instead of waiting for the periodic recovery scan.
     #[must_use]
+    /// With delivery trigger.
     pub fn with_delivery_trigger(mut self, trigger: Option<NotificationDeliveryTrigger>) -> Self {
         self.delivery_trigger = trigger;
         self
@@ -405,6 +410,7 @@ impl NotificationCenter {
 
 /// Render a reusable notification template body against a sample payload without provider delivery.
 #[must_use]
+/// Render notification template preview.
 pub fn render_notification_template_preview(
     template: &serde_json::Value,
     sample: &serde_json::Value,
@@ -673,8 +679,9 @@ fn policy_matches_job_event(
 }
 
 pub(crate) use delivery::{
-    NotificationDeliveryTrigger, deliver_notification_channel_once,
-    process_due_notification_delivery_attempts, run_delivery_loop_with_trigger,
+    NotificationDeliveryLoopContext, NotificationDeliveryRepositories, NotificationDeliveryTrigger,
+    deliver_notification_channel_once, process_due_notification_delivery_attempts,
+    run_delivery_loop,
 };
 
 fn app_owner_matches(owner_id: Option<&str>, namespace: &str, app: &str) -> bool {

@@ -35,6 +35,11 @@ use crate::http::{
         (status = 500, description = "Storage error", body = ErrorResponse)
     )
 )]
+/// Job topology.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn job_topology(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -83,6 +88,11 @@ pub async fn job_topology(
         (status = 404, description = "Job not found", body = ErrorResponse)
     )
 )]
+/// Job impact.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn job_impact(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -138,6 +148,11 @@ pub async fn job_impact(
         (status = 404, description = "Workflow instance not found", body = ErrorResponse)
     )
 )]
+/// Workflow replay.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn workflow_replay(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,

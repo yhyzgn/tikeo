@@ -22,7 +22,7 @@ Workers do not expose inbound task ports. They dial `server.worker_tunnel_addr`.
 
 | Situation | Recommended path | Notes |
 | --- | --- | --- |
-| Laptop evaluation | `config/dev.toml` or Compose SQLite | Fast and disposable. |
+| Laptop evaluation | `config/dev.yml` or Compose SQLite | Fast and disposable. |
 | Small VM | Single binary + systemd + PostgreSQL/MySQL | Simple operations. |
 | Shared non-Kubernetes environment | Docker Compose + PostgreSQL/MySQL | Uses release images and explicit mounts. |
 | Kubernetes production | Helm + external database + ingress/gateway | Supports HA, Secrets, TLS/mTLS, platform observability. |
@@ -35,10 +35,10 @@ Use SQLite only when you accept single-node local durability. Production should 
 Start from the single formal production template:
 
 ```bash
-cp config/tikeo.toml /etc/tikeo/tikeo.toml
+cp config/tikeo.yml /etc/tikeo/tikeo.yml
 ```
 
-Set production values in the mounted TOML file. Prefer structured database fields; passwords with `@`, `/`, `:`, or `#` do not need manual URL escaping.
+Set production values in the mounted YAML file. Prefer structured database fields; passwords with `@`, `/`, `:`, or `#` do not need manual URL escaping.
 
 ```yaml
 server:
@@ -68,45 +68,45 @@ See [Configuration reference](../reference/configuration) for the complete Serve
 
 | Deployment surface | Config path | Data/db path | Log path | Mount guidance |
 | --- | --- | --- | --- | --- |
-| Docker image default | `/config/tikeo.toml` | `/data/tikeo.db` for SQLite | stdout unless `log_dir` is set | Fine for quick evaluation; mount `/data` if SQLite is not disposable. |
-| Docker with external config | `/config/tikeo.toml` | `/data/tikeo.db` for SQLite | `/logs/tikeo.log` when `log_dir=/logs` | Bind-mount config read-only, mount `/config/tls`, `/data`, and `/logs`. |
-| Docker Compose SQLite | `/config/tikeo.toml` | `tikeo-data:/data` | `tikeo-logs:/logs` | Compose mounts config, TLS, data, and logs explicitly. |
-| Docker Compose PostgreSQL | `/config/tikeo.toml` | `tikeo-postgres-data:/var/lib/postgresql/data` on DB service | `tikeo-logs:/logs` | Server `/data` is only a uniform runtime mount; DB state is in the DB service. |
-| Docker Compose MySQL | `/config/tikeo.toml` | `tikeo-mysql-data:/var/lib/mysql` on DB service | `tikeo-logs:/logs` | Back up the MySQL volume or managed DB. |
-| Kubernetes raw manifest | `/config/tikeo.toml` from ConfigMap | `/data` PVC in SQLite manifest | stdout by default | Add a log PVC only if file logs are enabled. |
-| Kubernetes Raft/HA | `/config/tikeo.toml` from ConfigMap + structured DB Secret | external DB | stdout by default | Use StatefulSet/headless peers and Secret-backed DB fields. |
-| Helm SQLite | `/config/tikeo.toml` from chart ConfigMap | `/data` PVC | stdout by default | Dev/small single-node only. |
-| Helm external DB | `/config/tikeo.toml` + structured DB Secret keys | managed/self-hosted DB | stdout by default | Create Secret keys `type`, `host`, `port`, `username`, `password`, `database`. |
-| Binary/systemd | `/etc/tikeo/tikeo.toml` | `/var/lib/tikeo` for local SQLite | `/var/log/tikeo/tikeo.log` if enabled | Own dirs by the `tikeo` user. |
+| Docker image default | `/config/tikeo.yml` | `/data/tikeo.db` for SQLite | stdout unless `log_dir` is set | Fine for quick evaluation; mount `/data` if SQLite is not disposable. |
+| Docker with external config | `/config/tikeo.yml` | `/data/tikeo.db` for SQLite | `/logs/tikeo.log` when `log_dir=/logs` | Bind-mount config read-only, mount `/config/tls`, `/data`, and `/logs`. |
+| Docker Compose SQLite | `/config/tikeo.yml` | `tikeo-data:/data` | `tikeo-logs:/logs` | Compose mounts config, TLS, data, and logs explicitly. |
+| Docker Compose PostgreSQL | `/config/tikeo.yml` | `tikeo-postgres-data:/var/lib/postgresql/data` on DB service | `tikeo-logs:/logs` | Server `/data` is only a uniform runtime mount; DB state is in the DB service. |
+| Docker Compose MySQL | `/config/tikeo.yml` | `tikeo-mysql-data:/var/lib/mysql` on DB service | `tikeo-logs:/logs` | Back up the MySQL volume or managed DB. |
+| Kubernetes raw manifest | `/config/tikeo.yml` from ConfigMap | `/data` PVC in SQLite manifest | stdout by default | Add a log PVC only if file logs are enabled. |
+| Kubernetes Raft/HA | `/config/tikeo.yml` from ConfigMap + structured DB Secret | external DB | stdout by default | Use StatefulSet/headless peers and Secret-backed DB fields. |
+| Helm SQLite | `/config/tikeo.yml` from chart ConfigMap | `/data` PVC | stdout by default | Dev/small single-node only. |
+| Helm external DB | `/config/tikeo.yml` + structured DB Secret keys | managed/self-hosted DB | stdout by default | Create Secret keys `type`, `host`, `port`, `username`, `password`, `database`. |
+| Binary/systemd | `/etc/tikeo/tikeo.yml` | `/var/lib/tikeo` for local SQLite | `/var/log/tikeo/tikeo.log` if enabled | Own dirs by the `tikeo` user. |
 | Web/Docs static images | none | none | nginx stdout | No persistent data. |
 
 ## Docker run shape
 
 ```bash
 mkdir -p ./tikeo/config/tls ./tikeo/data ./tikeo/logs
-cp config/tikeo.toml ./tikeo/config/tikeo.toml
+cp config/tikeo.yml ./tikeo/config/tikeo.yml
 
 docker run -d --name tikeo-server \
   -p 9090:9090 -p 9998:9998 \
-  -v "$PWD/tikeo/config/tikeo.toml:/config/tikeo.toml:ro" \
+  -v "$PWD/tikeo/config/tikeo.yml:/config/tikeo.yml:ro" \
   -v "$PWD/tikeo/config/tls:/config/tls:ro" \
   -v "$PWD/tikeo/data:/data" \
   -v "$PWD/tikeo/logs:/logs" \
   yhyzgn/tikeo-server:latest \
-  serve --config /config/tikeo.toml
+  serve --config /config/tikeo.yml
 ```
 
 ## Docker Compose shape
 
 ```bash
 cp deploy/compose/tikeo.env.example .env
-# Edit .env for Docker parameters; edit config/tikeo.toml for Tikeo service settings.
+# Edit .env for Docker parameters; edit config/tikeo.yml for Tikeo service settings.
 docker compose --env-file .env pull
 docker compose --env-file .env up -d
 curl -fsS http://127.0.0.1:9090/readyz
 ```
 
-Use `docker-compose.postgres.yml` or `docker-compose.mysql.yml` after switching `config/tikeo.toml` `storage.database.type` and host/user/password/database to the matching database service.
+Use `docker-compose.postgres.yml` or `docker-compose.mysql.yml` after switching `config/tikeo.yml` `storage.database.type` and host/user/password/database to the matching database service.
 
 ## Kubernetes and Helm shape
 

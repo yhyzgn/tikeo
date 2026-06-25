@@ -9,11 +9,13 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     /// Unique session identifier.
     #[sea_orm(primary_key, auto_increment = false)]
+    /// Identifier value.
     pub id: String,
     /// Related user id, soft-linked to `users.id`.
     pub user_id: String,
     /// SHA-256 hash of the opaque access token.
     #[sea_orm(unique)]
+    /// Token hash value.
     pub token_hash: String,
     /// Optional device identifier.
     pub device_id: Option<String>,

@@ -153,3 +153,8 @@
 - Risk observed on `v0.2.8`: manifest-only release version sync made Docker server release fail under `cargo fetch --locked`.
 - Mitigation: `scripts/set-release-version.py --scope workspace` now updates `Cargo.lock` local workspace package versions and has a pytest contract plus isolated `cargo fetch --locked` simulation.
 - Remaining risk: already-pushed `v0.2.8` remains a failed release attempt in Actions history; final release should be `v0.2.9` and memory should record both attempts.
+
+## 2026-06-25 — Warning-suppression bypass red line
+
+- New and historical `#[allow(...)]`, `#![allow(...)]`, `#[expect(...)]`, lint downgrades, or equivalent warning/error suppressions are prohibited.
+- Existing allow attributes in the repository must be removed by fixing root causes rather than replacing them with broader suppressions.

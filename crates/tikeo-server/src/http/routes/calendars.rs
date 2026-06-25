@@ -1,5 +1,3 @@
-#![allow(missing_docs, clippy::missing_errors_doc)]
-
 use std::sync::Arc;
 
 use axum::{
@@ -27,12 +25,15 @@ pub struct UpsertCalendarRequest {
     pub name: String,
     pub timezone: Option<String>,
     #[serde(default)]
+    /// Excluded dates value.
     pub excluded_dates: Vec<String>,
     #[serde(default)]
     pub holidays: Vec<String>,
     #[serde(default)]
+    /// Maintenance windows value.
     pub maintenance_windows: Vec<CalendarWindowSummary>,
     #[serde(default)]
+    /// Freeze windows value.
     pub freeze_windows: Vec<CalendarWindowSummary>,
 }
 
@@ -42,6 +43,11 @@ pub struct UpsertCalendarRequest {
     tag = "tenancy",
     params(CalendarQuery)
 )]
+/// List calendars.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn list_calendars(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -56,6 +62,11 @@ pub async fn list_calendars(
 }
 
 #[utoipa::path(post, path = "/api/v1/calendars", tag = "tenancy", request_body = UpsertCalendarRequest)]
+/// Upsert calendar.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn upsert_calendar(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -91,6 +102,11 @@ pub async fn upsert_calendar(
 }
 
 #[utoipa::path(delete, path = "/api/v1/calendars/{id}", tag = "tenancy")]
+/// Delete calendar.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn delete_calendar(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,

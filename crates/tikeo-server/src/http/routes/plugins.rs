@@ -1,5 +1,3 @@
-#![allow(missing_docs)]
-
 use std::sync::Arc;
 
 use axum::{
@@ -22,10 +20,13 @@ pub struct CreatePluginRequest {
     pub name: String,
     pub kind: String,
     #[serde(default)]
+    /// Processor types value.
     pub processor_types: Vec<tikeo_storage::PluginProcessorTypeSummary>,
     #[serde(default)]
+    /// Alert channel types value.
     pub alert_channel_types: Vec<tikeo_storage::PluginAlertChannelTypeSummary>,
     #[serde(default = "default_enabled")]
+    /// Boolean state flag.
     pub enabled: bool,
 }
 
@@ -34,8 +35,11 @@ pub struct CreatePluginRequest {
 pub struct UpdatePluginRequest {
     pub name: Option<String>,
     pub kind: Option<String>,
+    /// Processor types value.
     pub processor_types: Option<Vec<tikeo_storage::PluginProcessorTypeSummary>>,
+    /// Alert channel types value.
     pub alert_channel_types: Option<Vec<tikeo_storage::PluginAlertChannelTypeSummary>>,
+    /// Boolean state flag.
     pub enabled: Option<bool>,
 }
 
@@ -45,6 +49,11 @@ pub struct UpdatePluginRequest {
 ///
 /// Returns authorization or storage errors.
 #[utoipa::path(get, path = "/api/v1/plugins", tag = "plugins")]
+/// List plugins.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn list_plugins(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -64,6 +73,11 @@ pub async fn list_plugins(
 ///
 /// Returns authorization, validation, or storage errors.
 #[utoipa::path(post, path = "/api/v1/plugins", tag = "plugins", request_body = CreatePluginRequest)]
+/// Create plugin.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn create_plugin(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -101,6 +115,11 @@ pub async fn create_plugin(
 ///
 /// Returns authorization, validation, not-found, or storage errors.
 #[utoipa::path(patch, path = "/api/v1/plugins/{id}", tag = "plugins", request_body = UpdatePluginRequest)]
+/// Update plugin.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn update_plugin(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -148,6 +167,11 @@ pub async fn update_plugin(
 ///
 /// Returns authorization, not-found, or storage errors.
 #[utoipa::path(delete, path = "/api/v1/plugins/{id}", tag = "plugins")]
+/// Delete plugin.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn delete_plugin(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,

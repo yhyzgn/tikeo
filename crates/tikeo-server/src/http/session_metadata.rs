@@ -13,6 +13,7 @@ const API_TOKEN_SCOPE_SEPARATOR: &str = ";scopes=";
 const SESSION_BINDING_SEPARATOR: &str = ";bindings=";
 const OIDC_SESSION_DEVICE_PREFIX: &str = "oidc-session:";
 
+/// Is api token session.
 pub(super) fn is_api_token_session(session: &tikeo_storage::AuthSessionSummary) -> bool {
     session
         .device_id
@@ -20,6 +21,7 @@ pub(super) fn is_api_token_session(session: &tikeo_storage::AuthSessionSummary) 
         .is_some_and(|value| value.starts_with(API_TOKEN_DEVICE_PREFIX))
 }
 
+/// Api token summary.
 pub(super) fn api_token_summary(session: tikeo_storage::AuthSessionSummary) -> ApiTokenSummary {
     let scopes = api_token_scopes(&session);
     let scope_bindings = session_scope_bindings(&session);
@@ -36,6 +38,7 @@ pub(super) fn api_token_summary(session: tikeo_storage::AuthSessionSummary) -> A
     }
 }
 
+/// Encode session device id.
 pub(super) fn encode_session_device_id(
     requested: Option<String>,
     bindings: &[AccessScopeBinding],
@@ -55,6 +58,7 @@ pub(super) fn encode_session_device_id(
     ))
 }
 
+/// Encode api token device id.
 pub(super) fn encode_api_token_device_id(
     scopes: &[String],
     bindings: &[AccessScopeBinding],
@@ -80,6 +84,7 @@ pub(super) fn encode_api_token_device_id(
     format!("{id}{scope_suffix}{binding_suffix}")
 }
 
+/// Api token scopes.
 pub(super) fn api_token_scopes(session: &tikeo_storage::AuthSessionSummary) -> Vec<String> {
     let Some(device_id) = session.device_id.as_deref() else {
         return Vec::new();
@@ -96,6 +101,7 @@ pub(super) fn api_token_scopes(session: &tikeo_storage::AuthSessionSummary) -> V
         .collect()
 }
 
+/// Session scope bindings.
 pub(super) fn session_scope_bindings(
     session: &tikeo_storage::AuthSessionSummary,
 ) -> Vec<AccessScopeBinding> {

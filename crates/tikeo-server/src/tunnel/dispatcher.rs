@@ -49,6 +49,64 @@ fn dispatcher_fencing_token(node_id: &str, leader_fencing_token: Option<&str>) -
     )
 }
 
+#[derive(Debug, Clone)]
+/// Runtime dependencies for the worker dispatcher loop.
+pub struct DispatcherContext {
+    /// Job repository.
+    pub jobs: JobRepository,
+    /// Job instance repository.
+    pub instances: JobInstanceRepository,
+    /// Job attempt repository.
+    pub attempts: JobInstanceAttemptRepository,
+    /// Worker dispatch outbox repository.
+    pub outbox: WorkerDispatchOutboxRepository,
+    /// Workflow repository.
+    pub workflows: WorkflowRepository,
+    /// Script repository.
+    pub scripts: ScriptRepository,
+    /// Job log repository.
+    pub logs: tikeo_storage::JobInstanceLogRepository,
+    /// Audit repository.
+    pub audit: AuditLogRepository,
+    /// Worker registry.
+    pub registry: WorkerRegistry,
+    /// Cluster coordinator.
+    pub cluster: SharedClusterCoordinator,
+    /// Notification center.
+    pub notifications: NotificationCenter,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct DispatcherRefs<'a> {
+    jobs: &'a JobRepository,
+    instances: &'a JobInstanceRepository,
+    attempts: &'a JobInstanceAttemptRepository,
+    outbox: &'a WorkerDispatchOutboxRepository,
+    workflows: &'a WorkflowRepository,
+    scripts: &'a ScriptRepository,
+    logs: &'a tikeo_storage::JobInstanceLogRepository,
+    audit: &'a AuditLogRepository,
+    registry: &'a WorkerRegistry,
+    notifications: &'a NotificationCenter,
+}
+
+impl DispatcherContext {
+    const fn refs(&self) -> DispatcherRefs<'_> {
+        DispatcherRefs {
+            jobs: &self.jobs,
+            instances: &self.instances,
+            attempts: &self.attempts,
+            outbox: &self.outbox,
+            workflows: &self.workflows,
+            scripts: &self.scripts,
+            logs: &self.logs,
+            audit: &self.audit,
+            registry: &self.registry,
+            notifications: &self.notifications,
+        }
+    }
+}
+
 fn dispatch_queue_lease_owner(claim: &DispatchQueueClaim) -> &str {
     claim
         .item
@@ -58,59 +116,22 @@ fn dispatch_queue_lease_owner(claim: &DispatchQueueClaim) -> &str {
 }
 
 /// Run the minimal single-node dispatch loop forever.
-#[allow(clippy::too_many_arguments)]
-pub async fn run(
-    jobs: JobRepository,
-    instances: JobInstanceRepository,
-    attempts: JobInstanceAttemptRepository,
-    outbox: WorkerDispatchOutboxRepository,
-    workflows: WorkflowRepository,
-    scripts: ScriptRepository,
-    logs: tikeo_storage::JobInstanceLogRepository,
-    audit: AuditLogRepository,
-    registry: WorkerRegistry,
-    cluster: SharedClusterCoordinator,
-    notifications: NotificationCenter,
-) {
+pub async fn run(context: DispatcherContext) {
     let mut ticker = time::interval(DISPATCH_INTERVAL);
     loop {
         ticker.tick().await;
-        if let Err(error) = dispatch_once_if_owner(
-            &jobs,
-            &instances,
-            &attempts,
-            &outbox,
-            &workflows,
-            &scripts,
-            &logs,
-            &audit,
-            &registry,
-            &cluster,
-            &notifications,
-        )
-        .await
-        {
+        if let Err(error) = dispatch_once_if_owner(context.refs(), &context.cluster).await {
             warn!(%error, "worker dispatch iteration failed");
         }
     }
 }
-#[allow(clippy::too_many_arguments)]
 async fn dispatch_once_if_owner(
-    jobs: &JobRepository,
-    instances: &JobInstanceRepository,
-    attempts: &JobInstanceAttemptRepository,
-    outbox: &WorkerDispatchOutboxRepository,
-    workflows: &WorkflowRepository,
-    scripts: &ScriptRepository,
-    logs: &tikeo_storage::JobInstanceLogRepository,
-    audit: &AuditLogRepository,
-    registry: &WorkerRegistry,
+    context: DispatcherRefs<'_>,
     cluster: &SharedClusterCoordinator,
-    notifications: &NotificationCenter,
 ) -> Result<(), tikeo_storage::DbErr> {
     let status = cluster.status().await;
     let owned_shards = if status.mode == ClusterMode::Raft {
-        active_shard_ownerships_for_node(workflows, &status.node_id).await?
+        active_shard_ownerships_for_node(context.workflows, &status.node_id).await?
     } else {
         Vec::new()
     };
@@ -129,22 +150,7 @@ async fn dispatch_once_if_owner(
             .as_deref()
             .filter(|_| status.can_schedule),
     );
-    dispatch_once_with_shards(
-        jobs,
-        instances,
-        attempts,
-        outbox,
-        workflows,
-        scripts,
-        logs,
-        audit,
-        registry,
-        &status.node_id,
-        &fencing_token,
-        &owned_shards,
-        notifications,
-    )
-    .await
+    dispatch_once_with_shards(context, &status.node_id, &fencing_token, &owned_shards).await
 }
 async fn active_shard_ownerships_for_node(
     workflows: &WorkflowRepository,
@@ -159,63 +165,33 @@ async fn active_shard_ownerships_for_node(
                 .collect()
         })
 }
-#[allow(clippy::too_many_arguments)]
 #[cfg(test)]
 async fn dispatch_once(
-    jobs: &JobRepository,
-    instances: &JobInstanceRepository,
-    attempts: &JobInstanceAttemptRepository,
-    outbox: &WorkerDispatchOutboxRepository,
-    workflows: &WorkflowRepository,
-    scripts: &ScriptRepository,
-    logs: &tikeo_storage::JobInstanceLogRepository,
-    audit: &AuditLogRepository,
-    registry: &WorkerRegistry,
+    context: DispatcherRefs<'_>,
     fencing_token: &str,
-    notifications: &NotificationCenter,
 ) -> Result<(), tikeo_storage::DbErr> {
-    dispatch_once_with_shards(
-        jobs,
-        instances,
-        attempts,
-        outbox,
-        workflows,
-        scripts,
-        logs,
-        audit,
-        registry,
-        DISPATCHER_LEASE_OWNER,
-        fencing_token,
-        &[],
-        notifications,
-    )
-    .await
+    dispatch_once_with_shards(context, DISPATCHER_LEASE_OWNER, fencing_token, &[]).await
 }
-#[allow(clippy::too_many_arguments)]
 async fn dispatch_once_with_shards(
-    jobs: &JobRepository,
-    instances: &JobInstanceRepository,
-    attempts: &JobInstanceAttemptRepository,
-    outbox: &WorkerDispatchOutboxRepository,
-    workflows: &WorkflowRepository,
-    scripts: &ScriptRepository,
-    logs: &tikeo_storage::JobInstanceLogRepository,
-    audit: &AuditLogRepository,
-    registry: &WorkerRegistry,
+    context: DispatcherRefs<'_>,
     owner_node_id: &str,
     fencing_token: &str,
     owned_shards: &[ClusterShardOwnershipSummary],
-    notifications: &NotificationCenter,
 ) -> Result<(), tikeo_storage::DbErr> {
-    let recovered = workflows
+    let recovered = context
+        .workflows
         .requeue_stale_running_job_dispatches(DISPATCH_STALE_RUNNING_SECONDS)
         .await?;
     if recovered > 0 {
         warn!(recovered, "requeued stale running job dispatches");
     }
-    let _expired = workflows.clear_expired_dispatch_queue_leases().await?;
+    let _expired = context
+        .workflows
+        .clear_expired_dispatch_queue_leases()
+        .await?;
     if owned_shards.is_empty() {
-        if let Some(materialized) = workflows
+        if let Some(materialized) = context
+            .workflows
             .materialize_next_queued_node_with_fencing(
                 DISPATCHER_LEASE_OWNER,
                 DISPATCH_LEASE_SECONDS,
@@ -224,54 +200,29 @@ async fn dispatch_once_with_shards(
             .await?
         {
             crate::notification::emit_workflow_notification_node_requested_best_effort(
-                notifications,
-                workflows,
+                context.notifications,
+                context.workflows,
                 &materialized,
             )
             .await;
         }
     } else if let Some(materialized) = materialize_next_queued_node_for_owner(
-        workflows,
+        context.workflows,
         owner_node_id,
         owned_shards,
-        notifications,
+        context.notifications,
     )
     .await?
     {
         debug!(workflow_instance_id = %materialized.instance.id, %owner_node_id, "materialized workflow node through shard ownership");
     }
-    dispatch_broadcast_attempts(
-        jobs,
-        instances,
-        attempts,
-        outbox,
-        workflows,
-        scripts,
-        logs,
-        audit,
-        registry,
+    let ownership = DispatchOwnership {
         owner_node_id,
         fencing_token,
         owned_shards,
-        notifications,
-    )
-    .await?;
-    dispatch_single_instances(
-        jobs,
-        instances,
-        attempts,
-        outbox,
-        workflows,
-        scripts,
-        logs,
-        audit,
-        registry,
-        owner_node_id,
-        fencing_token,
-        owned_shards,
-        notifications,
-    )
-    .await
+    };
+    dispatch_broadcast_attempts(context, ownership).await?;
+    dispatch_single_instances(context, ownership).await
 }
 async fn materialize_next_queued_node_for_owner(
     workflows: &WorkflowRepository,
@@ -331,6 +282,31 @@ struct DurableDispatchIntent<'a> {
     task: DispatchTask,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct DispatchOwnership<'a> {
+    owner_node_id: &'a str,
+    fencing_token: &'a str,
+    owned_shards: &'a [ClusterShardOwnershipSummary],
+}
+
+struct BuiltinCompletion<'a> {
+    job: &'a tikeo_storage::JobSummary,
+    instance_id: &'a str,
+    attempt: i32,
+    worker_id: &'a str,
+    success: bool,
+    message: String,
+}
+
+struct SingleWorkerDispatch<'a> {
+    claim: &'a DispatchQueueClaim,
+    instance: &'a tikeo_storage::JobInstanceSummary,
+    job: &'a tikeo_storage::JobSummary,
+    retrying_instance: bool,
+    worker_id: &'a str,
+    task: DispatchTask,
+}
+
 async fn persist_outbox_then_hint_dispatch(
     attempts: &JobInstanceAttemptRepository,
     outbox: &WorkerDispatchOutboxRepository,
@@ -375,368 +351,410 @@ async fn persist_outbox_then_hint_dispatch(
     Ok(hint_sent)
 }
 
-#[allow(
-    clippy::too_many_arguments,
-    clippy::too_many_lines,
-    clippy::large_stack_frames
-)]
 async fn dispatch_single_instances(
-    jobs: &JobRepository,
-    instances: &JobInstanceRepository,
-    attempts: &JobInstanceAttemptRepository,
-    outbox: &WorkerDispatchOutboxRepository,
-    workflows: &WorkflowRepository,
-    scripts: &ScriptRepository,
-    logs: &tikeo_storage::JobInstanceLogRepository,
-    audit: &AuditLogRepository,
-    registry: &WorkerRegistry,
-    owner_node_id: &str,
-    fencing_token: &str,
-    owned_shards: &[ClusterShardOwnershipSummary],
-    notifications: &NotificationCenter,
+    context: DispatcherRefs<'_>,
+    ownership: DispatchOwnership<'_>,
 ) -> Result<(), tikeo_storage::DbErr> {
     for _ in 0..DISPATCH_BATCH_SIZE {
-        let Some(claim) =
-            claim_next_dispatch_for_owner(workflows, owner_node_id, fencing_token, owned_shards)
-                .await?
+        let Some(claim) = claim_next_dispatch_for_owner(
+            context.workflows,
+            ownership.owner_node_id,
+            ownership.fencing_token,
+            ownership.owned_shards,
+        )
+        .await?
         else {
             break;
         };
-        let Some(instance_id) = claim.item.job_instance_id.clone() else {
-            continue;
-        };
-        let Some(instance) = instances.get(&instance_id).await? else {
-            let _ = workflows
-                .mark_dispatch_queue_failed(&claim.item.id, dispatch_queue_lease_owner(&claim))
-                .await?;
-            warn!(queue_id = %claim.item.id, %instance_id, "closed dispatch queue item for missing job instance");
-            continue;
-        };
-        let retrying_instance = matches!(
-            instance.status,
-            InstanceStatus::Running | InstanceStatus::Retrying
-        ) && claim.item.attempt > 1;
-        if instance.status != InstanceStatus::Pending && !retrying_instance {
-            let _ = workflows
-                .mark_dispatch_queue_done_by_instance(&instance.id)
-                .await?;
-            debug!(instance_id = %instance.id, status = %instance.status, "closed dispatch queue item for non-pending instance");
-            continue;
-        }
-        if !retrying_instance && !instances.claim_pending_for_dispatch(&instance.id).await? {
-            let _ = workflows
-                .release_dispatch_queue_item(&claim.item.id, dispatch_queue_lease_owner(&claim))
-                .await?;
-            continue;
-        }
-        let Some(job) = jobs.get(&instance.job_id).await? else {
-            let _ = workflows
-                .mark_dispatch_queue_failed(&claim.item.id, dispatch_queue_lease_owner(&claim))
-                .await?;
-            if let Some(updated) = instances
-                .update_status(&instance.id, InstanceStatus::Failed)
-                .await?
-            {
-                emit_job_instance_event_best_effort(
-                    notifications,
-                    &updated,
-                    JobNotificationEvent::Failed,
-                    Some("missing job during dispatch"),
-                )
-                .await;
-            }
-            warn!(queue_id = %claim.item.id, instance_id = %instance.id, job_id = %instance.job_id, "closed dispatch queue item for missing job");
-            continue;
-        };
+        dispatch_single_claim(context, ownership, claim).await?;
+    }
 
-        let executor = resolve_job_executor(workflows, &instance.id, &job).await?;
-        if let JobExecutor::Http { config } = &executor {
+    Ok(())
+}
+
+async fn dispatch_single_claim(
+    context: DispatcherRefs<'_>,
+    ownership: DispatchOwnership<'_>,
+    claim: DispatchQueueClaim,
+) -> Result<(), tikeo_storage::DbErr> {
+    let Some(instance_id) = claim.item.job_instance_id.clone() else {
+        return Ok(());
+    };
+    let Some(instance) = context.instances.get(&instance_id).await? else {
+        let _ = context
+            .workflows
+            .mark_dispatch_queue_failed(&claim.item.id, dispatch_queue_lease_owner(&claim))
+            .await?;
+        warn!(queue_id = %claim.item.id, %instance_id, "closed dispatch queue item for missing job instance");
+        return Ok(());
+    };
+    let retrying_instance = matches!(
+        instance.status,
+        InstanceStatus::Running | InstanceStatus::Retrying
+    ) && claim.item.attempt > 1;
+    if instance.status != InstanceStatus::Pending && !retrying_instance {
+        let _ = context
+            .workflows
+            .mark_dispatch_queue_done_by_instance(&instance.id)
+            .await?;
+        debug!(instance_id = %instance.id, status = %instance.status, "closed dispatch queue item for non-pending instance");
+        return Ok(());
+    }
+    if !retrying_instance
+        && !context
+            .instances
+            .claim_pending_for_dispatch(&instance.id)
+            .await?
+    {
+        let _ = context
+            .workflows
+            .release_dispatch_queue_item(&claim.item.id, dispatch_queue_lease_owner(&claim))
+            .await?;
+        return Ok(());
+    }
+    let Some(job) = context.jobs.get(&instance.job_id).await? else {
+        handle_missing_single_job(context, &claim, &instance).await?;
+        return Ok(());
+    };
+
+    let executor = resolve_job_executor(context.workflows, &instance.id, &job).await?;
+    if handle_builtin_executor(context, &job, &instance.id, claim.item.attempt, &executor).await? {
+        return Ok(());
+    }
+    let task = match build_dispatch_task(
+        context.scripts,
+        instance.id.clone(),
+        instance.job_id.clone(),
+        executor.clone(),
+    )
+    .await?
+    {
+        DispatchTaskBuild::Built(task) => task,
+        DispatchTaskBuild::Rejected(failure) => {
+            handle_single_governance_failure(context, &claim, &instance.id, &failure).await?;
+            return Ok(());
+        }
+    };
+
+    let requirement = required_task_requirement_for_executor(&task, &executor);
+    let eligible_workers = context
+        .registry
+        .find_lasso_persisted_dispatch_workers(
+            &job.namespace,
+            &job.app,
+            requirement.as_ref(),
+            &instance.id,
+        )
+        .await;
+    if let Some(worker_id) = eligible_workers.first() {
+        dispatch_single_to_worker(
+            context,
+            ownership,
+            SingleWorkerDispatch {
+                claim: &claim,
+                instance: &instance,
+                job: &job,
+                retrying_instance,
+                worker_id,
+                task,
+            },
+        )
+        .await?;
+    } else {
+        handle_no_single_worker(context, &claim, &instance, requirement.as_ref()).await?;
+    }
+    Ok(())
+}
+
+async fn handle_missing_single_job(
+    context: DispatcherRefs<'_>,
+    claim: &DispatchQueueClaim,
+    instance: &tikeo_storage::JobInstanceSummary,
+) -> Result<(), tikeo_storage::DbErr> {
+    let _ = context
+        .workflows
+        .mark_dispatch_queue_failed(&claim.item.id, dispatch_queue_lease_owner(claim))
+        .await?;
+    if let Some(updated) = context
+        .instances
+        .update_status(&instance.id, InstanceStatus::Failed)
+        .await?
+    {
+        emit_job_instance_event_best_effort(
+            context.notifications,
+            &updated,
+            JobNotificationEvent::Failed,
+            Some("missing job during dispatch"),
+        )
+        .await;
+    }
+    warn!(queue_id = %claim.item.id, instance_id = %instance.id, job_id = %instance.job_id, "closed dispatch queue item for missing job");
+    Ok(())
+}
+
+async fn handle_builtin_executor(
+    context: DispatcherRefs<'_>,
+    job: &tikeo_storage::JobSummary,
+    instance_id: &str,
+    attempt: i32,
+    executor: &JobExecutor,
+) -> Result<bool, tikeo_storage::DbErr> {
+    let (worker_id, success, message) = match executor {
+        JobExecutor::Http { config } => {
             append_retry_dispatch_progress_log(
-                logs,
-                &instance.id,
-                claim.item.attempt,
-                &job,
+                context.logs,
+                instance_id,
+                attempt,
+                job,
                 "executor builtin.http",
             )
             .await?;
             let outcome = execute_http_processor(config).await;
-            complete_builtin_processor_outcome(
-                instances,
-                workflows,
-                logs,
-                &job,
-                &instance.id,
-                claim.item.attempt,
-                "builtin.http",
-                outcome.success,
-                outcome.message,
-                notifications,
-            )
-            .await?;
-            continue;
+            ("builtin.http", outcome.success, outcome.message)
         }
-        if let JobExecutor::Grpc { config } = &executor {
+        JobExecutor::Grpc { config } => {
             append_retry_dispatch_progress_log(
-                logs,
-                &instance.id,
-                claim.item.attempt,
-                &job,
+                context.logs,
+                instance_id,
+                attempt,
+                job,
                 "executor builtin.grpc",
             )
             .await?;
             let outcome = execute_grpc_processor(config).await;
-            complete_builtin_processor_outcome(
-                instances,
-                workflows,
-                logs,
-                &job,
-                &instance.id,
-                claim.item.attempt,
-                "builtin.grpc",
-                outcome.success,
-                outcome.message,
-                notifications,
-            )
-            .await?;
-            continue;
+            ("builtin.grpc", outcome.success, outcome.message)
         }
-        if let JobExecutor::Sql { config } = &executor {
+        JobExecutor::Sql { config } => {
             append_retry_dispatch_progress_log(
-                logs,
-                &instance.id,
-                claim.item.attempt,
-                &job,
+                context.logs,
+                instance_id,
+                attempt,
+                job,
                 "executor builtin.sql",
             )
             .await?;
             let outcome = execute_sql_processor(config).await;
-            complete_builtin_processor_outcome(
-                instances,
-                workflows,
-                logs,
-                &job,
-                &instance.id,
-                claim.item.attempt,
-                "builtin.sql",
-                outcome.success,
-                outcome.message,
-                notifications,
-            )
-            .await?;
-            continue;
+            ("builtin.sql", outcome.success, outcome.message)
         }
-
-        if let JobExecutor::FileCleanup { config } = &executor {
+        JobExecutor::FileCleanup { config } => {
             append_retry_dispatch_progress_log(
-                logs,
-                &instance.id,
-                claim.item.attempt,
-                &job,
+                context.logs,
+                instance_id,
+                attempt,
+                job,
                 "executor builtin.file_cleanup",
             )
             .await?;
             let outcome = execute_file_cleanup_processor(config).await;
-            complete_builtin_processor_outcome(
-                instances,
-                workflows,
-                logs,
-                &job,
-                &instance.id,
-                claim.item.attempt,
-                "builtin.file_cleanup",
-                outcome.success,
-                outcome.message,
-                notifications,
+            ("builtin.file_cleanup", outcome.success, outcome.message)
+        }
+        JobExecutor::SdkProcessor { .. } | JobExecutor::Script { .. } => return Ok(false),
+    };
+    complete_builtin_processor_outcome(
+        context,
+        BuiltinCompletion {
+            job,
+            instance_id,
+            attempt,
+            worker_id,
+            success,
+            message,
+        },
+    )
+    .await?;
+    Ok(true)
+}
+
+async fn handle_single_governance_failure(
+    context: DispatcherRefs<'_>,
+    claim: &DispatchQueueClaim,
+    instance_id: &str,
+    failure: &ScriptGovernanceFailure,
+) -> Result<(), tikeo_storage::DbErr> {
+    append_script_governance_log(context.logs, context.audit, instance_id, failure).await?;
+    let _ = context
+        .workflows
+        .mark_dispatch_queue_failed(&claim.item.id, dispatch_queue_lease_owner(claim))
+        .await?;
+    if let Some(updated) = context
+        .instances
+        .update_status(instance_id, InstanceStatus::Failed)
+        .await?
+    {
+        let reason = failure.message();
+        emit_job_instance_event_best_effort(
+            context.notifications,
+            &updated,
+            JobNotificationEvent::ScriptGovernanceFailure,
+            Some(&reason),
+        )
+        .await;
+        emit_job_instance_event_best_effort(
+            context.notifications,
+            &updated,
+            JobNotificationEvent::Failed,
+            Some(&reason),
+        )
+        .await;
+    }
+    Ok(())
+}
+
+async fn dispatch_single_to_worker(
+    context: DispatcherRefs<'_>,
+    ownership: DispatchOwnership<'_>,
+    dispatch: SingleWorkerDispatch<'_>,
+) -> Result<(), tikeo_storage::DbErr> {
+    let claim = dispatch.claim;
+    let instance = dispatch.instance;
+    let job = dispatch.job;
+    let worker_id = dispatch.worker_id;
+    let created_attempts = context
+        .attempts
+        .create_pending_for_workers(&instance.id, &[worker_id.to_owned()])
+        .await?;
+    let Some(attempt) = created_attempts.first() else {
+        let _ = context
+            .workflows
+            .release_dispatch_queue_item_after(
+                &claim.item.id,
+                dispatch_queue_lease_owner(claim),
+                DISPATCH_RETRY_BACKOFF_SECONDS,
             )
             .await?;
-            continue;
-        }
-        let task = match build_dispatch_task(
-            scripts,
-            instance.id.clone(),
-            instance.job_id.clone(),
-            executor.clone(),
+        context
+            .instances
+            .update_status(&instance.id, InstanceStatus::Pending)
+            .await?;
+        return Ok(());
+    };
+    let dispatch_hint_sent = persist_outbox_then_hint_dispatch(
+        context.attempts,
+        context.outbox,
+        context.registry,
+        DurableDispatchIntent {
+            instance_id: &instance.id,
+            attempt_id: &attempt.id,
+            worker_id,
+            shard_id: claim.item.shard_id.map_or(0, i64::from),
+            shard_map_version: claim.item.shard_map_version.unwrap_or(1),
+            shard_count: claim.item.shard_count.map_or(64, i64::from),
+            owner_node_id: ownership.owner_node_id,
+            owner_epoch: claim.item.owner_epoch.unwrap_or(0),
+            owner_fencing_token: claim
+                .item
+                .owner_fencing_token
+                .as_deref()
+                .unwrap_or(ownership.fencing_token),
+            task: dispatch.task,
+        },
+    )
+    .await?;
+    if !dispatch_hint_sent {
+        debug!(%worker_id, instance_id = %instance.id, "dispatch hint failed after durable outbox was queued");
+    }
+    context
+        .attempts
+        .update_status_if_current(
+            &instance.id,
+            worker_id,
+            InstanceStatus::Pending,
+            InstanceStatus::Running,
         )
-        .await?
-        {
-            DispatchTaskBuild::Built(task) => task,
-            DispatchTaskBuild::Rejected(failure) => {
-                append_script_governance_log(logs, audit, &instance.id, &failure).await?;
-                let _ = workflows
-                    .mark_dispatch_queue_failed(&claim.item.id, dispatch_queue_lease_owner(&claim))
-                    .await?;
-                if let Some(updated) = instances
-                    .update_status(&instance.id, InstanceStatus::Failed)
-                    .await?
-                {
-                    emit_job_instance_event_best_effort(
-                        notifications,
-                        &updated,
-                        JobNotificationEvent::ScriptGovernanceFailure,
-                        Some(&failure.message()),
-                    )
-                    .await;
-                    emit_job_instance_event_best_effort(
-                        notifications,
-                        &updated,
-                        JobNotificationEvent::Failed,
-                        Some(&failure.message()),
-                    )
-                    .await;
-                }
-                continue;
-            }
-        };
+        .await?;
+    append_retry_dispatch_progress_log(
+        context.logs,
+        &instance.id,
+        claim.item.attempt,
+        job,
+        &format!("worker {worker_id}"),
+    )
+    .await?;
+    mark_single_instance_running(context, instance, dispatch.retrying_instance, worker_id).await?;
+    let _ = context
+        .workflows
+        .mark_dispatch_queue_running(&claim.item.id, dispatch_queue_lease_owner(claim))
+        .await?;
+    debug!(%worker_id, instance_id = %instance.id, "dispatched instance to worker");
+    Ok(())
+}
 
-        let requirement = required_task_requirement_for_executor(&task, &executor);
-        let eligible_workers = registry
-            .find_lasso_persisted_dispatch_workers(
-                &job.namespace,
-                &job.app,
-                requirement.as_ref(),
-                &instance.id,
+async fn mark_single_instance_running(
+    context: DispatcherRefs<'_>,
+    instance: &tikeo_storage::JobInstanceSummary,
+    retrying_instance: bool,
+    worker_id: &str,
+) -> Result<(), tikeo_storage::DbErr> {
+    let from_status = if retrying_instance {
+        InstanceStatus::Retrying
+    } else {
+        InstanceStatus::Dispatching
+    };
+    let instance_marked_running = context
+        .instances
+        .update_status_if_current(&instance.id, from_status, InstanceStatus::Running)
+        .await?;
+    if instance_marked_running && let Some(updated) = context.instances.get(&instance.id).await? {
+        emit_job_instance_event_best_effort(
+            context.notifications,
+            &updated,
+            JobNotificationEvent::Running,
+            Some(&format!("dispatched to worker {worker_id}")),
+        )
+        .await;
+    }
+    Ok(())
+}
+
+async fn handle_no_single_worker(
+    context: DispatcherRefs<'_>,
+    claim: &DispatchQueueClaim,
+    instance: &tikeo_storage::JobInstanceSummary,
+    requirement: Option<&WorkerRequirement>,
+) -> Result<(), tikeo_storage::DbErr> {
+    if let Some(requirement) = requirement {
+        let failure =
+            ScriptGovernanceFailure::NoEligibleWorkerCapability(requirement.display_label());
+        append_script_governance_log(context.logs, context.audit, &instance.id, &failure).await?;
+        let _ = context
+            .workflows
+            .mark_dispatch_queue_failed(&claim.item.id, dispatch_queue_lease_owner(claim))
+            .await?;
+        if let Some(updated) = context
+            .instances
+            .update_status(&instance.id, InstanceStatus::Failed)
+            .await?
+        {
+            let reason = failure.message();
+            emit_job_instance_event_best_effort(
+                context.notifications,
+                &updated,
+                JobNotificationEvent::NoEligibleWorker,
+                Some(&reason),
             )
             .await;
-        if let Some(worker_id) = eligible_workers.first() {
-            let created_attempts = attempts
-                .create_pending_for_workers(&instance.id, std::slice::from_ref(worker_id))
-                .await?;
-            let Some(attempt) = created_attempts.first() else {
-                let _ = workflows
-                    .release_dispatch_queue_item_after(
-                        &claim.item.id,
-                        dispatch_queue_lease_owner(&claim),
-                        DISPATCH_RETRY_BACKOFF_SECONDS,
-                    )
-                    .await?;
-                instances
-                    .update_status(&instance.id, InstanceStatus::Pending)
-                    .await?;
-                continue;
-            };
-            let dispatch_hint_sent = persist_outbox_then_hint_dispatch(
-                attempts,
-                outbox,
-                registry,
-                DurableDispatchIntent {
-                    instance_id: &instance.id,
-                    attempt_id: &attempt.id,
-                    worker_id,
-                    shard_id: claim.item.shard_id.map_or(0, i64::from),
-                    shard_map_version: claim.item.shard_map_version.unwrap_or(1),
-                    shard_count: claim.item.shard_count.map_or(64, i64::from),
-                    owner_node_id,
-                    owner_epoch: claim.item.owner_epoch.unwrap_or(0),
-                    owner_fencing_token: claim
-                        .item
-                        .owner_fencing_token
-                        .as_deref()
-                        .unwrap_or(fencing_token),
-                    task,
-                },
+            emit_job_instance_event_best_effort(
+                context.notifications,
+                &updated,
+                JobNotificationEvent::ScriptGovernanceFailure,
+                Some(&reason),
             )
-            .await?;
-            if !dispatch_hint_sent {
-                debug!(%worker_id, instance_id = %instance.id, "dispatch hint failed after durable outbox was queued");
-            }
-            attempts
-                .update_status_if_current(
-                    &instance.id,
-                    worker_id,
-                    InstanceStatus::Pending,
-                    InstanceStatus::Running,
-                )
-                .await?;
-            append_retry_dispatch_progress_log(
-                logs,
-                &instance.id,
-                claim.item.attempt,
-                &job,
-                &format!("worker {worker_id}"),
-            )
-            .await?;
-            let instance_marked_running = if retrying_instance {
-                instances
-                    .update_status_if_current(
-                        &instance.id,
-                        InstanceStatus::Retrying,
-                        InstanceStatus::Running,
-                    )
-                    .await?
-            } else {
-                instances
-                    .update_status_if_current(
-                        &instance.id,
-                        InstanceStatus::Dispatching,
-                        InstanceStatus::Running,
-                    )
-                    .await?
-            };
-            if instance_marked_running && let Some(updated) = instances.get(&instance.id).await? {
-                emit_job_instance_event_best_effort(
-                    notifications,
-                    &updated,
-                    JobNotificationEvent::Running,
-                    Some(&format!("dispatched to worker {worker_id}")),
-                )
-                .await;
-            }
-            let _ = workflows
-                .mark_dispatch_queue_running(&claim.item.id, dispatch_queue_lease_owner(&claim))
-                .await?;
-            debug!(%worker_id, instance_id = %instance.id, "dispatched instance to worker");
-        } else {
-            if let Some(requirement) = requirement.as_ref() {
-                append_script_governance_log(
-                    logs,
-                    audit,
-                    &instance.id,
-                    &ScriptGovernanceFailure::NoEligibleWorkerCapability(
-                        requirement.display_label(),
-                    ),
-                )
-                .await?;
-                let _ = workflows
-                    .mark_dispatch_queue_failed(&claim.item.id, dispatch_queue_lease_owner(&claim))
-                    .await?;
-                if let Some(updated) = instances
-                    .update_status(&instance.id, InstanceStatus::Failed)
-                    .await?
-                {
-                    let reason = ScriptGovernanceFailure::NoEligibleWorkerCapability(
-                        requirement.display_label(),
-                    )
-                    .message();
-                    emit_job_instance_event_best_effort(
-                        notifications,
-                        &updated,
-                        JobNotificationEvent::NoEligibleWorker,
-                        Some(&reason),
-                    )
-                    .await;
-                    emit_job_instance_event_best_effort(
-                        notifications,
-                        &updated,
-                        JobNotificationEvent::ScriptGovernanceFailure,
-                        Some(&reason),
-                    )
-                    .await;
-                }
-                continue;
-            }
-            let _ = workflows
-                .release_dispatch_queue_item_after(
-                    &claim.item.id,
-                    dispatch_queue_lease_owner(&claim),
-                    DISPATCH_RETRY_BACKOFF_SECONDS,
-                )
-                .await?;
-            instances
-                .update_status(&instance.id, InstanceStatus::Pending)
-                .await?;
+            .await;
         }
+        return Ok(());
     }
-
+    let _ = context
+        .workflows
+        .release_dispatch_queue_item_after(
+            &claim.item.id,
+            dispatch_queue_lease_owner(claim),
+            DISPATCH_RETRY_BACKOFF_SECONDS,
+        )
+        .await?;
+    context
+        .instances
+        .update_status(&instance.id, InstanceStatus::Pending)
+        .await?;
     Ok(())
 }
 
@@ -763,92 +781,123 @@ async fn append_retry_dispatch_progress_log(
     .await
 }
 
-#[allow(clippy::too_many_arguments)]
 async fn complete_builtin_processor_outcome(
-    instances: &JobInstanceRepository,
-    workflows: &WorkflowRepository,
-    logs: &tikeo_storage::JobInstanceLogRepository,
-    job: &tikeo_storage::JobSummary,
-    instance_id: &str,
-    attempt: i32,
-    worker_id: &str,
-    success: bool,
-    message: String,
-    notifications: &NotificationCenter,
+    context: DispatcherRefs<'_>,
+    completion: BuiltinCompletion<'_>,
 ) -> Result<(), tikeo_storage::DbErr> {
-    instances
-        .record_result(instance_id, worker_id, success, &message)
+    context
+        .instances
+        .record_result(
+            completion.instance_id,
+            completion.worker_id,
+            completion.success,
+            &completion.message,
+        )
         .await?;
     append_dispatcher_execution_log(
-        logs,
-        instance_id,
-        worker_id,
-        if success { "info" } else { "error" },
-        &format!("task result success={success} message={message}"),
+        context.logs,
+        completion.instance_id,
+        completion.worker_id,
+        if completion.success { "info" } else { "error" },
+        &format!(
+            "task result success={} message={}",
+            completion.success, completion.message
+        ),
     )
     .await?;
-    if !success && job.retry_policy.allows_retry_after_attempt(attempt) {
-        let delay_seconds = job.retry_policy.delay_after_attempt_seconds(attempt);
-        if let Some(requeued) = workflows
-            .requeue_dispatch_queue_for_retry(instance_id, delay_seconds)
+    if !completion.success
+        && completion
+            .job
+            .retry_policy
+            .allows_retry_after_attempt(completion.attempt)
+    {
+        let delay_seconds = completion
+            .job
+            .retry_policy
+            .delay_after_attempt_seconds(completion.attempt);
+        if let Some(requeued) = context
+            .workflows
+            .requeue_dispatch_queue_for_retry(completion.instance_id, delay_seconds)
             .await?
         {
             append_dispatcher_execution_log(
-                logs,
-                instance_id,
+                context.logs,
+                completion.instance_id,
                 "tikeo-retry",
                 "info",
                 &format!(
-                    "retry scheduled: completed attempt {}/{} failed on {worker_id}; next attempt after {}s at {}; result={message}",
-                    attempt, job.retry_policy.max_attempts, delay_seconds, requeued.run_after
+                    "retry scheduled: completed attempt {}/{} failed on {}; next attempt after {}s at {}; result={}",
+                    completion.attempt,
+                    completion.job.retry_policy.max_attempts,
+                    completion.worker_id,
+                    delay_seconds,
+                    requeued.run_after,
+                    completion.message
                 ),
             )
             .await?;
-            if let Some(updated) = instances.get(instance_id).await? {
+            if let Some(updated) = context.instances.get(completion.instance_id).await? {
                 emit_job_instance_event_best_effort(
-                    notifications,
+                    context.notifications,
                     &updated,
                     JobNotificationEvent::RetryScheduled,
-                    Some(&message),
+                    Some(&completion.message),
                 )
                 .await;
             }
             return Ok(());
         }
-    } else if !success {
+    } else if !completion.success {
         append_dispatcher_execution_log(
-            logs,
-            instance_id,
+            context.logs,
+            completion.instance_id,
             "tikeo-retry",
             "error",
             &format!(
-                "retry exhausted after attempt {}/{}; final failure from {worker_id}: {message}",
-                attempt, job.retry_policy.max_attempts
+                "retry exhausted after attempt {}/{}; final failure from {}: {}",
+                completion.attempt,
+                completion.job.retry_policy.max_attempts,
+                completion.worker_id,
+                completion.message
             ),
         )
         .await?;
     }
-    let status = if success {
+    let status = if completion.success {
         InstanceStatus::Succeeded
     } else {
         InstanceStatus::Failed
     };
-    let _ = workflows
-        .mark_dispatch_queue_done_by_instance(instance_id)
+    let _ = context
+        .workflows
+        .mark_dispatch_queue_done_by_instance(completion.instance_id)
         .await?;
-    if let Some(updated) = instances.update_status(instance_id, status).await? {
-        let event = if !success && status == InstanceStatus::Failed {
-            Some(terminal_failure_notification_event(job, attempt))
+    if let Some(updated) = context
+        .instances
+        .update_status(completion.instance_id, status)
+        .await?
+    {
+        let event = if !completion.success && status == InstanceStatus::Failed {
+            Some(terminal_failure_notification_event(
+                completion.job,
+                completion.attempt,
+            ))
         } else {
             JobNotificationEvent::from_terminal_status(status)
         };
         if let Some(event) = event {
-            emit_job_instance_event_best_effort(notifications, &updated, event, Some(&message))
-                .await;
+            emit_job_instance_event_best_effort(
+                context.notifications,
+                &updated,
+                event,
+                Some(&completion.message),
+            )
+            .await;
         }
     }
-    let _ = workflows
-        .complete_job_node_from_result(instance_id, status, Some(message))
+    let _ = context
+        .workflows
+        .complete_job_node_from_result(completion.instance_id, status, Some(completion.message))
         .await?;
     Ok(())
 }
@@ -938,45 +987,33 @@ async fn broadcast_attempt_owner(
         }))
 }
 
-#[allow(clippy::too_many_arguments)]
 async fn dispatch_broadcast_attempts(
-    jobs: &JobRepository,
-    instances: &JobInstanceRepository,
-    attempts: &JobInstanceAttemptRepository,
-    outbox: &WorkerDispatchOutboxRepository,
-    workflows: &WorkflowRepository,
-    scripts: &ScriptRepository,
-    logs: &tikeo_storage::JobInstanceLogRepository,
-    audit: &AuditLogRepository,
-    registry: &WorkerRegistry,
-    owner_node_id: &str,
-    fallback_fencing_token: &str,
-    owned_shards: &[ClusterShardOwnershipSummary],
-    notifications: &NotificationCenter,
+    context: DispatcherRefs<'_>,
+    ownership: DispatchOwnership<'_>,
 ) -> Result<(), tikeo_storage::DbErr> {
-    let pending = attempts.list_pending(DISPATCH_BATCH_SIZE).await?;
+    let pending = context.attempts.list_pending(DISPATCH_BATCH_SIZE).await?;
 
     for attempt in pending {
-        let Some(instance) = instances.get(&attempt.instance_id).await? else {
+        let Some(instance) = context.instances.get(&attempt.instance_id).await? else {
             continue;
         };
         if instance.execution_mode != ExecutionMode::Broadcast {
             continue;
         }
         let Some(broadcast_owner) = broadcast_attempt_owner(
-            jobs,
+            context.jobs,
             &instance,
             &attempt.id,
-            owner_node_id,
-            fallback_fencing_token,
-            owned_shards,
+            ownership.owner_node_id,
+            ownership.fencing_token,
+            ownership.owned_shards,
         )
         .await?
         else {
             continue;
         };
-        let executor = if let Some(job) = jobs.get(&instance.job_id).await? {
-            resolve_job_executor(workflows, &instance.id, &job).await?
+        let executor = if let Some(job) = context.jobs.get(&instance.job_id).await? {
+            resolve_job_executor(context.workflows, &instance.id, &job).await?
         } else {
             JobExecutor::SdkProcessor {
                 processor_name: instance.job_id.clone(),
@@ -984,7 +1021,7 @@ async fn dispatch_broadcast_attempts(
             }
         };
         let task = match build_dispatch_task(
-            scripts,
+            context.scripts,
             attempt.instance_id.clone(),
             instance.job_id.clone(),
             executor.clone(),
@@ -993,8 +1030,15 @@ async fn dispatch_broadcast_attempts(
         {
             DispatchTaskBuild::Built(task) => task,
             DispatchTaskBuild::Rejected(failure) => {
-                append_script_governance_log(logs, audit, &attempt.instance_id, &failure).await?;
-                attempts
+                append_script_governance_log(
+                    context.logs,
+                    context.audit,
+                    &attempt.instance_id,
+                    &failure,
+                )
+                .await?;
+                context
+                    .attempts
                     .update_status(
                         &attempt.instance_id,
                         &attempt.worker_id,
@@ -1006,21 +1050,23 @@ async fn dispatch_broadcast_attempts(
         };
 
         let requirement = required_task_requirement_for_executor(&task, &executor);
-        if !registry
+        if !context
+            .registry
             .persisted_worker_supports_requirement(&attempt.worker_id, requirement.as_ref())
             .await
         {
             if let Some(requirement) = requirement.as_ref() {
                 append_script_governance_log(
-                    logs,
-                    audit,
+                    context.logs,
+                    context.audit,
                     &attempt.instance_id,
                     &ScriptGovernanceFailure::NoEligibleWorkerCapability(
                         requirement.display_label(),
                     ),
                 )
                 .await?;
-                attempts
+                context
+                    .attempts
                     .update_status(
                         &attempt.instance_id,
                         &attempt.worker_id,
@@ -1032,9 +1078,9 @@ async fn dispatch_broadcast_attempts(
         }
 
         let dispatch_hint_sent = persist_outbox_then_hint_dispatch(
-            attempts,
-            outbox,
-            registry,
+            context.attempts,
+            context.outbox,
+            context.registry,
             DurableDispatchIntent {
                 instance_id: &attempt.instance_id,
                 attempt_id: &attempt.id,
@@ -1050,7 +1096,8 @@ async fn dispatch_broadcast_attempts(
         )
         .await?;
         if dispatch_hint_sent {
-            attempts
+            context
+                .attempts
                 .update_status_if_current(
                     &attempt.instance_id,
                     &attempt.worker_id,
@@ -1058,7 +1105,8 @@ async fn dispatch_broadcast_attempts(
                     InstanceStatus::Running,
                 )
                 .await?;
-            let instance_marked_running = instances
+            let instance_marked_running = context
+                .instances
                 .update_status_if_current(
                     &attempt.instance_id,
                     InstanceStatus::Pending,
@@ -1066,10 +1114,10 @@ async fn dispatch_broadcast_attempts(
                 )
                 .await?;
             if instance_marked_running
-                && let Some(updated) = instances.get(&attempt.instance_id).await?
+                && let Some(updated) = context.instances.get(&attempt.instance_id).await?
             {
                 emit_job_instance_event_best_effort(
-                    notifications,
+                    context.notifications,
                     &updated,
                     JobNotificationEvent::Running,
                     Some(&format!(

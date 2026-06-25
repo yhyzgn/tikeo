@@ -1,5 +1,3 @@
-#![allow(missing_docs, clippy::missing_errors_doc)]
-
 use std::sync::Arc;
 
 use axum::{Json, extract::State, http::HeaderMap};
@@ -15,10 +13,16 @@ pub struct UpsertOidcIdentityRequest {
     pub username: String,
     pub namespace: Option<String>,
     pub app: Option<String>,
+    /// Worker pool value.
     pub worker_pool: Option<String>,
 }
 
 #[utoipa::path(get, path = "/api/v1/oidc-identities", tag = "auth")]
+/// List oidc identities.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn list_oidc_identities(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -32,6 +36,11 @@ pub async fn list_oidc_identities(
 }
 
 #[utoipa::path(post, path = "/api/v1/oidc-identities", tag = "auth", request_body = UpsertOidcIdentityRequest)]
+/// Upsert oidc identity.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn upsert_oidc_identity(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -47,6 +56,11 @@ pub async fn upsert_oidc_identity(
 }
 
 #[utoipa::path(delete, path = "/api/v1/oidc-identities/{id}", tag = "auth", params(("id" = String, Path, description = "OIDC identity mapping id")))]
+/// Delete oidc identity.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn delete_oidc_identity(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,

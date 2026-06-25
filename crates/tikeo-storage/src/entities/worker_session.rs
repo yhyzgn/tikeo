@@ -8,6 +8,7 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     /// Server-assigned ephemeral worker session id.
     #[sea_orm(primary_key, auto_increment = false)]
+    /// Identifier value.
     pub worker_id: String,
     /// Soft link to `worker_logical_instances.id`.
     pub logical_instance_id: String,

@@ -51,6 +51,7 @@ pub enum SdkLogLevel {
 impl SdkLogLevel {
     /// Parse a log level name. Unknown values fall back to [`SdkLogLevel::Info`].
     #[must_use]
+    /// Parse.
     pub fn parse(value: impl AsRef<str>) -> Self {
         match value.as_ref().trim().to_ascii_lowercase().as_str() {
             "debug" => Self::Debug,
@@ -82,6 +83,7 @@ pub struct SdkLogConfig {
 impl SdkLogConfig {
     /// Return an `INFO` level console-only logging configuration.
     #[must_use]
+    /// Info.
     pub const fn info() -> Self {
         Self {
             level: SdkLogLevel::Info,
@@ -91,6 +93,7 @@ impl SdkLogConfig {
 
     /// Return configuration from `TIKEO_SDK_LOG_LEVEL` and `TIKEO_SDK_LOG_DIR`.
     #[must_use]
+    /// From env.
     pub fn from_env() -> Self {
         let level =
             std::env::var("TIKEO_SDK_LOG_LEVEL").map_or(SdkLogLevel::Info, SdkLogLevel::parse);
@@ -104,6 +107,7 @@ impl SdkLogConfig {
 
     /// Enable file output under the provided directory.
     #[must_use]
+    /// With log dir.
     pub fn with_log_dir(mut self, log_dir: impl AsRef<Path>) -> Self {
         self.log_dir = Some(log_dir.as_ref().to_path_buf());
         self
@@ -174,6 +178,7 @@ tokio::task_local! {
 /// [`TaskContext::log_error`](crate::TaskContext::log_error), or task-scoped `tracing` events for task
 /// instance logs.
 #[must_use]
+/// Configure sdk logging.
 pub fn configure_sdk_logging(config: SdkLogConfig) -> bool {
     SDK_LOGGER.set(Mutex::new(SdkLogger::new(config))).is_ok()
 }
@@ -188,6 +193,7 @@ pub fn configure_sdk_logging(config: SdkLogConfig) -> bool {
 /// Returns `true` when this call installed the bridge and `false` when it was already installed or
 /// another global tracing subscriber/log adapter was already configured by the application.
 #[must_use]
+/// Install task log bridge.
 pub fn install_task_log_bridge() -> bool {
     *TASK_LOG_BRIDGE.get_or_init(|| {
         let subscriber = Registry::default().with(TaskLogLayer);
@@ -197,6 +203,7 @@ pub fn install_task_log_bridge() -> bool {
     })
 }
 
+/// In task log scope.
 pub async fn in_task_log_scope<F>(logger: TaskLogger, future: F) -> F::Output
 where
     F: std::future::Future,
@@ -204,6 +211,7 @@ where
     TASK_LOG_SCOPE.scope(logger, future).await
 }
 
+/// Sdk log.
 pub fn sdk_log(level: SdkLogLevel, message: impl AsRef<str>) {
     let logger = SDK_LOGGER.get_or_init(|| Mutex::new(SdkLogger::new(SdkLogConfig::from_env())));
     if let Ok(mut guard) = logger.lock() {

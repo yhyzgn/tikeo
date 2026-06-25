@@ -9,11 +9,13 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     /// Unique API key identifier.
     #[sea_orm(primary_key, auto_increment = false)]
+    /// Identifier value.
     pub id: String,
     /// Human-readable key name.
     pub name: String,
     /// SHA-256 hash of the plaintext API key.
     #[sea_orm(unique)]
+    /// Key hash value.
     pub key_hash: String,
     /// Redacted display prefix such as `tk-AbCd...`.
     pub key_prefix: String,

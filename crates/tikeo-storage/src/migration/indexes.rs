@@ -10,6 +10,11 @@ use super::iden::{
     WorkflowNodeInstances, WorkflowNodes, WorkflowShards, Workflows,
 };
 
+/// Create indexes.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub(super) async fn create_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     create_scope_indexes(manager).await?;
     create_worker_lifecycle_indexes(manager).await?;

@@ -25,7 +25,7 @@
         )
         .await
         .unwrap_or_else(|error| panic!("raft coordinator should start: {error}"));
-        let app = router_with_state(AppState::new(
+        let app = router_with_state(app_state!(
             JobRepository::new(db.clone()),
             JobInstanceRepository::new(db.clone()),
             JobInstanceLogRepository::new(db.clone()),
@@ -100,7 +100,7 @@
         .await
         .unwrap_or_else(|error| panic!("raft coordinator should start: {error}"));
         let app = router_with_state(
-            AppState::new(
+            app_state!(
                 JobRepository::new(db.clone()),
                 JobInstanceRepository::new(db.clone()),
                 JobInstanceLogRepository::new(db.clone()),
@@ -250,7 +250,6 @@
     }
 
     #[tokio::test]
-    #[allow(clippy::too_many_lines)]
     async fn audit_logs_support_server_side_filters_and_pagination() {
         let db = connect_and_migrate("sqlite::memory:")
             .await
@@ -288,7 +287,7 @@
             })
             .await
             .unwrap_or_else(|error| panic!("audit should append: {error}"));
-        let app = router_with_state(AppState::new(
+        let app = router_with_state(app_state!(
             JobRepository::new(db.clone()),
             JobInstanceRepository::new(db.clone()),
             JobInstanceLogRepository::new(db.clone()),
@@ -373,12 +372,11 @@
     }
 
     #[tokio::test]
-    #[allow(clippy::too_many_lines)]
     async fn alert_rules_api_records_script_governance_event_history() {
         let db = connect_and_migrate("sqlite::memory:")
             .await
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
-        let app = router_with_state(AppState::new(
+        let app = router_with_state(app_state!(
             JobRepository::new(db.clone()),
             JobInstanceRepository::new(db.clone()),
             JobInstanceLogRepository::new(db.clone()),
@@ -514,12 +512,11 @@
     }
 
     #[tokio::test]
-    #[allow(clippy::too_many_lines)]
     async fn alert_event_recovery_appends_resolved_history_entry() {
         let db = connect_and_migrate("sqlite::memory:")
             .await
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
-        let app = router_with_state(AppState::new(
+        let app = router_with_state(app_state!(
             JobRepository::new(db.clone()),
             JobInstanceRepository::new(db.clone()),
             JobInstanceLogRepository::new(db.clone()),
@@ -625,12 +622,11 @@
     }
 
     #[tokio::test]
-    #[allow(clippy::too_many_lines)]
     async fn alert_event_summary_rolls_up_history_by_rule_and_resource() {
         let db = connect_and_migrate("sqlite::memory:")
             .await
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
-        let app = router_with_state(AppState::new(
+        let app = router_with_state(app_state!(
             JobRepository::new(db.clone()),
             JobInstanceRepository::new(db.clone()),
             JobInstanceLogRepository::new(db.clone()),
@@ -809,7 +805,7 @@
         let db = connect_and_migrate("sqlite::memory:")
             .await
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
-        let app = router_with_state(AppState::new(
+        let app = router_with_state(app_state!(
             JobRepository::new(db.clone()),
             JobInstanceRepository::new(db.clone()),
             JobInstanceLogRepository::new(db.clone()),
@@ -928,7 +924,7 @@
                 tx,
             )
             .await;
-        let state = AppState::new(
+        let state = app_state!(
             jobs,
             instances,
             logs,

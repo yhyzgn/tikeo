@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 static TIMESTAMP_OFFSET: OnceLock<RwLock<UtcOffset>> = OnceLock::new();
 
+/// Set timestamp offset.
 pub fn set_timestamp_offset(offset: UtcOffset) {
     let lock = TIMESTAMP_OFFSET.get_or_init(|| RwLock::new(UtcOffset::UTC));
     if let Ok(mut guard) = lock.write() {
@@ -12,6 +13,11 @@ pub fn set_timestamp_offset(offset: UtcOffset) {
     }
 }
 
+/// Parse timestamp offset.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub fn parse_timestamp_offset(value: &str) -> Result<UtcOffset, time::error::ComponentRange> {
     if value.eq_ignore_ascii_case("utc") || value == "Z" || value == "+00:00" {
         return Ok(UtcOffset::UTC);
@@ -24,10 +30,12 @@ pub fn parse_timestamp_offset(value: &str) -> Result<UtcOffset, time::error::Com
     UtcOffset::from_hms(sign * hours, sign * minutes, 0)
 }
 
+/// Now rfc3339.
 pub(super) fn now_rfc3339() -> String {
     format_rfc3339(OffsetDateTime::now_utc())
 }
 
+/// Rfc3339 after seconds.
 pub(super) fn rfc3339_after_seconds(seconds: i64) -> String {
     format_rfc3339(OffsetDateTime::now_utc() + Duration::seconds(seconds))
 }
@@ -46,6 +54,7 @@ fn format_rfc3339(value: OffsetDateTime) -> String {
         .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_owned())
 }
 
+/// New id.
 pub(super) fn new_id(prefix: &str) -> String {
     format!("{prefix}_{}", Uuid::now_v7().simple())
 }

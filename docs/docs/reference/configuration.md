@@ -7,7 +7,7 @@ description: Complete Server and Worker configuration reference, environment var
 
 Tikeo has two configuration surfaces:
 
-1. **Server configuration** controls the control plane, storage, auth, cluster mode, notification delivery, TLS, and observability. Docker/Compose uses `config/tikeo.toml` mounted as `/config/tikeo.toml`.
+1. **Server configuration** controls the control plane, storage, auth, cluster mode, notification delivery, TLS, and observability. Docker/Compose uses `config/tikeo.yml` mounted as `/config/tikeo.yml`.
 2. **Worker configuration** lives in SDKs or application configuration. Java Spring Boot exposes `tikeo.worker.*`; other SDKs expose equivalent `WorkerConfig` fields and demo environment variables.
 
 Server config load order is:
@@ -22,11 +22,11 @@ Prefer the mounted config file for normal deployment. Use environment overrides 
 
 | Path | Used by | Meaning | Mount guidance |
 | --- | --- | --- | --- |
-| `/config/tikeo.toml` | Dockerfile, Compose, Kubernetes, Helm | Server config selected by `serve --config /config/tikeo.toml`. | Mount read-only from host path, ConfigMap, or Secret. |
+| `/config/tikeo.yml` | Dockerfile, Compose, Kubernetes, Helm | Server config selected by `serve --config /config/tikeo.yml`. | Mount read-only from host path, ConfigMap, or Secret. |
 | `/config/tls` | TLS/mTLS config | Certificate, private key, and CA files referenced by `transport_security.*`. | Mount read-only. Never bake private keys into images. |
 | `/data/tikeo.db` | SQLite mode | SQLite database file from `storage.database.path=/data/tikeo.db`. | Persist `/data` when SQLite data must survive restarts. |
 | `/logs/tikeo.log` | Optional file logging | File log created when `observability.logging.log_dir=/logs`. | Optional; stdout logging is always emitted. |
-| `/etc/tikeo/tikeo.toml` | systemd/bare metal | Conventional host config file. | Own by root/deployment automation; readable by the process. |
+| `/etc/tikeo/tikeo.yml` | systemd/bare metal | Conventional host config file. | Own by root/deployment automation; readable by the process. |
 | `/var/lib/tikeo` | systemd/bare metal | Durable local state, usually SQLite on a VM. | Own by the `tikeo` user; include in backups if SQLite is used. |
 | `/var/log/tikeo` | systemd/bare metal | Host file logs. | Create before startup and rotate with host policy. |
 
@@ -34,8 +34,8 @@ Prefer the mounted config file for normal deployment. Use environment overrides 
 
 | File | Purpose | Notes |
 | --- | --- | --- |
-| `config/tikeo.toml` | Production/container template | Single formal deployment entry. Defaults to SQLite `/data/tikeo.db`, includes commented PostgreSQL/MySQL/Raft/TLS examples. |
-| `config/dev.toml` | Local source development | Keeps the fast dev path with `.dev/tikeo-dev.db`. |
+| `config/tikeo.yml` | Production/container template | Single formal deployment entry. Defaults to SQLite `/data/tikeo.db`, includes commented PostgreSQL/MySQL/Raft/TLS examples. |
+| `config/dev.yml` | Local source development | Keeps the fast dev path with `.dev/tikeo-dev.db`. |
 
 ## Structured database configuration
 
@@ -178,16 +178,16 @@ All SDKs use the same operational rule for SRT, Deno, ripgrep, Rhai, PowerShell,
 ## Example run
 
 ```bash
-cp config/tikeo.toml ./tikeo.toml
-./target/release/tikeo serve --config ./tikeo.toml
+cp config/tikeo.yml ./tikeo.yml
+./target/release/tikeo serve --config ./tikeo.yml
 ```
 
-For Docker Compose, edit `config/tikeo.toml`, not Compose `environment`, for Tikeo service behavior.
+For Docker Compose, edit `config/tikeo.yml`, not Compose `environment`, for Tikeo service behavior.
 ## Prerequisites
 
 - Decide whether this process is a Server or Worker; the tables below are separate on purpose.
 - For Server deployments, choose SQLite, PostgreSQL, MySQL, or CockroachDB and prepare the matching `storage.database.*` fields.
-- For Worker deployments, keep SDK settings in the application configuration rather than Server `config/tikeo.toml`.
+- For Worker deployments, keep SDK settings in the application configuration rather than Server `config/tikeo.yml`.
 
 ## Verify
 

@@ -10,7 +10,7 @@ RUN_ID="${TIKEO_NOTIFICATION_E2E_RUN_ID:-notification-provider-e2e-$(date -u +%Y
 REPORT_DIR="${TIKEO_NOTIFICATION_E2E_REPORT_DIR:-$ROOT_DIR/.dev/reports/$RUN_ID}"
 API_URL="${TIKEO_HTTP_URL:-http://127.0.0.1:19094}"
 WORKER_ENDPOINT="${TIKEO_WORKER_ENDPOINT:-http://127.0.0.1:19994}"
-SERVER_CONFIG="$REPORT_DIR/$RUN_ID-config.toml"
+SERVER_CONFIG="$REPORT_DIR/$RUN_ID-config.yml"
 SERVER_LOG="$REPORT_DIR/$RUN_ID-server.log"
 SERVER_BIN="$ROOT_DIR/target/debug/tikeo"
 DB_PATH="$REPORT_DIR/$RUN_ID.db"
@@ -68,56 +68,53 @@ PY
 
 write_config() {
   cat > "$SERVER_CONFIG" <<CFG
-[server]
-listen_addr = "${API_URL#http://}"
-worker_tunnel_addr = "${WORKER_ENDPOINT#http://}"
+server:
+  listen_addr: "${API_URL#http://}"
+  worker_tunnel_addr: "${WORKER_ENDPOINT#http://}"
 
-[storage]
+storage:
+  database:
+    type: sqlite
+    path: "$DB_PATH"
+    params:
+      mode: rwc
 
-[storage.database]
-type = "sqlite"
-path = "$DB_PATH"
+cluster:
+  mode: standalone
+  node_id: standalone
+  peers: []
 
-[storage.database.params]
-mode = "rwc"
+auth:
+  local_login_enabled: true
+  api_tokens:
+    default_ttl_seconds: 43200
+    min_ttl_seconds: 300
+    max_ttl_seconds: 2592000
+  oidc:
+    enabled: false
+    scopes: ["openid", "profile", "email"]
 
-[cluster]
-mode = "standalone"
-node_id = "standalone"
-peers = []
+transport_security:
+  http:
+    tls_enabled: false
+    mtls_required: false
+  worker_tunnel:
+    tls_enabled: false
+    mtls_required: false
 
-[auth]
-local_login_enabled = true
+observability:
+  tracing:
+    enabled: false
+    headers: []
 
-[auth.api_tokens]
-default_ttl_seconds = 43200
-min_ttl_seconds = 300
-max_ttl_seconds = 2592000
+alert_retry:
+  enabled: false
+  interval_seconds: 60
+  batch_size: 50
+  max_attempts: 3
+  backoff_seconds: 300
 
-[auth.oidc]
-enabled = false
-scopes = ["openid", "profile", "email"]
-
-[transport_security.http]
-tls_enabled = false
-mtls_required = false
-
-[transport_security.worker_tunnel]
-tls_enabled = false
-mtls_required = false
-
-[observability.tracing]
-enabled = false
-headers = []
-
-[alert_retry]
-enabled = false
-interval_seconds = 60
-batch_size = 50
-max_attempts = 3
-backoff_seconds = 300
-
-[script_governance]
+script_governance: {}
 CFG
 }
 

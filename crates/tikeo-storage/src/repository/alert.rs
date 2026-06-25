@@ -1,5 +1,3 @@
-#![allow(missing_docs)]
-
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
     QueryOrder, QuerySelect, Set,
@@ -12,117 +10,197 @@ use super::util::{new_id, now_rfc3339};
 
 #[derive(Debug, Clone)]
 pub struct RecordAlertDeliveryAttempt {
+    /// Identifier value.
     pub event_id: String,
+    /// Identifier value.
     pub rule_id: String,
+    /// Provider value.
     pub provider: String,
+    /// Target value.
     pub target: String,
+    /// Delivered value.
     pub delivered: bool,
+    /// Status code value.
     pub status_code: Option<i32>,
+    /// Error value.
     pub error: Option<String>,
+    /// Attempt value.
     pub attempt: i32,
+    /// Retry state value.
     pub retry_state: String,
+    /// Timestamp value.
     pub next_retry_at: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct AlertDeliveryAttemptSummary {
+    /// Identifier value.
     pub id: String,
+    /// Identifier value.
     pub event_id: String,
+    /// Identifier value.
     pub rule_id: String,
+    /// Provider value.
     pub provider: String,
+    /// Target value.
     pub target: String,
+    /// Delivered value.
     pub delivered: bool,
+    /// Status code value.
     pub status_code: Option<i32>,
+    /// Error value.
     pub error: Option<String>,
+    /// Attempt value.
     pub attempt: i32,
+    /// Retry state value.
     pub retry_state: String,
+    /// Timestamp value.
     pub next_retry_at: Option<String>,
+    /// Timestamp value.
     pub created_at: String,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct AlertDeliveryAttemptFilters {
+    /// Identifier value.
     pub event_id: Option<String>,
+    /// Identifier value.
     pub rule_id: Option<String>,
+    /// Provider value.
     pub provider: Option<String>,
+    /// Retry state value.
     pub retry_state: Option<String>,
 }
 
 #[derive(Debug, Clone)]
 pub struct CreateAlertRule {
+    /// Name value.
     pub name: String,
+    /// Severity value.
     pub severity: String,
+    /// Serialized data value.
     pub condition_json: String,
+    /// Serialized data value.
     pub channels_json: String,
+    /// Boolean state flag.
     pub enabled: bool,
+    /// Dedupe seconds value.
     pub dedupe_seconds: i64,
+    /// Timestamp value.
     pub silenced_until: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AlertRuleSummary {
+    /// Identifier value.
     pub id: String,
+    /// Name value.
     pub name: String,
+    /// Severity value.
     pub severity: String,
+    /// Serialized data value.
     pub condition_json: String,
+    /// Serialized data value.
     pub channels_json: String,
+    /// Boolean state flag.
     pub enabled: bool,
+    /// Dedupe seconds value.
     pub dedupe_seconds: i64,
+    /// Timestamp value.
     pub silenced_until: Option<String>,
+    /// Timestamp value.
     pub created_at: String,
+    /// Timestamp value.
     pub updated_at: String,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AlertEventSummary {
+    /// Identifier value.
     pub id: String,
+    /// Identifier value.
     pub rule_id: String,
+    /// Rule name value.
     pub rule_name: String,
+    /// Severity value.
     pub severity: String,
+    /// Status value.
     pub status: String,
+    /// Event type value.
     pub event_type: String,
+    /// Resource type value.
     pub resource_type: String,
+    /// Identifier value.
     pub resource_id: String,
+    /// Failure class value.
     pub failure_class: Option<String>,
+    /// Message value.
     pub message: Option<String>,
+    /// Dedupe key value.
     pub dedupe_key: String,
+    /// Timestamp value.
     pub created_at: String,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AlertNotificationSummary {
+    /// Identifier value.
     pub rule_id: String,
+    /// Rule name value.
     pub rule_name: String,
+    /// Severity value.
     pub severity: String,
+    /// Resource type value.
     pub resource_type: String,
+    /// Identifier value.
     pub resource_id: String,
+    /// Failure class value.
     pub failure_class: Option<String>,
+    /// Latest status value.
     pub latest_status: String,
+    /// Latest event type value.
     pub latest_event_type: String,
+    /// Latest message value.
     pub latest_message: Option<String>,
+    /// Event count value.
     pub event_count: u64,
+    /// Firing count value.
     pub firing_count: u64,
+    /// Suppressed count value.
     pub suppressed_count: u64,
+    /// Silenced count value.
     pub silenced_count: u64,
+    /// Recovered count value.
     pub recovered_count: u64,
+    /// First seen value.
     pub first_seen: String,
+    /// Last seen value.
     pub last_seen: String,
 }
 
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct AlertEventStatusCounts {
+    /// Total events value.
     pub total_events: u64,
+    /// By status value.
     pub by_status: BTreeMap<String, u64>,
+    /// Script failure events value.
     pub script_failure_events: u64,
+    /// By failure class value.
     pub by_failure_class: BTreeMap<String, u64>,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct AlertEventFilters {
+    /// Resource type value.
     pub resource_type: Option<String>,
+    /// Identifier value.
     pub resource_id: Option<String>,
+    /// Failure class value.
     pub failure_class: Option<String>,
+    /// Identifier value.
     pub rule_id: Option<String>,
+    /// Status value.
     pub status: Option<String>,
 }
 
@@ -132,16 +210,23 @@ pub struct AlertRepository {
 }
 
 impl AlertRepository {
+    /// New.
     #[must_use]
     pub const fn new(db: DatabaseConnection) -> Self {
         Self { db }
     }
 
+    /// Db.
     #[must_use]
     pub fn db(&self) -> DatabaseConnection {
         self.db.clone()
     }
 
+    /// Record delivery attempt.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn record_delivery_attempt(
         &self,
         input: RecordAlertDeliveryAttempt,
@@ -165,6 +250,11 @@ impl AlertRepository {
         Ok(AlertDeliveryAttemptSummary::from(model))
     }
 
+    /// List delivery attempts.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn list_delivery_attempts(
         &self,
         filters: AlertDeliveryAttemptFilters,
@@ -192,6 +282,11 @@ impl AlertRepository {
             .collect())
     }
 
+    /// List due delivery attempts.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn list_due_delivery_attempts(
         &self,
         limit: u64,
@@ -215,6 +310,11 @@ impl AlertRepository {
             .collect())
     }
 
+    /// Mark delivery attempt retry state.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn mark_delivery_attempt_retry_state(
         &self,
         id: &str,
@@ -238,6 +338,11 @@ impl AlertRepository {
         Ok(Some(AlertDeliveryAttemptSummary::from(updated)))
     }
 
+    /// Create rule.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn create_rule(
         &self,
         input: CreateAlertRule,
@@ -260,6 +365,11 @@ impl AlertRepository {
         Ok(AlertRuleSummary::from(model))
     }
 
+    /// Get rule.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn get_rule(&self, id: &str) -> Result<Option<AlertRuleSummary>, sea_orm::DbErr> {
         alert_rule::Entity::find_by_id(id.to_owned())
             .one(&self.db)
@@ -267,6 +377,11 @@ impl AlertRepository {
             .map(|model| model.map(AlertRuleSummary::from))
     }
 
+    /// List rules.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn list_rules(&self) -> Result<Vec<AlertRuleSummary>, sea_orm::DbErr> {
         let rows = alert_rule::Entity::find()
             .order_by_desc(alert_rule::Column::CreatedAt)
@@ -275,6 +390,11 @@ impl AlertRepository {
         Ok(rows.into_iter().map(AlertRuleSummary::from).collect())
     }
 
+    /// List events.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn list_events(
         &self,
         filters: AlertEventFilters,
@@ -302,6 +422,11 @@ impl AlertRepository {
         Ok(rows.into_iter().map(AlertEventSummary::from).collect())
     }
 
+    /// List event summaries.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn list_event_summaries(
         &self,
         filters: AlertEventFilters,
@@ -373,6 +498,11 @@ impl AlertRepository {
         Ok(items)
     }
 
+    /// Count events.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn count_events(&self) -> Result<AlertEventStatusCounts, sea_orm::DbErr> {
         let rows = alert_event::Entity::find().all(&self.db).await?;
         let mut counts = AlertEventStatusCounts::default();
@@ -389,6 +519,11 @@ impl AlertRepository {
         Ok(counts)
     }
 
+    /// Get event.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn get_event(&self, id: &str) -> Result<Option<AlertEventSummary>, sea_orm::DbErr> {
         alert_event::Entity::find_by_id(id.to_owned())
             .one(&self.db)
@@ -396,6 +531,11 @@ impl AlertRepository {
             .map(|model| model.map(AlertEventSummary::from))
     }
 
+    /// Record script governance recovery.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn record_script_governance_recovery(
         &self,
         event_id: &str,
@@ -425,6 +565,11 @@ impl AlertRepository {
         Ok(Some(AlertEventSummary::from(recovered)))
     }
 
+    /// Record script governance failure.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying operation fails.
     pub async fn record_script_governance_failure(
         &self,
         resource_id: &str,
@@ -505,7 +650,7 @@ fn rfc3339_seconds_ago(seconds: i64) -> String {
         .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_owned())
 }
 
-fn firing_status(threshold_not_met: bool, duplicate_firing: bool) -> &'static str {
+const fn firing_status(threshold_not_met: bool, duplicate_firing: bool) -> &'static str {
     if threshold_not_met || duplicate_firing {
         "suppressed"
     } else {

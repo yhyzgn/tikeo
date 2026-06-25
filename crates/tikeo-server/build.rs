@@ -29,7 +29,7 @@ fn main() {
     println!("cargo:rerun-if-env-changed=TIKEO_GIT_DIRTY");
     println!("cargo:rerun-if-changed=../../.git/HEAD");
 
-    let version = env::var("CARGO_PKG_VERSION").expect("CARGO_PKG_VERSION is set by Cargo");
+    let version = env::var("CARGO_PKG_VERSION").unwrap_or_default();
     let git_tag = env_or_git(
         "TIKEO_GIT_TAG",
         &["git", "describe", "--tags", "--exact-match", "HEAD"],
@@ -47,10 +47,10 @@ fn main() {
         .ok()
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| {
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map(|duration| duration.as_secs().to_string())
-                .unwrap_or_else(|_| "0".to_owned())
+            SystemTime::now().duration_since(UNIX_EPOCH).map_or_else(
+                |_| "0".to_owned(),
+                |duration| duration.as_secs().to_string(),
+            )
         });
     let dirty = env::var("TIKEO_GIT_DIRTY")
         .ok()
@@ -62,8 +62,10 @@ fn main() {
                 .ok()
                 .filter(|output| output.status.success())
                 .and_then(|output| String::from_utf8(output.stdout).ok())
-                .map(|status| (!status.trim().is_empty()).to_string())
-                .unwrap_or_else(|| "unknown".to_owned())
+                .map_or_else(
+                    || "unknown".to_owned(),
+                    |status| (!status.trim().is_empty()).to_string(),
+                )
         });
 
     println!("cargo:rustc-env=TIKEO_GIT_TAG={git_tag}");

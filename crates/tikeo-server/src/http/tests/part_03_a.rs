@@ -1,6 +1,5 @@
-#[tokio::test]
-#[allow(clippy::too_many_lines)]
-async fn metrics_summary_reports_storage_registry_and_alert_counts() {
+async fn metrics_summary_test_app() -> Router {
+
     let db = connect_and_migrate("sqlite::memory:")
         .await
         .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
@@ -158,7 +157,7 @@ async fn metrics_summary_reports_storage_registry_and_alert_counts() {
         .unwrap_or_else(|error| panic!("shard ownership metric row should create: {error}"))
         .unwrap_or_else(|| panic!("shard ownership row should be returned"));
 
-    let app = router_with_state(AppState::new(
+    let app = router_with_state(app_state!(
         jobs,
         instances,
         JobInstanceLogRepository::new(db.clone()),
@@ -193,6 +192,13 @@ async fn metrics_summary_reports_storage_registry_and_alert_counts() {
     .await
     .unwrap_or_else(|error| panic!("governance materialization should append: {error}"));
 
+
+    app
+}
+
+#[tokio::test]
+async fn metrics_summary_reports_storage_registry_and_alert_counts() {
+    let app = metrics_summary_test_app().await;
     let summary = app
         .clone()
         .oneshot(admin_request_builder(app.clone(), "GET", "/api/v1/metrics/summary").await)
@@ -446,7 +452,7 @@ async fn job_topology_api_discovers_workflow_dependencies_and_unresolved_refs() 
         .await
         .unwrap_or_else(|error| panic!("workflow should create: {error}"));
 
-    let app = router_with_state(AppState::new(
+    let app = router_with_state(app_state!(
         jobs,
         JobInstanceRepository::new(db.clone()),
         JobInstanceLogRepository::new(db.clone()),
@@ -512,7 +518,7 @@ async fn tenant_secret_store_creates_lists_and_deletes_scoped_secret_refs() {
     let db = connect_and_migrate("sqlite::memory:")
         .await
         .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
-    let app = router_with_state(AppState::new(
+    let app = router_with_state(app_state!(
         JobRepository::new(db.clone()),
         JobInstanceRepository::new(db.clone()),
         JobInstanceLogRepository::new(db.clone()),
@@ -712,7 +718,7 @@ async fn inbound_webhook_event_source_triggers_job_and_records_payload_log() {
         .unwrap_or_else(|error| panic!("job should create: {error}"));
     let instances = JobInstanceRepository::new(db.clone());
     let logs = JobInstanceLogRepository::new(db.clone());
-    let app = router_with_state(AppState::new(
+    let app = router_with_state(app_state!(
         jobs,
         instances.clone(),
         logs.clone(),
@@ -802,7 +808,7 @@ async fn inbound_webhook_rejects_replayed_signed_nonce() {
         .await
         .unwrap_or_else(|error| panic!("job should create: {error}"));
     let instances = JobInstanceRepository::new(db.clone());
-    let app = router_with_state(AppState::new(
+    let app = router_with_state(app_state!(
         jobs,
         instances.clone(),
         JobInstanceLogRepository::new(db.clone()),
@@ -922,7 +928,7 @@ async fn scheduling_advice_reports_worker_capability_readiness() {
     let registry = crate::tunnel::WorkerRegistry::with_lifecycle(
         tikeo_storage::WorkerLifecycleRepository::new(db.clone()),
     );
-    let app = router_with_state(AppState::new(
+    let app = router_with_state(app_state!(
         jobs,
         JobInstanceRepository::new(db.clone()),
         JobInstanceLogRepository::new(db.clone()),
@@ -1048,7 +1054,7 @@ async fn job_trigger_routes_to_canary_job_when_percent_is_full() {
         .await
         .unwrap_or_else(|error| panic!("main job should create: {error}"));
     let instances = JobInstanceRepository::new(db.clone());
-    let app = router_with_state(AppState::new(
+    let app = router_with_state(app_state!(
         jobs,
         instances.clone(),
         JobInstanceLogRepository::new(db.clone()),
@@ -1173,7 +1179,7 @@ async fn canary_metrics_gate_auto_rolls_back_failed_target_before_trigger() {
             .await
             .unwrap_or_else(|error| panic!("canary instance {index} should fail: {error}"));
     }
-    let app = router_with_state(AppState::new(
+    let app = router_with_state(app_state!(
         jobs.clone(),
         instances.clone(),
         JobInstanceLogRepository::new(db.clone()),

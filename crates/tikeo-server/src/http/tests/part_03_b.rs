@@ -49,7 +49,7 @@
         .await
         .unwrap_or_else(|error| panic!("governance audit should append: {error}"));
 
-        let app = router_with_state(AppState::new(
+        let app = router_with_state(app_state!(
             jobs,
             instances,
             JobInstanceLogRepository::new(db.clone()),
@@ -247,7 +247,7 @@
         let db = connect_and_migrate("sqlite::memory:")
             .await
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
-        let app = router_with_state(AppState::new(
+        let app = router_with_state(app_state!(
             JobRepository::new(db.clone()),
             JobInstanceRepository::new(db.clone()),
             JobInstanceLogRepository::new(db.clone()),
@@ -1211,7 +1211,7 @@
             .insert("worker_pool".to_owned(), "pool-b".to_owned());
         let registered_a = registry.register(pool_a, tx1).await;
         let _registered_b = registry.register(pool_b, tx2).await;
-        let app = router_with_state(AppState::new(
+        let app = router_with_state(app_state!(
             JobRepository::new(db.clone()),
             JobInstanceRepository::new(db.clone()),
             JobInstanceLogRepository::new(db.clone()),
@@ -1287,7 +1287,7 @@
             })
             .await
             .unwrap_or_else(|error| panic!("persisted worker should register: {error}"));
-        let app = router_with_state(AppState::new(
+        let app = router_with_state(app_state!(
             JobRepository::new(db.clone()),
             JobInstanceRepository::new(db.clone()),
             JobInstanceLogRepository::new(db.clone()),
@@ -1328,7 +1328,7 @@
         let (tx2, _rx2) = tokio::sync::mpsc::channel(1);
         let first = registry.register(worker("pod-1", "billing"), tx1).await;
         let second = registry.register(worker("pod-1", "billing"), tx2).await;
-        let app = router_with_state(AppState::new(
+        let app = router_with_state(app_state!(
             JobRepository::new(db.clone()),
             JobInstanceRepository::new(db.clone()),
             JobInstanceLogRepository::new(db.clone()),

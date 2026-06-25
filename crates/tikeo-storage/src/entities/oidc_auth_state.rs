@@ -9,9 +9,11 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     /// Unique state row identifier.
     #[sea_orm(primary_key, auto_increment = false)]
+    /// Identifier value.
     pub id: String,
     /// SHA-256 hash of the opaque state value.
     #[sea_orm(unique)]
+    /// State hash value.
     pub state_hash: String,
     /// Redirect URI associated with this authorization request.
     pub redirect_uri: String,

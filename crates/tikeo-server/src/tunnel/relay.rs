@@ -24,6 +24,7 @@ pub struct WorkerRelayError {
 impl WorkerRelayError {
     /// Transient or configuration failure that does not prove the worker stream is gone.
     #[must_use]
+    /// Transient.
     pub fn transient(message: impl Into<String>) -> Self {
         Self {
             message: message.into(),
@@ -33,6 +34,7 @@ impl WorkerRelayError {
 
     /// Gateway confirmed it does not own a usable stream for this worker.
     #[must_use]
+    /// Worker offline.
     pub fn worker_offline(message: impl Into<String>) -> Self {
         Self {
             message: message.into(),
@@ -43,6 +45,7 @@ impl WorkerRelayError {
 
 /// Server-to-server relay used by the scheduling leader to reach remote gateway Pods.
 #[async_trait]
+/// `WorkerRelayDispatch` behavior contract.
 pub trait WorkerRelayDispatch: Send + Sync + Debug {
     /// Dispatch a fully assignment-tokened task to the gateway that owns `worker_id`.
     async fn dispatch_to_gateway(
@@ -67,6 +70,7 @@ pub struct HttpWorkerRelayDispatch {
 impl HttpWorkerRelayDispatch {
     /// Build a relay from configured cluster peers.
     #[must_use]
+    /// From peers.
     pub fn from_peers(peers: &[ClusterPeerConfig], transport_token: Option<String>) -> Self {
         Self {
             client: reqwest::Client::new(),

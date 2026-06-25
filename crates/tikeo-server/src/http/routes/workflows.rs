@@ -1,5 +1,3 @@
-#![allow(missing_docs, clippy::missing_errors_doc)]
-
 use std::{collections::HashSet, convert::Infallible, sync::Arc, time::Duration};
 
 use axum::{
@@ -35,6 +33,7 @@ use crate::http::{
 #[serde(rename_all = "camelCase")]
 pub struct CreateWorkflowRequest {
     pub name: String,
+    /// Serialized data value.
     pub definition: WorkflowDefinition,
 }
 
@@ -42,10 +41,16 @@ pub struct CreateWorkflowRequest {
 #[serde(rename_all = "camelCase")]
 pub struct UpdateWorkflowRequest {
     pub name: String,
+    /// Serialized data value.
     pub definition: WorkflowDefinition,
 }
 
 #[utoipa::path(post, path = "/api/v1/workflows", tag = "workflows", request_body = CreateWorkflowRequest)]
+/// Create workflow.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn create_workflow(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -83,6 +88,11 @@ pub async fn create_workflow(
 }
 
 #[utoipa::path(patch, path = "/api/v1/workflows/{id}", tag = "workflows", request_body = UpdateWorkflowRequest)]
+/// Update workflow.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn update_workflow(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -124,6 +134,11 @@ pub async fn update_workflow(
 }
 
 #[utoipa::path(get, path = "/api/v1/workflows", tag = "workflows")]
+/// List workflows.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn list_workflows(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -138,6 +153,11 @@ pub async fn list_workflows(
 }
 
 #[utoipa::path(post, path = "/api/v1/workflows/dry-run", tag = "workflows", request_body = WorkflowDefinition)]
+/// Dry run workflow.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn dry_run_workflow(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -180,6 +200,11 @@ pub async fn dry_run_workflow(
 }
 
 #[utoipa::path(get, path = "/api/v1/workflows/{id}", tag = "workflows")]
+/// Get workflow.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn get_workflow(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -196,6 +221,11 @@ pub async fn get_workflow(
 }
 
 #[utoipa::path(post, path = "/api/v1/workflows/{id}/validate", tag = "workflows")]
+/// Validate workflow.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn validate_workflow(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -228,6 +258,11 @@ pub async fn validate_workflow(
 }
 
 #[utoipa::path(post, path = "/api/v1/workflows/{id}/run", tag = "workflows", request_body = WorkflowRunRequest)]
+/// Run workflow.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn run_workflow(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -256,6 +291,11 @@ pub async fn run_workflow(
 }
 
 #[utoipa::path(get, path = "/api/v1/workflow-instances/{id}", tag = "workflows")]
+/// Get workflow instance.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn get_workflow_instance(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -272,6 +312,11 @@ pub async fn get_workflow_instance(
 }
 
 #[utoipa::path(post, path = "/api/v1/workflow-instances/{id}/advance", tag = "workflows", request_body = AdvanceWorkflowInput)]
+/// Advance workflow instance.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn advance_workflow_instance(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -315,6 +360,11 @@ pub async fn advance_workflow_instance(
     path = "/api/v1/workflow-instances/materialize-next",
     tag = "workflows"
 )]
+/// Materialize next workflow node.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn materialize_next_workflow_node(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -352,6 +402,11 @@ pub async fn materialize_next_workflow_node(
 }
 
 #[utoipa::path(post, path = "/api/v1/workflow-instances/{id}/recover", tag = "workflows", request_body = RecoverWorkflowNodeInput)]
+/// Recover workflow node.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn recover_workflow_node(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -384,6 +439,11 @@ pub async fn recover_workflow_node(
 }
 
 #[utoipa::path(post, path = "/api/v1/workflow-instances/{id}/shards/rebalance", tag = "workflows", request_body = RebalanceWorkflowShardsInput)]
+/// Rebalance workflow shards.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn rebalance_workflow_shards(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -415,6 +475,11 @@ pub async fn rebalance_workflow_shards(
     path = "/api/v1/workflow-instances/{id}/shards",
     tag = "workflows"
 )]
+/// List workflow shards.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn list_workflow_shards(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -435,6 +500,11 @@ pub async fn list_workflow_shards(
     tag = "workflows",
     request_body = CompleteWorkflowShardInput
 )]
+/// Complete workflow shard.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn complete_workflow_shard(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -474,6 +544,11 @@ pub async fn complete_workflow_shard(
     Ok(Json(ApiResponse::success(item)))
 }
 
+/// Stream instance events.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn stream_instance_events(
     State(state): State<Arc<AppState>>,
     mut headers: HeaderMap,

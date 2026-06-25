@@ -40,6 +40,11 @@ use super::common::{audit, client_ip, trace_id};
         (status = 500, description = "Storage error", body = ErrorResponse)
     )
 )]
+/// List scripts.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn list_scripts(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -76,6 +81,11 @@ pub async fn list_scripts(
         (status = 500, description = "Storage error", body = crate::http::dto::ErrorResponse)
     )
 )]
+/// Create script.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn create_script(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -135,6 +145,11 @@ pub async fn create_script(
         (status = 500, description = "Storage error", body = crate::http::dto::ErrorResponse)
     )
 )]
+/// Get script.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn get_script(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -172,6 +187,11 @@ pub async fn get_script(
         (status = 500, description = "Storage error", body = crate::http::dto::ErrorResponse)
     )
 )]
+/// Update script.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn update_script(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -306,6 +326,11 @@ pub async fn publish_script(
         (status = 500, description = "Storage error", body = ErrorResponse)
     )
 )]
+/// Preview script release gate.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn preview_script_release_gate(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -714,6 +739,11 @@ fn validate_policy_json(value: Option<serde_json::Value>) -> Result<Option<Strin
         (status = 404, description = "Not found", body = crate::http::dto::ErrorResponse)
     )
 )]
+/// Delete script.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn delete_script(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,

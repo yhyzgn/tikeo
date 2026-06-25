@@ -806,11 +806,7 @@ async fn evaluate_canary_metrics_gate(
             failed_samples = failed_samples.saturating_add(1);
         }
     }
-    let failure_rate = if inspected_samples == 0 {
-        0.0
-    } else {
-        failed_samples as f64 / inspected_samples as f64
-    };
+    let failure_rate = failure_rate_ratio(failed_samples, inspected_samples);
     if inspected_samples < policy.minimum_samples {
         return Ok(Some(CanaryMetricsGateSummary {
             status: "insufficient_samples".to_owned(),
@@ -843,6 +839,15 @@ async fn evaluate_canary_metrics_gate(
             )
         },
     }))
+}
+
+fn failure_rate_ratio(failed_samples: u64, inspected_samples: u64) -> f64 {
+    if inspected_samples == 0 {
+        return 0.0;
+    }
+    let failed = u32::try_from(failed_samples).unwrap_or(u32::MAX);
+    let inspected = u32::try_from(inspected_samples).unwrap_or(u32::MAX).max(1);
+    f64::from(failed) / f64::from(inspected)
 }
 
 async fn validate_canary_target_scope(

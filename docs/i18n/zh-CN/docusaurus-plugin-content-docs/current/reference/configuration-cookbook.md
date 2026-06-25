@@ -5,19 +5,19 @@ description: Tikeo 本地、Docker、PostgreSQL、MySQL、TLS、OIDC、观测、
 
 # 配置 Cookbook
 
-可部署的 Server 配置写在 `config/tikeo.toml`。Compose `.env` 只放 Docker 参数。
+可部署的 Server 配置写在 `config/tikeo.yml`。Compose `.env` 只放 Docker 参数。
 
 ## 本地源码运行
 
 ```bash
-cargo run --bin tikeo -- serve --config config/dev.toml
+cargo run --bin tikeo -- serve --config config/dev.yml
 ```
 
 ## Docker/Compose 默认模式
 
 ```bash
 cp deploy/compose/tikeo.env.example .env
-# Tikeo 服务配置改 config/tikeo.toml。
+# Tikeo 服务配置改 config/tikeo.yml。
 docker compose --env-file .env up -d
 ```
 

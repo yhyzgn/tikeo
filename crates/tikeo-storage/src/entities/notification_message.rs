@@ -8,6 +8,7 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     /// Stable message identifier.
     #[sea_orm(primary_key, auto_increment = false)]
+    /// Identifier value.
     pub id: String,
     /// Source type such as `alert_event`, `job_instance`, or `workflow_node_instance`.
     pub source_type: String,

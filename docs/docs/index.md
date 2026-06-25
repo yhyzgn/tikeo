@@ -69,7 +69,7 @@ The docs therefore prefer tables, defaults, copy-paste commands, expected observ
 A valid local evaluation should produce evidence from every layer:
 
 ```bash
-cargo run --bin tikeo -- serve --config config/dev.toml
+cargo run --bin tikeo -- serve --config config/dev.yml
 curl -fsS http://127.0.0.1:9090/healthz
 curl -fsS http://127.0.0.1:9090/readyz
 cd web && bun install --frozen-lockfile && bun run typecheck && bun run build
@@ -101,7 +101,7 @@ Notification Center and Alerts pages are additionally backed by `design/notifica
 
 ## Prerequisites
 
-Use the setup, authentication, and access requirements described in this page before running any command. For local examples, start the Server with `config/dev.toml`, use `127.0.0.1` as the client host, and keep tokens in shell variables rather than pasted into files.
+Use the setup, authentication, and access requirements described in this page before running any command. For local examples, start the Server with `config/dev.yml`, use `127.0.0.1` as the client host, and keep tokens in shell variables rather than pasted into files.
 
 ## Verify
 

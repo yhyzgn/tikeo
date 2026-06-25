@@ -1,5 +1,3 @@
-#![allow(clippy::redundant_pub_crate)]
-
 use std::collections::HashMap;
 
 use crate::proto::worker::v1::{
@@ -38,6 +36,7 @@ pub struct WorkerConfig {
 impl WorkerConfig {
     /// Build a minimal local-development worker configuration.
     #[must_use]
+    /// Local.
     pub fn local(endpoint: impl Into<String>, client_instance_id: impl Into<String>) -> Self {
         Self {
             endpoint: endpoint.into(),
@@ -138,6 +137,7 @@ impl WorkerConfig {
             });
     }
 
+    /// Register message.
     pub(crate) fn register_message(&self) -> WorkerMessage {
         WorkerMessage {
             kind: Some(worker_message::Kind::Register(RegisterWorker {
@@ -175,7 +175,7 @@ pub enum PluginType {
 impl PluginType {
     /// Stable lowercase value sent to the tikeo server.
     #[must_use]
-    pub const fn as_str(self) -> &'static str {
+        pub const fn as_str(self) -> &'static str {
         match self {
             Self::Sql => "sql",
             Self::Http => "http",

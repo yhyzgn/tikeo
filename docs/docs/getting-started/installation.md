@@ -44,7 +44,7 @@ The important top-level directories are:
 
 | Path | Purpose |
 | --- | --- |
-| `config/` | Server TOML examples for dev/container/PostgreSQL/MySQL/raft shape. |
+| `config/` | Server YAML examples for dev/container/PostgreSQL/MySQL/raft shape. |
 | `crates/` | Rust library crates. Keep modules split by responsibility. |
 | `src/main.rs` | Server binary entrypoint using `tikeo_server::run_cli()`. |
 | `web/` | Operator console module. |
@@ -184,7 +184,7 @@ python3 .github/tests/management_smoke_contract_test.py
 ## Minimal local start
 
 ```bash
-cargo run --bin tikeo -- serve --config config/dev.toml
+cargo run --bin tikeo -- serve --config config/dev.yml
 ```
 
 From another shell:
@@ -195,7 +195,7 @@ curl -fsS http://127.0.0.1:9090/readyz
 curl -fsS http://127.0.0.1:9090/api-docs/openapi.json >/tmp/tikeo-openapi.json
 ```
 
-`config/dev.toml` binds HTTP to `0.0.0.0:9090`, Worker Tunnel to `0.0.0.0:9998`, and SQLite to `.dev/tikeo-dev.db` with timestamp offset `+08:00`. The library default is `+00:00`; read [Configuration reference](../reference/configuration) before comparing timestamps across environments.
+`config/dev.yml` binds HTTP to `0.0.0.0:9090`, Worker Tunnel to `0.0.0.0:9998`, and SQLite to `.dev/tikeo-dev.db` with timestamp offset `+00:00`. Read [Configuration reference](../reference/configuration) before comparing timestamps across environments.
 
 ## Common installation failures
 
@@ -214,7 +214,7 @@ Continue to [Quickstart](./quickstart) for a step-by-step Server + Web + Worker 
 
 ## Prerequisites
 
-Use the setup, authentication, and access requirements described in this page before running any command. For local examples, start the Server with `config/dev.toml`, use `127.0.0.1` as the client host, and keep tokens in shell variables rather than pasted into files.
+Use the setup, authentication, and access requirements described in this page before running any command. For local examples, start the Server with `config/dev.yml`, use `127.0.0.1` as the client host, and keep tokens in shell variables rather than pasted into files.
 
 ## Troubleshooting
 

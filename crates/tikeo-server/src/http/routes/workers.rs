@@ -1,5 +1,3 @@
-#![allow(missing_docs, clippy::missing_errors_doc)]
-
 use std::{collections::HashMap, convert::Infallible, sync::Arc, time::Duration};
 
 use axum::{
@@ -27,8 +25,11 @@ use super::common::{StreamAuthQuery, apply_stream_token, audit};
 
 #[derive(Debug, Clone, Deserialize, utoipa::ToSchema)]
 pub struct ClaimDispatchQueueRequest {
+    /// Lease owner value.
     pub lease_owner: String,
+    /// Lease seconds value.
     pub lease_seconds: Option<i64>,
+    /// Fencing token value.
     pub fencing_token: Option<String>,
 }
 
@@ -40,6 +41,11 @@ pub struct WorkerStreamSnapshot {
 }
 
 #[utoipa::path(get, path = "/api/v1/workers", tag = "workers")]
+/// List workers.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn list_workers(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -85,6 +91,11 @@ async fn worker_list_response(
 }
 
 #[utoipa::path(get, path = "/api/v1/workers/history", tag = "workers")]
+/// Worker lifecycle history.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn worker_lifecycle_history(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -136,6 +147,11 @@ async fn worker_lifecycle_history_response(
     Ok(WorkerLifecycleHistoryResponse { sessions, events })
 }
 
+/// Stream workers.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn stream_workers(
     State(state): State<Arc<AppState>>,
     mut headers: HeaderMap,
@@ -253,6 +269,11 @@ fn worker_pool_from_labels(labels: &HashMap<String, String>) -> Option<String> {
 }
 
 #[utoipa::path(get, path = "/api/v1/dispatch-queue", tag = "workers")]
+/// Dispatch queue.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn dispatch_queue(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -274,6 +295,11 @@ async fn dispatch_queue_response(
     Ok(queue)
 }
 
+/// Stream dispatch queue.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn stream_dispatch_queue(
     State(state): State<Arc<AppState>>,
     mut headers: HeaderMap,
@@ -313,6 +339,11 @@ pub async fn stream_dispatch_queue(
 }
 
 #[utoipa::path(post, path = "/api/v1/dispatch-queue:claim", tag = "workers", request_body = ClaimDispatchQueueRequest)]
+/// Claim dispatch queue.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn claim_dispatch_queue(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,

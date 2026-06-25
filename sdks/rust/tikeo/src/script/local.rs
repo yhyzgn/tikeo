@@ -26,6 +26,7 @@ pub struct LocalSubprocessScriptRunner {
 impl LocalSubprocessScriptRunner {
     /// Create a runner using the default executable for the language.
     #[must_use]
+    /// New.
     pub fn new(kind: ScriptRunnerKind) -> Self {
         let (command, args) = default_script_command(kind);
         Self::with_command(kind, command, args.iter().map(|arg| (*arg).to_owned()))
@@ -33,6 +34,7 @@ impl LocalSubprocessScriptRunner {
 
     /// Create a runner with an explicit executable and argument vector.
     #[must_use]
+    /// With command.
     pub fn with_command(
         kind: ScriptRunnerKind,
         command: impl Into<PathBuf>,

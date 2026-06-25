@@ -1,5 +1,3 @@
-#![allow(missing_docs, clippy::missing_errors_doc)]
-
 use std::{collections::BTreeMap, sync::Arc};
 
 use axum::{Extension, Json, extract::State, http::HeaderMap};
@@ -14,6 +12,11 @@ use crate::http::{
 };
 
 #[utoipa::path(get, path = "/api/v1/metrics/summary", tag = "metrics")]
+/// Metrics summary.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn metrics_summary(
     State(state): State<Arc<AppState>>,
     Extension(recorder): Extension<Arc<metrics_exporter_prometheus::PrometheusRecorder>>,
@@ -279,10 +282,9 @@ fn instance_success_ratio(instances_by_status: &BTreeMap<String, u64>) -> f64 {
     u64_metric_value(succeeded) / u64_metric_value(terminal)
 }
 
-#[allow(clippy::cast_precision_loss)]
-const fn u64_metric_value(value: u64) -> f64 {
+fn u64_metric_value(value: u64) -> f64 {
     // The metrics crate exposes gauge values as f64; Prometheus queue gauges are
     // operational signals, so very large u64 counts may be rounded at scrape
     // time rather than rejected or saturated.
-    value as f64
+    f64::from(u32::try_from(value).unwrap_or(u32::MAX))
 }

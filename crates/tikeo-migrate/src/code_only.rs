@@ -7,10 +7,12 @@ use crate::{
     HandlerCandidate, MigrationSource, detect_powerjob_handlers, detect_xxl_handlers, first_quoted,
 };
 
-pub(crate) fn build_code_only_export_json(
-    project_root: &Path,
-    source: MigrationSource,
-) -> Result<String> {
+/// Build code only export json.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
+pub fn build_code_only_export_json(project_root: &Path, source: MigrationSource) -> Result<String> {
     let handlers = scan_code_only_handlers(project_root, source)?;
     if handlers.is_empty() {
         bail!(
@@ -22,7 +24,7 @@ pub(crate) fn build_code_only_export_json(
     let jobs = handlers
         .into_iter()
         .enumerate()
-        .map(|(index, handler)| code_only_job(project_root, source, index, handler))
+        .map(|(index, handler)| code_only_job(project_root, source, index, &handler))
         .collect::<Vec<_>>();
     Ok(serde_json::to_string(&json!({ "jobs": jobs }))?)
 }
@@ -31,7 +33,7 @@ fn code_only_job(
     project_root: &Path,
     source: MigrationSource,
     index: usize,
-    handler: HandlerCandidate,
+    handler: &HandlerCandidate,
 ) -> Value {
     match source {
         MigrationSource::XxlJob => json!({
@@ -131,22 +133,22 @@ fn infer_project_app_name(project_root: &Path) -> Option<String> {
             continue;
         }
         let content = fs::read_to_string(path).ok()?;
-        if relative == "pom.xml" {
-            if let Some(name) = maven_project_artifact_id(&content) {
-                return Some(name);
-            }
+        if relative == "pom.xml"
+            && let Some(name) = maven_project_artifact_id(&content)
+        {
+            return Some(name);
         }
         for prefix in ["rootProject.name", "archivesBaseName"] {
             for line in content.lines() {
-                if line.trim_start().starts_with(prefix) {
-                    if let Some(value) = first_quoted(line).or_else(|| {
+                if line.trim_start().starts_with(prefix)
+                    && let Some(value) = first_quoted(line).or_else(|| {
                         line.split('=')
                             .nth(1)
                             .map(|value| value.trim().trim_matches(['"', '\'']).to_owned())
-                    }) && !value.is_empty()
-                    {
-                        return Some(value);
-                    }
+                    })
+                    && !value.is_empty()
+                {
+                    return Some(value);
                 }
             }
         }

@@ -33,6 +33,7 @@ impl Default for JobRetryPolicy {
 impl JobRetryPolicy {
     /// Return a normalized policy with production-safe bounds.
     #[must_use]
+    /// Normalized.
     pub fn normalized(self) -> Self {
         let initial_delay_seconds = self.initial_delay_seconds.clamp(0, 86_400);
         let max_delay_seconds = self.max_delay_seconds.clamp(initial_delay_seconds, 86_400);
@@ -47,6 +48,7 @@ impl JobRetryPolicy {
 
     /// Parse persisted JSON or return the default policy.
     #[must_use]
+    /// From json.
     pub fn from_json(value: Option<&str>) -> Self {
         value
             .and_then(|raw| serde_json::from_str::<Self>(raw).ok())
@@ -56,12 +58,14 @@ impl JobRetryPolicy {
 
     /// Serialize normalized policy JSON.
     #[must_use]
+    /// To json.
     pub fn to_json(&self) -> String {
         serde_json::to_string(&self.clone().normalized()).unwrap_or_else(|_| Self::default_json())
     }
 
     /// Default policy JSON used by migrations.
     #[must_use]
+    /// Default json.
     pub fn default_json() -> String {
         serde_json::to_string(&Self::default()).unwrap_or_else(|_| {
             r#"{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}"#
@@ -71,6 +75,7 @@ impl JobRetryPolicy {
 
     /// Whether another retry may be scheduled after `completed_attempt` failed.
     #[must_use]
+    /// Allows retry after attempt.
     pub fn allows_retry_after_attempt(&self, completed_attempt: i32) -> bool {
         let policy = self.clone().normalized();
         policy.enabled && completed_attempt > 0 && completed_attempt < policy.max_attempts
@@ -78,6 +83,7 @@ impl JobRetryPolicy {
 
     /// Compute retry delay after `completed_attempt` failed.
     #[must_use]
+    /// Delay after attempt seconds.
     pub fn delay_after_attempt_seconds(&self, completed_attempt: i32) -> i64 {
         let policy = self.clone().normalized();
         let exponent = completed_attempt
@@ -123,6 +129,7 @@ impl Default for JobCanaryPolicy {
 impl JobCanaryPolicy {
     /// Return a policy bounded for production-safe trigger-time evaluation.
     #[must_use]
+    /// Normalized.
     pub fn normalized(self) -> Self {
         Self {
             metrics_gate_enabled: self.metrics_gate_enabled,
@@ -135,6 +142,7 @@ impl JobCanaryPolicy {
 
     /// Parse persisted JSON or return the default policy.
     #[must_use]
+    /// From json.
     pub fn from_json(value: Option<&str>) -> Self {
         value
             .and_then(|raw| serde_json::from_str::<Self>(raw).ok())
@@ -144,12 +152,14 @@ impl JobCanaryPolicy {
 
     /// Serialize normalized policy JSON.
     #[must_use]
+    /// To json.
     pub fn to_json(&self) -> String {
         serde_json::to_string(&self.clone().normalized()).unwrap_or_else(|_| Self::default_json())
     }
 
     /// Default policy JSON used by migrations.
     #[must_use]
+    /// Default json.
     pub fn default_json() -> String {
         serde_json::to_string(&Self::default()).unwrap_or_else(|_| {
             r#"{"metricsGateEnabled":false,"minimumSamples":5,"evaluationWindow":20,"maxFailureRate":0.5,"autoRollback":true}"#

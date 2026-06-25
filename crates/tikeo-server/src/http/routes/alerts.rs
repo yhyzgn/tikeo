@@ -1,5 +1,3 @@
-#![allow(missing_docs, clippy::missing_errors_doc)]
-
 use std::sync::Arc;
 
 use axum::{
@@ -28,8 +26,10 @@ use crate::{
 #[derive(Debug, Clone, Default, Deserialize, utoipa::ToSchema, utoipa::IntoParams)]
 #[into_params(parameter_in = Query)]
 pub struct AlertEventQuery {
+    /// Resource type value.
     pub resource_type: Option<String>,
     pub resource_id: Option<String>,
+    /// Failure class value.
     pub failure_class: Option<String>,
     pub rule_id: Option<String>,
     pub status: Option<String>,
@@ -41,17 +41,25 @@ pub struct AlertDeliveryAttemptQuery {
     pub event_id: Option<String>,
     pub rule_id: Option<String>,
     pub provider: Option<String>,
+    /// Retry state value.
     pub retry_state: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, utoipa::ToSchema)]
 pub struct AlertDeliveryRetryRequest {
     pub limit: Option<u64>,
+    /// Max attempts value.
     pub max_attempts: Option<i32>,
+    /// Backoff seconds value.
     pub backoff_seconds: Option<i64>,
 }
 
 #[utoipa::path(get, path = "/api/v1/alert-rules", tag = "alerts")]
+/// List alert rules.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn list_alert_rules(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -71,6 +79,11 @@ pub async fn list_alert_rules(
 }
 
 #[utoipa::path(get, path = "/api/v1/alert-rules/{id}/delivery-status", tag = "alerts")]
+/// Alert rule delivery status.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn alert_rule_delivery_status(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -337,6 +350,11 @@ fn json_field_present(value: &serde_json::Value, key: &str) -> bool {
 }
 
 #[utoipa::path(post, path = "/api/v1/alert-rules", tag = "alerts", request_body = CreateAlertRuleRequest)]
+/// Create alert rule.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn create_alert_rule(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -378,6 +396,11 @@ pub async fn create_alert_rule(
     tag = "alerts",
     params(AlertDeliveryAttemptQuery)
 )]
+/// List alert delivery attempts.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn list_alert_delivery_attempts(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -402,6 +425,11 @@ pub async fn list_alert_delivery_attempts(
     path = "/api/v1/alert-delivery-attempts:queue-status",
     tag = "alerts"
 )]
+/// Alert delivery queue status.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn alert_delivery_queue_status(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -444,6 +472,11 @@ pub async fn alert_delivery_queue_status(
     tag = "alerts",
     request_body = AlertDeliveryRetryRequest
 )]
+/// Retry due alert delivery attempts.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn retry_due_alert_delivery_attempts(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -470,6 +503,11 @@ pub async fn retry_due_alert_delivery_attempts(
     tag = "alerts",
     params(AlertEventQuery)
 )]
+/// List alert events.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn list_alert_events(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -512,6 +550,11 @@ pub async fn list_alert_events(
     tag = "alerts",
     params(AlertEventQuery)
 )]
+/// List alert event summaries.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn list_alert_event_summaries(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -553,6 +596,11 @@ pub async fn list_alert_event_summaries(
 }
 
 #[utoipa::path(post, path = "/api/v1/alert-events/{id}/resolve", tag = "alerts")]
+/// Resolve alert event.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn resolve_alert_event(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,

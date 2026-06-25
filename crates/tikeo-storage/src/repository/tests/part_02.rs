@@ -1,5 +1,4 @@
     #[tokio::test]
-    #[allow(clippy::too_many_lines)]
     async fn workflow_job_result_auto_advances_next_node() {
         let db = crate::connect_and_migrate("sqlite::memory:")
             .await
@@ -413,7 +412,6 @@
     }
 
     #[tokio::test]
-    #[allow(clippy::too_many_lines)]
     async fn workflow_shards_complete_and_advance_successor() {
         let db = crate::connect_and_migrate("sqlite::memory:")
             .await
@@ -609,7 +607,6 @@
     }
 
     #[tokio::test]
-    #[allow(clippy::too_many_lines)]
     async fn workflow_map_reduce_writes_reduce_chunks_and_manifest() {
         let db = crate::connect_and_migrate("sqlite::memory:")
             .await
@@ -685,7 +682,6 @@
     }
 
     #[tokio::test]
-    #[allow(clippy::too_many_lines)]
     async fn workflow_failed_shard_rebalance_preserves_checkpoint_and_requeues() {
         let db = crate::connect_and_migrate("sqlite::memory:")
             .await
@@ -763,7 +759,6 @@
     }
 
     #[tokio::test]
-    #[allow(clippy::too_many_lines)]
     async fn child_workflow_completion_advances_parent_node() {
         let db = crate::connect_and_migrate("sqlite::memory:")
             .await

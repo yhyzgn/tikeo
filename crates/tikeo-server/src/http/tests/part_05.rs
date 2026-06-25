@@ -12,7 +12,7 @@
         registry
             .register(worker("worker-b", "analytics"), tx2)
             .await;
-        let app = router_with_state(AppState::new(
+        let app = router_with_state(app_state!(
             JobRepository::new(db.clone()),
             JobInstanceRepository::new(db.clone()),
             JobInstanceLogRepository::new(db.clone()),
@@ -58,7 +58,6 @@
     }
 
     #[tokio::test]
-    #[allow(clippy::too_many_lines)]
     async fn workflow_create_validate_run_and_advance_returns_envelopes() {
         let app = router().await;
         let create = post_json(
@@ -489,7 +488,7 @@
         let db = connect_and_migrate("sqlite::memory:")
             .await
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
-        let app = router_with_state(AppState::new(
+        let app = router_with_state(app_state!(
             JobRepository::new(db.clone()),
             JobInstanceRepository::new(db.clone()),
             JobInstanceLogRepository::new(db.clone()),
@@ -614,7 +613,7 @@
         let db = connect_and_migrate("sqlite::memory:")
             .await
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
-        let app = router_with_state(AppState::new(
+        let app = router_with_state(app_state!(
             JobRepository::new(db.clone()),
             JobInstanceRepository::new(db.clone()),
             JobInstanceLogRepository::new(db.clone()),
@@ -876,7 +875,7 @@
         let db = connect_and_migrate("sqlite::memory:")
             .await
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
-        router_with_state(AppState::new(
+        router_with_state(app_state!(
             JobRepository::new(db.clone()),
             JobInstanceRepository::new(db.clone()),
             JobInstanceLogRepository::new(db.clone()),
@@ -895,7 +894,7 @@
             .await
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
         router_with_state(
-            AppState::new(
+            app_state!(
                 JobRepository::new(db.clone()),
                 JobInstanceRepository::new(db.clone()),
                 JobInstanceLogRepository::new(db.clone()),
@@ -917,7 +916,7 @@
         let db = connect_and_migrate("sqlite::memory:")
             .await
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
-        router_with_state(AppState::new(
+        router_with_state(app_state!(
             JobRepository::new(db.clone()),
             JobInstanceRepository::new(db.clone()),
             JobInstanceLogRepository::new(db.clone()),

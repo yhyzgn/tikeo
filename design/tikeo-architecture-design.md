@@ -212,7 +212,7 @@ Server 是平台的核心，承担调度、工作流编排、集群管理、API 
 graph LR
     subgraph Server["tikeo-server"]
         MAIN["main.rs<br/>CLI + 启动"]
-        CFG["config.rs<br/>TOML 配置"]
+        CFG["config.rs<br/>YAML 配置"]
         SRV["server.rs<br/>服务组装"]
 
         subgraph Tikeo["tikeo/"]
@@ -1607,7 +1607,7 @@ graph TB
             SVC["Service: tikeo<br/>ClusterIP :9090"]
 
             subgraph CM["ConfigMap / Secrets"]
-                CFG["tikeo-config<br/>TOML 配置"]
+                CFG["tikeo-config<br/>YAML 配置"]
                 SEC["tikeo-secrets<br/>DB 密码 / TLS 证书"]
             end
 

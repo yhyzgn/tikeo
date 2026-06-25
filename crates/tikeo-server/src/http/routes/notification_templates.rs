@@ -1,5 +1,3 @@
-#![allow(missing_docs, clippy::missing_errors_doc)]
-
 use std::sync::Arc;
 
 use axum::{
@@ -13,7 +11,7 @@ use utoipa::ToSchema;
 use crate::{
     http::{
         AppState, auth,
-        dto::{ApiResponse, EmptyData},
+        dto::{ApiResponse, EmptyData, NullableStringUpdate},
         error::ApiError,
     },
     notification::{render_notification_template_preview, validate_notification_template_tokens},
@@ -27,19 +25,24 @@ use super::notification_providers::{
 #[into_params(parameter_in = Query)]
 pub struct NotificationTemplateQuery {
     pub provider: Option<String>,
+    /// Message type value.
     pub message_type: Option<String>,
+    /// Boolean state flag.
     pub enabled: Option<bool>,
 }
 
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateNotificationTemplateRequest {
+    /// Template key value.
     pub template_key: String,
     pub name: String,
     pub description: Option<String>,
     pub provider: String,
+    /// Message type value.
     pub message_type: String,
     #[serde(default = "default_enabled")]
+    /// Boolean state flag.
     pub enabled: bool,
     #[serde(default)]
     pub body: serde_json::Value,
@@ -48,14 +51,17 @@ pub struct CreateNotificationTemplateRequest {
 }
 
 #[derive(Debug, Clone, Default, Deserialize, ToSchema)]
-#[allow(clippy::option_option)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateNotificationTemplateRequest {
+    /// Template key value.
     pub template_key: Option<String>,
     pub name: Option<String>,
-    pub description: Option<Option<String>>,
+    #[serde(default)]
+    pub description: NullableStringUpdate,
     pub provider: Option<String>,
+    /// Message type value.
     pub message_type: Option<String>,
+    /// Boolean state flag.
     pub enabled: Option<bool>,
     pub body: Option<serde_json::Value>,
     pub variables: Option<serde_json::Value>,
@@ -65,6 +71,7 @@ pub struct UpdateNotificationTemplateRequest {
 #[serde(rename_all = "camelCase")]
 pub struct RenderNotificationTemplateRequest {
     pub provider: Option<String>,
+    /// Message type value.
     pub message_type: Option<String>,
     #[serde(default)]
     pub template: serde_json::Value,
@@ -76,6 +83,7 @@ pub struct RenderNotificationTemplateRequest {
 #[serde(rename_all = "camelCase")]
 pub struct RenderNotificationTemplateResponse {
     pub provider: String,
+    /// Message type value.
     pub message_type: String,
     pub rendered: serde_json::Value,
 }
@@ -86,6 +94,11 @@ pub struct RenderNotificationTemplateResponse {
     tag = "notifications",
     params(NotificationTemplateQuery)
 )]
+/// List notification templates.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn list_notification_templates(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -105,6 +118,11 @@ pub async fn list_notification_templates(
 }
 
 #[utoipa::path(post, path = "/api/v1/notification-templates", tag = "notifications", request_body = CreateNotificationTemplateRequest)]
+/// Create notification template.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn create_notification_template(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -155,6 +173,11 @@ pub async fn create_notification_template(
     path = "/api/v1/notification-templates/{id}",
     tag = "notifications"
 )]
+/// Get notification template.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn get_notification_template(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -171,6 +194,11 @@ pub async fn get_notification_template(
 }
 
 #[utoipa::path(patch, path = "/api/v1/notification-templates/{id}", tag = "notifications", request_body = UpdateNotificationTemplateRequest)]
+/// Update notification template.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn update_notification_template(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -208,7 +236,7 @@ pub async fn update_notification_template(
             tikeo_storage::UpdateNotificationTemplate {
                 template_key: request.template_key,
                 name: request.name,
-                description: request.description,
+                description: request.description.into_option_option(),
                 provider: request.provider,
                 message_type: request.message_type,
                 enabled: request.enabled,
@@ -241,6 +269,11 @@ pub async fn update_notification_template(
     path = "/api/v1/notification-templates/{id}",
     tag = "notifications"
 )]
+/// Delete notification template.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn delete_notification_template(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -269,6 +302,11 @@ pub async fn delete_notification_template(
 }
 
 #[utoipa::path(post, path = "/api/v1/notification-templates/{id}:render", tag = "notifications", request_body = RenderNotificationTemplateRequest)]
+/// Render notification template.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn render_notification_template(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -288,6 +326,11 @@ pub async fn render_notification_template(
 }
 
 #[utoipa::path(post, path = "/api/v1/notification-templates/{id}/render", tag = "notifications", request_body = RenderNotificationTemplateRequest)]
+/// Render notification template by id.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn render_notification_template_by_id(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,

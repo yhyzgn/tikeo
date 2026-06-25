@@ -28,7 +28,11 @@ const AUDIT_EXPORT_MAX_ROWS: u64 = 500;
         (status = 500, description = "Storage error", body = crate::http::dto::ErrorResponse)
     )
 )]
-#[allow(clippy::missing_errors_doc)]
+/// Export audit logs.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn export_audit_logs(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -90,7 +94,11 @@ pub async fn export_audit_logs(
         (status = 500, description = "Storage error", body = crate::http::dto::ErrorResponse)
     )
 )]
-#[allow(clippy::missing_errors_doc)]
+/// List audit logs.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn list_audit_logs(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,

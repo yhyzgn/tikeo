@@ -29,6 +29,11 @@ use super::common::audit;
         (status = 403, description = "Forbidden", body = crate::http::dto::ErrorResponse)
     )
 )]
+/// List users.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn list_users(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -60,6 +65,11 @@ pub async fn list_users(
         (status = 403, description = "Forbidden", body = crate::http::dto::ErrorResponse)
     )
 )]
+/// Create user.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn create_user(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -127,6 +137,11 @@ pub async fn create_user(
         (status = 404, description = "Not found", body = crate::http::dto::ErrorResponse)
     )
 )]
+/// Update user.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn update_user(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -214,6 +229,11 @@ pub async fn update_user(
         (status = 404, description = "Not found", body = crate::http::dto::ErrorResponse)
     )
 )]
+/// Delete user.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub async fn delete_user(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,

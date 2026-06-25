@@ -1,10 +1,4 @@
 //! Repository APIs over tikeo metadata tables.
-#![allow(
-    clippy::missing_errors_doc,
-    clippy::must_use_candidate,
-    clippy::missing_const_for_fn,
-    missing_docs
-)]
 
 mod alert;
 mod attempt;
@@ -32,6 +26,7 @@ mod service_account;
 mod shard_ownership;
 mod shard_policy;
 mod user;
+/// `Util` module.
 pub mod util;
 mod worker_dispatch_outbox;
 mod worker_lifecycle;

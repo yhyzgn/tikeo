@@ -7,8 +7,8 @@ Use this path for conventional servers, VMs, Supervisor, or manually managed pro
 ```bash
 cargo build --release --bin tikeo
 install -d ./var/lib/tikeo ./logs
-cp config/dev.toml ./tikeo.toml
-./target/release/tikeo serve --config ./tikeo.toml
+cp config/dev.yml ./tikeo.yml
+./target/release/tikeo serve --config ./tikeo.yml
 ```
 
 Operational cautions:

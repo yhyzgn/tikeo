@@ -42,12 +42,12 @@ export TIKEO_TOKEN='<local-admin-token>'
 用最小命令启动：
 
 ```bash
-cargo run --bin tikeo -- serve --config config/dev.toml
+cargo run --bin tikeo -- serve --config config/dev.yml
 ```
 
 优先检查：
 
-- `config/dev.toml` 是否能解析；
+- `config/dev.yml` 是否能解析；
 - `server.listen_addr` 端口是否被占用；
 - `server.worker_tunnel_addr` 端口是否被占用；
 - `storage.database.*` 指向的 SQLite 文件或外部数据库是否可写；

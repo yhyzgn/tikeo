@@ -146,6 +146,7 @@ pub enum NotificationChannel {
 
 /// Build notification channels from persisted JSON and enabled plugin channel declarations.
 #[must_use]
+/// Notification channels from json.
 pub fn notification_channels_from_json(
     channels_json: &str,
     plugins: &[PluginAlertChannelTypeSummary],
@@ -210,6 +211,7 @@ pub struct AlertDeliveryPolicy {
 impl AlertDeliveryPolicy {
     /// Production-safe default: HTTPS public webhooks only.
     #[must_use]
+    /// Production.
     pub const fn production() -> Self {
         Self {
             allow_insecure_loopback: false,
@@ -243,6 +245,7 @@ pub struct NotificationChannelIdentity {
 
 /// Return the retry identity for a notification channel without sending it.
 #[must_use]
+/// Notification channel identity.
 pub fn notification_channel_identity(channel: &NotificationChannel) -> NotificationChannelIdentity {
     match channel {
         NotificationChannel::Webhook { url } => NotificationChannelIdentity {
@@ -296,12 +299,14 @@ pub struct AlertDispatcher {
 impl AlertDispatcher {
     /// Create a dispatcher with the given rules.
     #[must_use]
+    /// New.
     pub fn new(rules: Vec<AlertRule>) -> Self {
         Self::new_with_policy(rules, AlertDeliveryPolicy::production())
     }
 
     /// Create a dispatcher with explicit delivery policy.
     #[must_use]
+    /// New with policy.
     pub fn new_with_policy(rules: Vec<AlertRule>, policy: AlertDeliveryPolicy) -> Self {
         let http = reqwest::Client::builder()
             .timeout(Duration::from_secs(5))
@@ -319,6 +324,7 @@ impl AlertDispatcher {
 
     /// Create a dispatcher with no rules (no-op).
     #[must_use]
+    /// Noop.
     pub fn noop() -> Self {
         Self::new(Vec::new())
     }
@@ -685,6 +691,7 @@ fn email_failure(recipients: &[String], error: &str) -> AlertDeliveryResult {
     }
 }
 
+/// Resolve secret ref.
 pub(crate) fn resolve_secret_ref(reference: Option<&str>) -> Option<String> {
     let reference = reference?.trim();
     let key = reference.strip_prefix("env:").unwrap_or(reference);
@@ -712,6 +719,11 @@ const fn pagerduty_severity(severity: &Severity) -> &'static str {
     }
 }
 
+/// Validate webhook url.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails.
 pub(crate) fn validate_webhook_url(
     value: &str,
     policy: AlertDeliveryPolicy,
@@ -749,6 +761,7 @@ fn is_loopback_host(host: &str) -> bool {
             .is_ok_and(|address| address.is_loopback())
 }
 
+/// Redact url.
 pub(crate) fn redact_url(value: &str) -> String {
     Url::parse(value).map_or_else(
         |_| "invalid-url".to_owned(),

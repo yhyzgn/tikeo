@@ -21,3 +21,8 @@ This message disappears once the first observation lands.
 - Do not let a core/entry file accumulate all implementation details. Split logic by nature, module, and feature responsibility into focused child modules before the file becomes a dumping ground. Typical split boundaries include capability parsing/serialization, persistence adapters, routing/matching/scoring, election/fencing, session identity/generation, protocol binding, validation, and test fixtures.
 - Prefer meaningful responsibility boundaries over mechanical line-count appeasement. Source-size checks are a backstop; passing them is not a substitute for keeping entry files cohesive.
 - When refactoring an overgrown entry file, preserve behavior with targeted tests first, then move one responsibility at a time, keeping names and module paths clear enough for the next developer to navigate.
+## Project red line: no warning-suppression bypasses
+
+- Do not add or keep `#[allow(...)]`, `#![allow(...)]`, `#[expect(...)]`, broad lint-level downgrades, or equivalent suppression mechanisms to make Rust/clippy, frontend lint/typecheck, docs, tests, or CI pass.
+- Fix the underlying issue through refactor, clearer types, explicit conversions, smaller functions/modules, generated-code isolation, or better tests. Existing suppressions are technical debt that must be removed by fixing root causes; they are not precedent.
+- If generated or third-party code appears to require an exception, record the blocker for explicit human review instead of adding the bypass silently.

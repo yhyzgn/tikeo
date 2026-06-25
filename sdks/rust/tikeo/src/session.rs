@@ -40,18 +40,21 @@ pub struct WorkerSession {
 impl WorkerSession {
     /// Registered worker id acknowledged by tikeo.
     #[must_use]
+    /// Worker id.
     pub fn worker_id(&self) -> &str {
         &self.worker_id
     }
 
     /// Lease seconds returned by tikeo registration ack.
     #[must_use]
+    /// Lease seconds.
     pub const fn lease_seconds(&self) -> u64 {
         self.lease_seconds
     }
 
     /// Worker session generation acknowledged by tikeo.
     #[must_use]
+    /// Generation.
     pub const fn generation(&self) -> u64 {
         self.generation
     }
@@ -390,6 +393,7 @@ pub struct WorkerClient {
 impl WorkerClient {
     /// Create a client from worker configuration.
     #[must_use]
+    /// New.
     pub const fn new(config: WorkerConfig) -> Self {
         Self { config }
     }

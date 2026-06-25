@@ -818,16 +818,20 @@ async fn delivery_loop_wakes_immediately_when_new_attempt_is_materialized() {
         .unwrap_or_else(|error| panic!("policy should create: {error}"));
 
     let trigger = NotificationDeliveryTrigger::new();
-    let loop_task = tokio::spawn(run_delivery_loop_with_trigger(
+    let repositories = NotificationDeliveryRepositories::new(
         channels.clone(),
         messages.clone(),
         attempts.clone(),
+    );
+    let context = NotificationDeliveryLoopContext::new(
+        repositories,
         StandaloneCoordinator::shared("standalone-test"),
-        std::time::Duration::from_secs(60),
+        std::time::Duration::from_mins(1),
         50,
         NotificationDeliveryPolicy::default(),
         Some(trigger.clone()),
-    ));
+    );
+    let loop_task = tokio::spawn(run_delivery_loop(context));
     let center = NotificationCenter::new(
         channels,
         policies,
