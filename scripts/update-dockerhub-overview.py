@@ -74,6 +74,6 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except Exception as error:  # noqa: BLE001 - CLI should surface concise failure context.
+    except (RuntimeError, OSError, json.JSONDecodeError, UnicodeDecodeError) as error:
         print(f"error: {error}", file=sys.stderr)
         raise SystemExit(1)

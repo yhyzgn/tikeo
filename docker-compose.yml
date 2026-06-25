@@ -54,6 +54,7 @@ services:
     volumes:
       - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./observability/prometheus/tikeo-recording-rules.yml:/etc/prometheus/tikeo-recording-rules.yml:ro
+      - ./observability/prometheus/tikeo-alert-rules.yml:/etc/prometheus/tikeo-alert-rules.yml:ro
     ports:
       - "${TIKEO_PROMETHEUS_PORT:-9091}:9090"
     restart: unless-stopped

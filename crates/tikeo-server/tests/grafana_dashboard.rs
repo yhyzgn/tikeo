@@ -141,8 +141,8 @@ fn prometheus_recording_rules_cover_dashboard_slo_series() {
         PROMETHEUS_CONFIG_YAML.contains("metrics_path: /metrics")
             && PROMETHEUS_CONFIG_YAML.contains("tikeo-recording-rules.yml")
             && PROMETHEUS_CONFIG_YAML.contains("tikeo-alert-rules.yml")
-            && PROMETHEUS_CONFIG_YAML.contains("tikeo:9090"),
-        "Prometheus config must scrape tikeo and load recording rules"
+            && PROMETHEUS_CONFIG_YAML.contains("tikeo-server:9090"),
+        "Prometheus config must scrape tikeo-server and load recording rules"
     );
 }
 

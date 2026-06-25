@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import binascii
 import json
 import os
 import re
@@ -201,7 +202,7 @@ def main() -> int:
     for spec in unique_specs:
         try:
             metadata_by_spec[spec] = fetch_action_metadata(spec, args.timeout_seconds)
-        except Exception as exc:  # noqa: BLE001 - policy check should report all unresolved refs clearly.
+        except (ValueError, RuntimeError, OSError, json.JSONDecodeError, UnicodeDecodeError, binascii.Error) as exc:
             failures.append(f"{spec}: metadata lookup failed: {exc}")
 
     for spec, metadata in sorted(metadata_by_spec.items()):
