@@ -64,7 +64,7 @@ impl ScriptRunnerKind {
 
     /// Stable runner name.
     #[must_use]
-        pub const fn as_str(self) -> &'static str {
+    pub const fn as_str(self) -> &'static str {
         match self {
             Self::Shell => "shell",
             Self::Python => "python",
@@ -243,7 +243,7 @@ impl ScriptRunnerRegistry {
 
 /// Future non-WASM dynamic script runner contract.
 #[async_trait]
-/// ScriptRunner behavior contract.
+/// `ScriptRunner` behavior contract.
 pub trait ScriptRunner: Send + Sync + 'static {
     /// Runner language/kind.
     fn kind(&self) -> ScriptRunnerKind;
@@ -287,7 +287,7 @@ impl ScriptRunnerTask {
 }
 
 /// Default script command.
-pub(super) const fn default_script_command(
+pub const fn default_script_command(
     kind: ScriptRunnerKind,
 ) -> (&'static str, &'static [&'static str]) {
     match kind {
@@ -308,7 +308,7 @@ pub(super) const fn default_script_command(
 /// # Errors
 ///
 /// Returns an error when the underlying operation fails.
-pub(super) fn validate_script_runner_task(
+pub fn validate_script_runner_task(
     kind: ScriptRunnerKind,
     task: &ScriptRunnerTask,
 ) -> Result<(), WorkerSdkError> {
@@ -346,7 +346,7 @@ pub(super) fn validate_script_runner_task(
 }
 
 /// Emit script output.
-pub(super) fn emit_script_output(task: &ScriptRunnerTask, level: &str, output: &[u8]) {
+pub fn emit_script_output(task: &ScriptRunnerTask, level: &str, output: &[u8]) {
     let Some(log) = task.log.as_ref() else {
         return;
     };
@@ -364,7 +364,7 @@ pub(super) fn emit_script_output(task: &ScriptRunnerTask, level: &str, output: &
 /// # Errors
 ///
 /// Returns an error when the underlying operation fails.
-pub(super) async fn run_script_command(
+pub async fn run_script_command(
     mut command: Command,
     kind: ScriptRunnerKind,
     task: ScriptRunnerTask,

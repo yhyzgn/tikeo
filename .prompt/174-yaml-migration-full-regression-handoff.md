@@ -22,3 +22,9 @@
 - Live Slack/DingTalk/Feishu/WeCom/PagerDuty SaaS 验证仍需真实凭据；当前本地 provider/loopback 验证只证明 payload、redaction、retry/DLQ 和 trace 行为。
 - 继续保持 Worker 主动出站连接边界，HTTP 业务响应 `{code,message,data}`，源码单文件 <=1500 行，入口文件保持薄。
 - 任何后续 warning 必须修根因；禁止新增或保留 `#[allow]`、`#[expect]`、lint 降级或等价屏蔽。
+
+## CI follow-up on 2026-06-25
+
+- Remote CI run `28149289282` failed only in `Rust SDK + demo`; Coverage and other CI jobs were already green.
+- Root cause: root workspace verification did not cover standalone `sdks/rust/tikeo` rustfmt/clippy gates, so SDK formatting drift and clippy warning debt reached CI.
+- Fixed without `allow`/`expect` suppression and verified with the exact CI Rust SDK job command sequence, including `cargo package --manifest-path sdks/rust/tikeo/Cargo.toml --allow-dirty` because that is the existing release packaging command, not a lint suppression.

@@ -3233,3 +3233,10 @@ Verification:
 - SDK/demo evidence passed: Java SDK, Node SDK, Python SDK/demo, Go SDK/demo, Rust SDK/demo with `RUSTFLAGS=-D warnings`, and Java Spring Boot 2/3/4 worker demos.
 - Final hygiene passed: `cargo fmt --all -- --check`; `cargo build --workspace --all-features`; `cargo clippy --workspace --all-targets --all-features --no-deps -- -D warnings`; `cargo test --workspace --all-features`; `RUSTDOCFLAGS='-D warnings' cargo doc --workspace --all-features --no-deps`; web/docs Bun lint/typecheck/test/build; `python3 scripts/check-source-size.py`; `git diff --check`.
 - Suppression scan found no source suppression bypasses; only the red-line rule text in `AGENTS.md` and `prompt.md` matched the exact `#[allow]/#[expect]` pattern.
+
+## 2026-06-25 — Remote CI Rust SDK job follow-up
+
+- Tracked failed remote CI run `28149289282`: only `Rust SDK + demo` failed, first at `cargo fmt --manifest-path sdks/rust/tikeo/Cargo.toml -- --check` for standalone SDK formatting drift.
+- Ran the exact CI job locally and fixed root causes without warning suppression: standalone Rust SDK rustfmt drift, `WorkerConfig` `Eq` derive, markdown docs for `ScriptRunner`/`TaskProcessor`, redundant private-module visibility, and `unused_braces` in sandbox tool resolver.
+- Exact CI job now passes locally: Rust SDK fmt, clippy `-D warnings`, test, package; Rust worker demo fmt, clippy `-D warnings`, test.
+- Hygiene also passes: `python3 scripts/check-source-size.py`, `git diff --check`, and suppression scan only matches the red-line text in `AGENTS.md`/`prompt.md`.

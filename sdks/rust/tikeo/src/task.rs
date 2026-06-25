@@ -6,7 +6,7 @@ use crate::{error::WorkerSdkError, proto::worker::v1::DispatchTask};
 
 /// User-provided async processor interface for Worker task dispatch.
 #[async_trait]
-/// TaskProcessor behavior contract.
+/// `TaskProcessor` behavior contract.
 pub trait TaskProcessor: Send + Sync + 'static {
     /// Execute one task payload.
     async fn process(&self, task: TaskContext) -> Result<TaskOutcome, WorkerSdkError>;
@@ -105,7 +105,7 @@ fn classify_failure_message(message: &str) -> Option<&'static str> {
 }
 
 /// Task context.
-pub(crate) fn task_context(task: &DispatchTask, logger: TaskLogger) -> TaskContext {
+pub fn task_context(task: &DispatchTask, logger: TaskLogger) -> TaskContext {
     let processor_name = if task.processor_name.is_empty() {
         task.job_id.clone()
     } else {

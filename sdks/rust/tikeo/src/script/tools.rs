@@ -39,9 +39,7 @@ impl Default for SandboxToolResolver {
 
 impl SandboxToolResolver {
     const fn uses_strict_sandbox_isolation(&self) -> bool {
-        {
-            self.strict_sandbox_isolation || self.require_managed_tools
-        }
+        self.strict_sandbox_isolation || self.require_managed_tools
     }
 
     /// Resolve Anthropic Sandbox Runtime.

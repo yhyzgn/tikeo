@@ -6,7 +6,7 @@ use crate::proto::worker::v1::{
 };
 
 /// Worker runtime configuration used during registration.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkerConfig {
     /// Tikeo Worker Tunnel endpoint, for example `http://0.0.0.0:9998`.
     pub endpoint: String,
@@ -175,7 +175,7 @@ pub enum PluginType {
 impl PluginType {
     /// Stable lowercase value sent to the tikeo server.
     #[must_use]
-        pub const fn as_str(self) -> &'static str {
+    pub const fn as_str(self) -> &'static str {
         match self {
             Self::Sql => "sql",
             Self::Http => "http",

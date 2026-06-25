@@ -1,6 +1,6 @@
 # Latest completed slice
 
-- 2026-06-25: YAML migration / warning-clean full business-output regression is complete locally. Rust SDK generated protobuf warnings are fixed at the generator/post-processing root, migration CLI smoke assertions now match current output, all source suppression bypasses are absent except red-line text in `AGENTS.md`/`prompt.md`, and business-output smokes for notifications, management trigger, SDK API keys, migration CLI, web/docs, SDKs/demos, and Docker images passed.
+- 2026-06-25: YAML migration / warning-clean full business-output regression is complete locally. Rust SDK generated protobuf warnings are fixed at the generator/post-processing root, migration CLI smoke assertions now match current output, all source suppression bypasses are absent except red-line text in `AGENTS.md`/`prompt.md`, and business-output smokes for notifications, management trigger, SDK API keys, migration CLI, web/docs, SDKs/demos, and Docker images passed; follow-up remote CI Rust SDK job failure was traced to standalone SDK fmt/clippy drift and fixed with the exact CI job passing locally.
 
 # Next Work
 

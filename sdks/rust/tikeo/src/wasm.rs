@@ -2,7 +2,7 @@ use crate::{proto::worker::v1::DispatchTask, task::TaskOutcome};
 
 #[cfg(feature = "wasm")]
 /// Process wasm binding.
-pub(crate) fn process_wasm_binding(
+pub fn process_wasm_binding(
     binding: &crate::proto::worker::v1::WasmProcessorBinding,
     _task: &DispatchTask,
 ) -> TaskOutcome {
@@ -14,7 +14,7 @@ pub(crate) fn process_wasm_binding(
 
 #[cfg(not(feature = "wasm"))]
 /// Process wasm binding.
-pub(crate) fn process_wasm_binding(
+pub fn process_wasm_binding(
     binding: &crate::proto::worker::v1::WasmProcessorBinding,
     _task: &DispatchTask,
 ) -> TaskOutcome {
