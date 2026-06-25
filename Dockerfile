@@ -70,9 +70,9 @@ WORKDIR /app
 COPY --from=builder /tmp/tikeo /usr/local/bin/tikeo
 COPY config ./config
 RUN mkdir -p /config /data /logs /config/tls \
-    && cp /app/config/tikeo.yml /config/tikeo.yml
+    && cp /app/config/tikeo.toml /config/tikeo.toml
 
 VOLUME ["/config", "/data", "/logs"]
 EXPOSE 9090 9998
 ENTRYPOINT ["tikeo"]
-CMD ["serve", "--config", "/config/tikeo.yml"]
+CMD ["serve", "--config", "/config/tikeo.toml"]

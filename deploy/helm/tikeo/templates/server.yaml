@@ -60,7 +60,7 @@ spec:
         - name: tikeo
           image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag }}"
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
-          args: ["serve", "--config", "/config/tikeo.yml"]
+          args: ["serve", "--config", "/config/tikeo.toml"]
           {{- if or (and (eq .Values.server.storage.mode "external") .Values.server.storage.existingSecret) $raftEnabled }}
           env:
             {{- if and (eq .Values.server.storage.mode "external") .Values.server.storage.existingSecret }}

@@ -1,6 +1,6 @@
 ---
 title: Docker Compose deployment
-description: Deploy Tikeo with Docker Hub images, mounted config/tikeo.yml, persistent data/log/tls mounts, and SQLite/PostgreSQL/MySQL Compose stacks.
+description: Deploy Tikeo with Docker Hub images, mounted config/tikeo.toml, persistent data/log/tls mounts, and SQLite/PostgreSQL/MySQL Compose stacks.
 ---
 
 # Docker Compose deployment
@@ -16,15 +16,15 @@ They do **not** build local images. Pin `TIKEO_IMAGE` and `TIKEO_WEB_IMAGE` in `
 
 | Surface | What belongs here | What does not belong here |
 | --- | --- | --- |
-| `config/tikeo.yml` | Tikeo service behavior: listeners, structured database fields, auth, TLS, logs, cluster, retry, notification delivery. | Docker image tags, host ports, Docker volume names. |
+| `config/tikeo.toml` | Tikeo service behavior: listeners, structured database fields, auth, TLS, logs, cluster, retry, notification delivery. | Docker image tags, host ports, Docker volume names. |
 | `.env` | Docker/Compose parameters: image tags, host ports, named volume names, database container credentials, timezone, mimalloc knobs, local worker-demo helpers. | `TIKEO__...` service overrides for normal deployment. |
-| Compose `environment` | Container runtime values such as `TZ` and mimalloc knobs. | Tikeo service settings; edit `config/tikeo.yml` instead. |
+| Compose `environment` | Container runtime values such as `TZ` and mimalloc knobs. | Tikeo service settings; edit `config/tikeo.toml` instead. |
 
 ## Mounted runtime paths
 
 | Runtime path | SQLite stack | PostgreSQL stack | MySQL stack | Meaning |
 | --- | --- | --- | --- | --- |
-| `/config/tikeo.yml` | `./config/tikeo.yml:/config/tikeo.yml:ro` | same | same | Single formal Server config file. |
+| `/config/tikeo.toml` | `./config/tikeo.toml:/config/tikeo.toml:ro` | same | same | Single formal Server config file. |
 | `/config/tls` | `./config/tls:/config/tls:ro` | same | same | Optional HTTP/Worker Tunnel TLS/mTLS certs. |
 | `/data` | `tikeo-data:/data` | `tikeo-data:/data` | `tikeo-data:/data` | SQLite DB path and uniform runtime data mount. |
 | `/logs` | `tikeo-logs:/logs` | `tikeo-logs:/logs` | `tikeo-logs:/logs` | Optional file logs when `log_dir=/logs`. |
@@ -35,7 +35,7 @@ They do **not** build local images. Pin `TIKEO_IMAGE` and `TIKEO_WEB_IMAGE` in `
 ```bash
 cp deploy/compose/tikeo.env.example .env
 # Edit .env for Docker parameters.
-# Edit config/tikeo.yml for Tikeo service settings.
+# Edit config/tikeo.toml for Tikeo service settings.
 
 docker compose --env-file .env pull
 docker compose --env-file .env up -d
@@ -45,7 +45,7 @@ open http://127.0.0.1:${TIKEO_WEB_PORT:-8080}
 
 ## PostgreSQL stack
 
-Before startup, edit `config/tikeo.yml`:
+Before startup, edit `config/tikeo.toml`:
 
 ```yaml
 storage:
@@ -64,7 +64,7 @@ Then run:
 
 ```bash
 cp deploy/compose/tikeo.env.example .env
-# Keep .env DB container credentials aligned with config/tikeo.yml.
+# Keep .env DB container credentials aligned with config/tikeo.toml.
 docker compose --env-file .env -f docker-compose.postgres.yml pull
 docker compose --env-file .env -f docker-compose.postgres.yml up -d
 curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
@@ -72,7 +72,7 @@ curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
 
 ## MySQL stack
 
-Before startup, edit `config/tikeo.yml`:
+Before startup, edit `config/tikeo.toml`:
 
 ```yaml
 storage:
@@ -89,7 +89,7 @@ Then run:
 
 ```bash
 cp deploy/compose/tikeo.env.example .env
-# Keep .env DB container credentials aligned with config/tikeo.yml.
+# Keep .env DB container credentials aligned with config/tikeo.toml.
 docker compose --env-file .env -f docker-compose.mysql.yml pull
 docker compose --env-file .env -f docker-compose.mysql.yml up -d
 curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
@@ -114,8 +114,8 @@ If a Worker container advertises script runners, preinstall sandbox tools in tha
 ## Prerequisites
 
 - Docker and Docker Compose v2 are installed for Compose examples.
-- `config/tikeo.yml` exists and has been reviewed for the target database, TLS, logs, and public URLs.
-- Required host directories or named volumes for `/config/tikeo.yml`, `/config/tls`, `/data`, and `/logs` are available.
+- `config/tikeo.toml` exists and has been reviewed for the target database, TLS, logs, and public URLs.
+- Required host directories or named volumes for `/config/tikeo.toml`, `/config/tls`, `/data`, and `/logs` are available.
 
 ## Verify
 
@@ -123,11 +123,11 @@ Run the documented command, then verify `/healthz`, `/readyz`, and the Web conso
 
 ## Troubleshooting
 
-If startup fails, inspect `docker compose logs tikeo-server`, confirm `config/tikeo.yml` is mounted at `/config/tikeo.yml`, and check structured database host, port, username, password, and database values.
+If startup fails, inspect `docker compose logs tikeo-server`, confirm `config/tikeo.toml` is mounted at `/config/tikeo.toml`, and check structured database host, port, username, password, and database values.
 
 ## Production checklist
 
 - [ ] Images are pinned for rollback-sensitive environments.
-- [ ] `/config/tikeo.yml`, `/config/tls`, `/data`, and `/logs` mounts match the deployment mode.
+- [ ] `/config/tikeo.toml`, `/config/tls`, `/data`, and `/logs` mounts match the deployment mode.
 - [ ] Database credentials are not committed to source control.
 - [ ] Worker Tunnel and SSE proxy behavior are validated before production traffic.

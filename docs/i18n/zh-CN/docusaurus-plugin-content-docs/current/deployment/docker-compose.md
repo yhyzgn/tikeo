@@ -1,6 +1,6 @@
 ---
 title: Docker Compose 部署
-description: 使用 Docker Hub 镜像、挂载 config/tikeo.yml、持久化 data/log/tls，并运行 SQLite/PostgreSQL/MySQL Compose stack。
+description: 使用 Docker Hub 镜像、挂载 config/tikeo.toml、持久化 data/log/tls，并运行 SQLite/PostgreSQL/MySQL Compose stack。
 ---
 
 # Docker Compose 部署
@@ -16,15 +16,15 @@ description: 使用 Docker Hub 镜像、挂载 config/tikeo.yml、持久化 data
 
 | 配置面 | 应该放什么 | 不应该放什么 |
 | --- | --- | --- |
-| `config/tikeo.yml` | Tikeo 服务行为：监听、结构化数据库、认证、TLS、日志、集群、重试、通知投递。 | Docker 镜像 tag、宿主机端口、Docker volume 名。 |
+| `config/tikeo.toml` | Tikeo 服务行为：监听、结构化数据库、认证、TLS、日志、集群、重试、通知投递。 | Docker 镜像 tag、宿主机端口、Docker volume 名。 |
 | `.env` | Docker/Compose 参数：镜像 tag、宿主机端口、named volume、数据库容器凭据、时区、mimalloc、本地 worker-demo 辅助值。 | 常规部署中的 `TIKEO__...` 服务覆盖。 |
-| Compose `environment` | 容器运行时值，例如 `TZ` 和 mimalloc。 | Tikeo 服务配置；请改 `config/tikeo.yml`。 |
+| Compose `environment` | 容器运行时值，例如 `TZ` 和 mimalloc。 | Tikeo 服务配置；请改 `config/tikeo.toml`。 |
 
 ## 挂载路径
 
 | 运行时路径 | SQLite stack | PostgreSQL stack | MySQL stack | 含义 |
 | --- | --- | --- | --- | --- |
-| `/config/tikeo.yml` | `./config/tikeo.yml:/config/tikeo.yml:ro` | 同左 | 同左 | 唯一正式 Server 配置文件。 |
+| `/config/tikeo.toml` | `./config/tikeo.toml:/config/tikeo.toml:ro` | 同左 | 同左 | 唯一正式 Server 配置文件。 |
 | `/config/tls` | `./config/tls:/config/tls:ro` | 同左 | 同左 | 可选 HTTP/Worker Tunnel TLS/mTLS 证书。 |
 | `/data` | `tikeo-data:/data` | `tikeo-data:/data` | `tikeo-data:/data` | SQLite DB 路径和统一 data 挂载。 |
 | `/logs` | `tikeo-logs:/logs` | `tikeo-logs:/logs` | `tikeo-logs:/logs` | `log_dir=/logs` 时的可选文件日志。 |
@@ -34,7 +34,7 @@ description: 使用 Docker Hub 镜像、挂载 config/tikeo.yml、持久化 data
 
 ```bash
 cp deploy/compose/tikeo.env.example .env
-# Docker 参数改 .env；Tikeo 服务配置改 config/tikeo.yml。
+# Docker 参数改 .env；Tikeo 服务配置改 config/tikeo.toml。
 
 docker compose --env-file .env pull
 docker compose --env-file .env up -d
@@ -44,7 +44,7 @@ open http://127.0.0.1:${TIKEO_WEB_PORT:-8080}
 
 ## PostgreSQL stack
 
-启动前编辑 `config/tikeo.yml`：
+启动前编辑 `config/tikeo.toml`：
 
 ```yaml
 storage:
@@ -63,7 +63,7 @@ storage:
 
 ```bash
 cp deploy/compose/tikeo.env.example .env
-# 保持 .env 数据库容器凭据与 config/tikeo.yml 一致。
+# 保持 .env 数据库容器凭据与 config/tikeo.toml 一致。
 docker compose --env-file .env -f docker-compose.postgres.yml pull
 docker compose --env-file .env -f docker-compose.postgres.yml up -d
 curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
@@ -71,7 +71,7 @@ curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
 
 ## MySQL stack
 
-启动前编辑 `config/tikeo.yml`：
+启动前编辑 `config/tikeo.toml`：
 
 ```yaml
 storage:
@@ -88,7 +88,7 @@ storage:
 
 ```bash
 cp deploy/compose/tikeo.env.example .env
-# 保持 .env 数据库容器凭据与 config/tikeo.yml 一致。
+# 保持 .env 数据库容器凭据与 config/tikeo.toml 一致。
 docker compose --env-file .env -f docker-compose.mysql.yml pull
 docker compose --env-file .env -f docker-compose.mysql.yml up -d
 curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
@@ -111,8 +111,8 @@ Worker 主动连接 Server Worker Tunnel。本地 demo 使用 `http://127.0.0.1:
 ## 前置条件
 
 - 已安装 Docker 和 Docker Compose v2。
-- `config/tikeo.yml` 已按目标数据库、TLS、日志和公网 URL 检查。
-- `/config/tikeo.yml`、`/config/tls`、`/data`、`/logs` 对应的 host path 或 named volume 已准备好。
+- `config/tikeo.toml` 已按目标数据库、TLS、日志和公网 URL 检查。
+- `/config/tikeo.toml`、`/config/tls`、`/data`、`/logs` 对应的 host path 或 named volume 已准备好。
 
 ## 验收
 
@@ -120,11 +120,11 @@ Worker 主动连接 Server Worker Tunnel。本地 demo 使用 `http://127.0.0.1:
 
 ## 故障排查
 
-启动失败时先看 `docker compose logs tikeo-server`，确认 `config/tikeo.yml` 已挂载到 `/config/tikeo.yml`，再检查结构化数据库 host、port、username、password 和 database。
+启动失败时先看 `docker compose logs tikeo-server`，确认 `config/tikeo.toml` 已挂载到 `/config/tikeo.toml`，再检查结构化数据库 host、port、username、password 和 database。
 
 ## 生产检查清单
 
 - [ ] 对需要回滚的环境固定镜像版本。
-- [ ] `/config/tikeo.yml`、`/config/tls`、`/data`、`/logs` 挂载与部署模式一致。
+- [ ] `/config/tikeo.toml`、`/config/tls`、`/data`、`/logs` 挂载与部署模式一致。
 - [ ] 数据库凭据没有提交到源码。
 - [ ] 生产流量前已验证 Worker Tunnel 和 SSE 代理行为。

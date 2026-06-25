@@ -289,56 +289,62 @@ metadata:
   name: tikeo-config
   namespace: ${NAMESPACE}
 data:
-  tikeo.yml: |
-    server:
-      listen_addr: 0.0.0.0:9090
-      worker_tunnel_addr: 0.0.0.0:9998
+  tikeo.toml: |
+    [server]
+    listen_addr = "0.0.0.0:9090"
+    worker_tunnel_addr = "0.0.0.0:9998"
 
-    storage:
-      database:
-        type: postgres
-        host: postgres
-        port: 5432
-        username: tikeo
-        database: tikeo
-      timestamp_offset: "+00:00"
+    [storage]
+    timestamp_offset = "+00:00"
 
-    cluster:
-      mode: raft
-      node_id: tikeo-server-0
-      scheduler_shard_map_version: 1
-      scheduler_shard_count: 64
-      peers:
-$(for i in $(seq 0 $((SERVER_REPLICAS - 1))); do printf '        - node_id: tikeo-server-%s\n          endpoint: http://tikeo-server-%s.tikeo-server-headless:9090\n' "$i" "$i"; done)
+    [storage.database]
+    type = "postgres"
+    host = "postgres"
+    port = 5432
+    username = "tikeo"
+    database = "tikeo"
 
-    auth:
-      local_login_enabled: true
-      api_tokens:
-        default_ttl_seconds: 43200
-        min_ttl_seconds: 300
-        max_ttl_seconds: 2592000
-      oidc:
-        enabled: false
-        scopes: ["openid", "profile", "email"]
+    [cluster]
+    mode = "raft"
+    node_id = "tikeo-server-0"
+    scheduler_shard_map_version = 1
+    scheduler_shard_count = 64
+$(for i in $(seq 0 $((SERVER_REPLICAS - 1))); do printf '
+    [[cluster.peers]]
+    node_id = "tikeo-server-%s"
+    endpoint = "http://tikeo-server-%s.tikeo-server-headless:9090"
+' "$i" "$i"; done)
 
-    transport_security:
-      http:
-        tls_enabled: false
-        mtls_required: false
-      worker_tunnel:
-        tls_enabled: false
-        mtls_required: false
+    [auth]
+    local_login_enabled = true
 
-    observability:
-      tracing:
-        enabled: false
-        headers: []
+    [auth.api_tokens]
+    default_ttl_seconds = 43200
+    min_ttl_seconds = 300
+    max_ttl_seconds = 2592000
 
-    alert_retry:
-      enabled: false
+    [auth.oidc]
+    enabled = false
+    scopes = ["openid", "profile", "email"]
 
-    notification_delivery:
-      enabled: false
+    [transport_security.http]
+    tls_enabled = false
+    mtls_required = false
+
+    [transport_security.worker_tunnel]
+    tls_enabled = false
+    mtls_required = false
+
+    [observability.tracing]
+    enabled = false
+    headers = []
+
+    [alert_retry]
+    enabled = false
+
+    [notification_delivery]
+    enabled = false
+
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -434,7 +440,7 @@ spec:
         - name: tikeo
           image: ${SERVER_IMAGE}
           imagePullPolicy: IfNotPresent
-          args: ["serve", "--config", "/config/tikeo.yml"]
+          args: ["serve", "--config", "/config/tikeo.toml"]
           env:
             - name: TIKEO__STORAGE__DATABASE__TYPE
               valueFrom:

@@ -5,7 +5,7 @@ description: Copy-paste Tikeo configuration recipes for local, Docker, PostgreSQ
 
 # Configuration cookbook
 
-Use `config/tikeo.yml` for deployable Server settings. Compose `.env` is only for Docker parameters.
+Use `config/tikeo.toml` for deployable Server settings. Compose `.env` is only for Docker parameters.
 
 ## Local source run
 
@@ -17,7 +17,7 @@ cargo run --bin tikeo -- serve --config config/dev.toml
 
 ```bash
 cp deploy/compose/tikeo.env.example .env
-# Edit config/tikeo.yml for Tikeo service settings.
+# Edit config/tikeo.toml for Tikeo service settings.
 docker compose --env-file .env up -d
 ```
 

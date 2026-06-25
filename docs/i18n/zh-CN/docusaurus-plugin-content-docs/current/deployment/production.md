@@ -35,7 +35,7 @@ SQLite 仅适合可接受单节点本地持久化的场景。生产优先 Postgr
 从唯一正式生产模板开始：
 
 ```bash
-cp config/tikeo.yml /etc/tikeo/tikeo.yml
+cp config/tikeo.toml /etc/tikeo/tikeo.toml
 ```
 
 在挂载 YAML 中设置生产值。优先使用结构化数据库字段；密码包含 `@`、`/`、`:`、`#` 时无需手动 URL encode。
@@ -68,45 +68,45 @@ observability:
 
 | 部署面 | 配置路径 | Data/db 路径 | 日志路径 | 挂载建议 |
 | --- | --- | --- | --- | --- |
-| Docker 镜像默认 | `/config/tikeo.yml` | SQLite 用 `/data/tikeo.db` | 默认 stdout，除非设置 `log_dir` | 快速评估可用；SQLite 不可丢时挂 `/data`。 |
-| Docker 外部配置 | `/config/tikeo.yml` | SQLite 用 `/data/tikeo.db` | `log_dir=/logs` 时 `/logs/tikeo.log` | 只读挂载 config，并挂 `/config/tls`、`/data`、`/logs`。 |
-| Docker Compose SQLite | `/config/tikeo.yml` | `tikeo-data:/data` | `tikeo-logs:/logs` | Compose 已显式挂载 config、TLS、data、logs。 |
-| Docker Compose PostgreSQL | `/config/tikeo.yml` | DB 服务的 `tikeo-postgres-data:/var/lib/postgresql/data` | `tikeo-logs:/logs` | Server `/data` 只是统一运行时挂载；DB 状态在数据库服务。 |
-| Docker Compose MySQL | `/config/tikeo.yml` | DB 服务的 `tikeo-mysql-data:/var/lib/mysql` | `tikeo-logs:/logs` | 备份 MySQL volume 或托管数据库。 |
-| Kubernetes 原始 manifest | ConfigMap 中 `/config/tikeo.yml` | SQLite manifest 中 PVC 挂 `/data` | 默认 stdout | 只有启用文件日志时才加日志 PVC。 |
-| Kubernetes Raft/HA | `/config/tikeo.yml` + 结构化 DB Secret | 外部 DB | 默认 stdout | 使用 StatefulSet/headless peers 与 Secret 注入 DB 字段。 |
-| Helm SQLite | chart ConfigMap 中 `/config/tikeo.yml` | `/data` PVC | 默认 stdout | 仅开发/小型单节点。 |
-| Helm 外部 DB | `/config/tikeo.yml` + 结构化 DB Secret keys | 托管/自建 DB | 默认 stdout | Secret keys：`type`、`host`、`port`、`username`、`password`、`database`。 |
-| Binary/systemd | `/etc/tikeo/tikeo.yml` | 本地 SQLite 用 `/var/lib/tikeo` | 启用时 `/var/log/tikeo/tikeo.log` | 目录归属 `tikeo` 用户。 |
+| Docker 镜像默认 | `/config/tikeo.toml` | SQLite 用 `/data/tikeo.db` | 默认 stdout，除非设置 `log_dir` | 快速评估可用；SQLite 不可丢时挂 `/data`。 |
+| Docker 外部配置 | `/config/tikeo.toml` | SQLite 用 `/data/tikeo.db` | `log_dir=/logs` 时 `/logs/tikeo.log` | 只读挂载 config，并挂 `/config/tls`、`/data`、`/logs`。 |
+| Docker Compose SQLite | `/config/tikeo.toml` | `tikeo-data:/data` | `tikeo-logs:/logs` | Compose 已显式挂载 config、TLS、data、logs。 |
+| Docker Compose PostgreSQL | `/config/tikeo.toml` | DB 服务的 `tikeo-postgres-data:/var/lib/postgresql/data` | `tikeo-logs:/logs` | Server `/data` 只是统一运行时挂载；DB 状态在数据库服务。 |
+| Docker Compose MySQL | `/config/tikeo.toml` | DB 服务的 `tikeo-mysql-data:/var/lib/mysql` | `tikeo-logs:/logs` | 备份 MySQL volume 或托管数据库。 |
+| Kubernetes 原始 manifest | ConfigMap 中 `/config/tikeo.toml` | SQLite manifest 中 PVC 挂 `/data` | 默认 stdout | 只有启用文件日志时才加日志 PVC。 |
+| Kubernetes Raft/HA | `/config/tikeo.toml` + 结构化 DB Secret | 外部 DB | 默认 stdout | 使用 StatefulSet/headless peers 与 Secret 注入 DB 字段。 |
+| Helm SQLite | chart ConfigMap 中 `/config/tikeo.toml` | `/data` PVC | 默认 stdout | 仅开发/小型单节点。 |
+| Helm 外部 DB | `/config/tikeo.toml` + 结构化 DB Secret keys | 托管/自建 DB | 默认 stdout | Secret keys：`type`、`host`、`port`、`username`、`password`、`database`。 |
+| Binary/systemd | `/etc/tikeo/tikeo.toml` | 本地 SQLite 用 `/var/lib/tikeo` | 启用时 `/var/log/tikeo/tikeo.log` | 目录归属 `tikeo` 用户。 |
 | Web/Docs 静态镜像 | 不需要 | 不需要 | nginx stdout | 无持久化数据。 |
 
 ## Docker run 形态
 
 ```bash
 mkdir -p ./tikeo/config/tls ./tikeo/data ./tikeo/logs
-cp config/tikeo.yml ./tikeo/config/tikeo.yml
+cp config/tikeo.toml ./tikeo/config/tikeo.toml
 
 docker run -d --name tikeo-server \
   -p 9090:9090 -p 9998:9998 \
-  -v "$PWD/tikeo/config/tikeo.yml:/config/tikeo.yml:ro" \
+  -v "$PWD/tikeo/config/tikeo.toml:/config/tikeo.toml:ro" \
   -v "$PWD/tikeo/config/tls:/config/tls:ro" \
   -v "$PWD/tikeo/data:/data" \
   -v "$PWD/tikeo/logs:/logs" \
   yhyzgn/tikeo-server:latest \
-  serve --config /config/tikeo.yml
+  serve --config /config/tikeo.toml
 ```
 
 ## Docker Compose 形态
 
 ```bash
 cp deploy/compose/tikeo.env.example .env
-# Docker 参数改 .env；Tikeo 服务配置改 config/tikeo.yml。
+# Docker 参数改 .env；Tikeo 服务配置改 config/tikeo.toml。
 docker compose --env-file .env pull
 docker compose --env-file .env up -d
 curl -fsS http://127.0.0.1:9090/readyz
 ```
 
-使用 `docker-compose.postgres.yml` 或 `docker-compose.mysql.yml` 前，先把 `config/tikeo.yml` 的 `storage.database.type` 和 host/user/password/database 改成对应数据库服务。
+使用 `docker-compose.postgres.yml` 或 `docker-compose.mysql.yml` 前，先把 `config/tikeo.toml` 的 `storage.database.type` 和 host/user/password/database 改成对应数据库服务。
 
 ## Kubernetes 与 Helm 形态
 

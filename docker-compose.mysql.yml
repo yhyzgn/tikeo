@@ -1,12 +1,12 @@
 services:
   tikeo:
     image: ${TIKEO_IMAGE:-yhyzgn/tikeo-server:latest}
-    command: ["serve", "--config", "/config/tikeo.yml"]
+    command: ["serve", "--config", "/config/tikeo.toml"]
     depends_on:
       mysql:
         condition: service_healthy
     environment:
-      # Service behavior lives in ./config/tikeo.yml. Keep Compose env focused on container runtime differences only.
+      # Service behavior lives in ./config/tikeo.toml. Keep Compose env focused on container runtime differences only.
       TZ: ${TZ:-Asia/Shanghai}
       MIMALLOC_PURGE_DELAY: ${MIMALLOC_PURGE_DELAY:-0}
       MIMALLOC_PURGE_DECOMMITS: ${MIMALLOC_PURGE_DECOMMITS:-1}
@@ -15,7 +15,7 @@ services:
       - "${TIKEO_HTTP_PORT:-9090}:9090"
       - "${TIKEO_WORKER_TUNNEL_PORT:-9998}:9998"
     volumes:
-      - ./config/tikeo.yml:/config/tikeo.yml:ro
+      - ./config/tikeo.toml:/config/tikeo.toml:ro
       - ./config/tls:/config/tls:ro
       - tikeo-data:/data
       - tikeo-logs:/logs

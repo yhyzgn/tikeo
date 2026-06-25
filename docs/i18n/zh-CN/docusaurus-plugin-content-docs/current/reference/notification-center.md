@@ -14,7 +14,7 @@ description: Tikeo 通知中心 API、配置、存储、事件、脱敏、重试
 - HTTP routes 与 OpenAPI annotations：`crates/tikeo-server/src/http/routes/notifications.rs`、`crates/tikeo-server/src/http/routes/notification_templates.rs`
 - 存储 repository 与脱敏：`crates/tikeo-storage/src/repository/notification.rs`、`crates/tikeo-storage/src/repository/notification_template.rs`
 - 实体/迁移：`crates/tikeo-storage/src/entities/notification_*.rs`、`crates/tikeo-storage/src/migration/notification_center.rs`
-- 配置默认值：`crates/tikeo-config/src/lib.rs`、`config/dev.toml`、`config/tikeo.yml`
+- 配置默认值：`crates/tikeo-config/src/lib.rs`、`config/dev.toml`、`config/tikeo.toml`
 - Web UI：`web/src/pages/NotificationCenterPage.tsx`、`web/src/api/notifications.ts`
 
 ## 领域模型

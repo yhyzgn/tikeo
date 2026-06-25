@@ -6,73 +6,81 @@ metadata:
   labels:
     {{- include "tikeo.labels" . | nindent 4 }}
 data:
-  tikeo.yml: |
-    server:
-      listen_addr: "0.0.0.0:{{ .Values.server.httpPort }}"
-      worker_tunnel_addr: "0.0.0.0:{{ .Values.server.workerTunnelPort }}"
+  tikeo.toml: |
+    [server]
+    listen_addr = "0.0.0.0:{{ .Values.server.httpPort }}"
+    worker_tunnel_addr = "0.0.0.0:{{ .Values.server.workerTunnelPort }}"
 
-    storage:
-      timestamp_offset: {{ .Values.server.storage.timestampOffset | default "+00:00" | quote }}
-      database:
-        type: {{ .Values.server.storage.type | quote }}
-        {{- if eq .Values.server.storage.type "sqlite" }}
-        path: {{ .Values.server.storage.sqlite.path | quote }}
-        params:
-          mode: {{ .Values.server.storage.sqlite.mode | quote }}
-        {{- else }}
-        host: {{ .Values.server.storage.external.host | quote }}
-        port: {{ .Values.server.storage.external.port }}
-        username: {{ .Values.server.storage.external.username | quote }}
-        password: {{ .Values.server.storage.external.password | quote }}
-        database: {{ .Values.server.storage.external.database | quote }}
-        {{- with .Values.server.storage.external.params }}
-        params:
-          {{- toYaml . | nindent 10 }}
-        {{- end }}
-        {{- end }}
+    [storage]
+    timestamp_offset = {{ .Values.server.storage.timestampOffset | default "+00:00" | quote }}
 
-    cluster:
-      mode: {{ .Values.server.cluster.mode | quote }}
-      {{- if eq .Values.server.cluster.mode "raft" }}
-      node_id: "{{ include "tikeo.serverName" . }}-0"
-      peers:
-      {{- $root := . }}
-      {{- range $i := until (int .Values.server.replicas) }}
-        - node_id: "{{ include "tikeo.serverName" $root }}-{{ $i }}"
-          endpoint: "http://{{ include "tikeo.serverName" $root }}-{{ $i }}.{{ include "tikeo.serverHeadlessName" $root }}:{{ $root.Values.server.cluster.peerPort }}"
-      {{- end }}
-      {{- else }}
-      node_id: "standalone"
-      peers: []
-      {{- end }}
-      scheduler_shard_map_version: 1
-      scheduler_shard_count: 64
+    [storage.database]
+    type = {{ .Values.server.storage.type | quote }}
+    {{- if eq .Values.server.storage.type "sqlite" }}
+    path = {{ .Values.server.storage.sqlite.path | quote }}
 
-    transport_security:
-      http:
-        tls_enabled: {{ .Values.server.tls.http.enabled }}
-        mtls_required: {{ .Values.server.tls.http.mtlsRequired }}
-        {{- if .Values.server.tls.http.existingSecret }}
-        cert_path: {{ include "tikeo.httpCertPath" . | quote }}
-        key_path: {{ include "tikeo.httpKeyPath" . | quote }}
-        {{- end }}
-        {{- if .Values.server.tls.http.clientCaSecret }}
-        client_ca_path: {{ include "tikeo.httpClientCaPath" . | quote }}
-        {{- end }}
-      worker_tunnel:
-        tls_enabled: {{ .Values.server.tls.workerTunnel.enabled }}
-        mtls_required: {{ .Values.server.tls.workerTunnel.mtlsRequired }}
-        {{- if .Values.server.tls.workerTunnel.existingSecret }}
-        cert_path: {{ include "tikeo.workerTunnelCertPath" . | quote }}
-        key_path: {{ include "tikeo.workerTunnelKeyPath" . | quote }}
-        {{- end }}
-        {{- if .Values.server.tls.workerTunnel.clientCaSecret }}
-        client_ca_path: {{ include "tikeo.workerTunnelClientCaPath" . | quote }}
-        {{- end }}
+    [storage.database.params]
+    mode = {{ .Values.server.storage.sqlite.mode | quote }}
+    {{- else }}
+    host = {{ .Values.server.storage.external.host | quote }}
+    port = {{ .Values.server.storage.external.port }}
+    username = {{ .Values.server.storage.external.username | quote }}
+    password = {{ .Values.server.storage.external.password | quote }}
+    database = {{ .Values.server.storage.external.database | quote }}
+    {{- with .Values.server.storage.external.params }}
 
-    observability:
-      logging:
-        level: info
-      tracing:
-        enabled: false
-        headers: []
+    [storage.database.params]
+    {{- range $key, $value := . }}
+    {{ $key }} = {{ $value | quote }}
+    {{- end }}
+    {{- end }}
+    {{- end }}
+
+    [cluster]
+    mode = {{ .Values.server.cluster.mode | quote }}
+    {{- if eq .Values.server.cluster.mode "raft" }}
+    node_id = "{{ include "tikeo.serverName" . }}-0"
+    {{- else }}
+    node_id = "standalone"
+    peers = []
+    {{- end }}
+    scheduler_shard_map_version = 1
+    scheduler_shard_count = 64
+    {{- if eq .Values.server.cluster.mode "raft" }}
+    {{- $root := . }}
+    {{- range $i := until (int .Values.server.replicas) }}
+
+    [[cluster.peers]]
+    node_id = "{{ include "tikeo.serverName" $root }}-{{ $i }}"
+    endpoint = "http://{{ include "tikeo.serverName" $root }}-{{ $i }}.{{ include "tikeo.serverHeadlessName" $root }}:{{ $root.Values.server.cluster.peerPort }}"
+    {{- end }}
+    {{- end }}
+
+    [transport_security.http]
+    tls_enabled = {{ .Values.server.tls.http.enabled }}
+    mtls_required = {{ .Values.server.tls.http.mtlsRequired }}
+    {{- if .Values.server.tls.http.existingSecret }}
+    cert_path = {{ include "tikeo.httpCertPath" . | quote }}
+    key_path = {{ include "tikeo.httpKeyPath" . | quote }}
+    {{- end }}
+    {{- if .Values.server.tls.http.clientCaSecret }}
+    client_ca_path = {{ include "tikeo.httpClientCaPath" . | quote }}
+    {{- end }}
+
+    [transport_security.worker_tunnel]
+    tls_enabled = {{ .Values.server.tls.workerTunnel.enabled }}
+    mtls_required = {{ .Values.server.tls.workerTunnel.mtlsRequired }}
+    {{- if .Values.server.tls.workerTunnel.existingSecret }}
+    cert_path = {{ include "tikeo.workerTunnelCertPath" . | quote }}
+    key_path = {{ include "tikeo.workerTunnelKeyPath" . | quote }}
+    {{- end }}
+    {{- if .Values.server.tls.workerTunnel.clientCaSecret }}
+    client_ca_path = {{ include "tikeo.workerTunnelClientCaPath" . | quote }}
+    {{- end }}
+
+    [observability.logging]
+    level = "info"
+
+    [observability.tracing]
+    enabled = false
+    headers = []

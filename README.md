@@ -1094,7 +1094,7 @@ Full worker-image guidance and the same examples are also maintained in the docs
 
 ### Server configuration reference
 
-Server configuration is loaded from defaults, then a config file, then `TIKEO__...` environment overrides. In Docker/Compose, prefer editing the mounted `/config/tikeo.yml`; reserve `TIKEO__...` for Kubernetes Secrets, emergency overrides, or platforms where file mounting is inconvenient.
+Server configuration is loaded from defaults, then a config file, then `TIKEO__...` environment overrides. In Docker/Compose, prefer editing the mounted `/config/tikeo.toml`; reserve `TIKEO__...` for Kubernetes Secrets, emergency overrides, or platforms where file mounting is inconvenient.
 
 | Config key | Environment variable | Required? | Default | Meaning |
 | --- | --- | --- | --- | --- |
@@ -1151,7 +1151,7 @@ notification secrets into images; mount and edit the appropriate config file ins
 
 | Surface | Recommended path in containers | VM/systemd path | What to mount or persist | Required? |
 | --- | --- | --- | --- | --- |
-| Server config | `/config/tikeo.yml` (recommended external mount); image default is `/config/tikeo.yml` | `/etc/tikeo/tikeo.toml` | Read-only YAML file, selected with `tikeo serve --config <path>` or `TIKEO_CONFIG`. | Recommended for every non-demo deployment. |
+| Server config | `/config/tikeo.toml` (recommended external mount); image default is `/config/tikeo.toml` | `/etc/tikeo/tikeo.toml` | Read-only TOML file, selected with `tikeo serve --config <path>` or `TIKEO_CONFIG`. | Recommended for every non-demo deployment. |
 | SQLite data/db | `/data/tikeo.db` from `sqlite:///data/tikeo.db?mode=rwc` | `/var/lib/tikeo/tikeo.db` or another local path | Persistent volume/PVC/bind mount for the whole `/data` or data directory. | Required only when using SQLite and data must survive restart/recreate. |
 | PostgreSQL data | Not stored in the Server container | Managed DB or database host volume | Persist the PostgreSQL service's `/var/lib/postgresql/data`, or use a managed database backup/snapshot. | Required when PostgreSQL is self-hosted. |
 | MySQL data | Not stored in the Server container | Managed DB or database host volume | Persist the MySQL service's `/var/lib/mysql`, or use a managed database backup/snapshot. | Required when MySQL is self-hosted. |
@@ -1160,7 +1160,7 @@ notification secrets into images; mount and edit the appropriate config file ins
 | Web and Docs images | none | none | Static nginx bundles; normally no persistent data. Mount custom nginx config only if you intentionally override the image behavior. | Not required. |
 
 The config loader reads Rust defaults, then the YAML/TOML file, then environment overrides using the `TIKEO`
-prefix and double underscores. For Docker Compose, keep Tikeo service behavior in `config/tikeo.yml`.
+prefix and double underscores. For Docker Compose, keep Tikeo service behavior in `config/tikeo.toml`.
 Use `.env` only for Docker/Compose parameters such as image tags, host ports, volume names, database
 container credentials, timezone, and container memory policy.
 
@@ -1168,37 +1168,37 @@ Recommended ownership model:
 
 | File or surface | Put these values here | Avoid putting these values here |
 | --- | --- | --- |
-| `config/tikeo.yml` | SQLite default DB URL, listeners, auth defaults, log level, `/logs`, retry workers, notification delivery defaults. | Docker image tags, host ports, Docker volume names. |
-| `config/tikeo.yml` | Same service behavior as above, plus the database backend URL and timestamp policy. Keep the URL in sync with the bundled DB container credentials if you use the bundled DB. | Docker image tags, host ports, Docker volume names. |
+| `config/tikeo.toml` | SQLite default DB URL, listeners, auth defaults, log level, `/logs`, retry workers, notification delivery defaults. | Docker image tags, host ports, Docker volume names. |
+| `config/tikeo.toml` | Same service behavior as above, plus the database backend URL and timestamp policy. Keep the URL in sync with the bundled DB container credentials if you use the bundled DB. | Docker image tags, host ports, Docker volume names. |
 | `.env` for Compose | `TIKEO_IMAGE`, `TIKEO_WEB_IMAGE`, host ports, volume names, DB container passwords, timezone, mimalloc policy, local worker-demo helper values. | Tikeo service keys such as `storage.database.*` or `notification_delivery.public_console_base_url`. |
-| Compose `environment` | Container runtime values only, such as `TZ` and mimalloc knobs. | Any Tikeo service override; put service settings in `config/tikeo.yml`. |
+| Compose `environment` | Container runtime values only, such as `TZ` and mimalloc knobs. | Any Tikeo service override; put service settings in `config/tikeo.toml`. |
 
 
 Minimal Docker run with external config, SQLite data, and file logs:
 
 ```bash
 mkdir -p ./tikeo/config/tls ./tikeo/data ./tikeo/logs
-cp config/tikeo.yml ./tikeo/config/tikeo.yml
-# Edit ./tikeo/config/tikeo.yml when service behavior needs to change.
+cp config/tikeo.toml ./tikeo/config/tikeo.toml
+# Edit ./tikeo/config/tikeo.toml when service behavior needs to change.
 
 docker run -d --name tikeo-server \
   -p 9090:9090 -p 9998:9998 \
-  -v "$PWD/tikeo/config/tikeo.yml:/config/tikeo.yml:ro" \
+  -v "$PWD/tikeo/config/tikeo.toml:/config/tikeo.toml:ro" \
   -v "$PWD/tikeo/data:/data" \
   -v "$PWD/tikeo/logs:/logs" \
   yhyzgn/tikeo-server:latest \
-  serve --config /config/tikeo.yml
+  serve --config /config/tikeo.toml
 ```
 
 The checked-in Docker Compose files already mount external config, data/db, and logs. SQLite uses
-`./config/tikeo.yml:/config/tikeo.yml:ro`, `tikeo-data:/data`, and `tikeo-logs:/logs`.
-All Compose stacks use the same `./config/tikeo.yml` plus `./config/tls`, `tikeo-data:/data`, and `tikeo-logs:/logs`. PostgreSQL/MySQL durable data still lives in the database service volume. Edit `storage.database` in `config/tikeo.yml` to match the database container credentials from `.env`.
+`./config/tikeo.toml:/config/tikeo.toml:ro`, `tikeo-data:/data`, and `tikeo-logs:/logs`.
+All Compose stacks use the same `./config/tikeo.toml` plus `./config/tls`, `tikeo-data:/data`, and `tikeo-logs:/logs`. PostgreSQL/MySQL durable data still lives in the database service volume. Edit `storage.database` in `config/tikeo.toml` to match the database container credentials from `.env`.
 
 For PostgreSQL/MySQL Compose stacks, Server `/data` is only a uniform runtime mount; durable database state lives in the database container or managed database. Persist `tikeo-postgres-data:/var/lib/postgresql/data`
-for PostgreSQL or `tikeo-mysql-data:/var/lib/mysql` for MySQL, and configure Server `storage.database` in `config/tikeo.yml`.
+for PostgreSQL or `tikeo-mysql-data:/var/lib/mysql` for MySQL, and configure Server `storage.database` in `config/tikeo.toml`.
 
 For Kubernetes and Helm, Tikeo mounts the Server ConfigMap at `/config` and runs
-`serve --config /config/tikeo.yml`. SQLite mode mounts a PVC at `/data`; external database mode
+`serve --config /config/tikeo.toml`. SQLite mode mounts a PVC at `/data`; external database mode
 injects the database URL from a Secret and does not need a SQLite data PVC. Prefer stdout
 logs for cluster log collection; if you enable `observability.logging.log_dir`, add an explicit volume
 or PVC for that directory.
@@ -1249,7 +1249,7 @@ to `v${TIKEO_VERSION}` in `.env` before startup.
 
 ```bash
 cp deploy/compose/tikeo.env.example .env
-# Edit .env for Docker parameters; edit config/tikeo.yml for Tikeo service settings.
+# Edit .env for Docker parameters; edit config/tikeo.toml for Tikeo service settings.
 docker compose --env-file .env pull
 docker compose --env-file .env up -d
 curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
@@ -1260,7 +1260,7 @@ open http://127.0.0.1:${TIKEO_WEB_PORT:-8080}
 
 ```bash
 cp deploy/compose/tikeo.env.example .env
-# Edit .env database container credentials, then switch config/tikeo.yml storage.database to postgres and match host/user/password/database.
+# Edit .env database container credentials, then switch config/tikeo.toml storage.database to postgres and match host/user/password/database.
 docker compose --env-file .env -f docker-compose.postgres.yml pull
 docker compose --env-file .env -f docker-compose.postgres.yml up -d
 curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
@@ -1270,7 +1270,7 @@ curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
 
 ```bash
 cp deploy/compose/tikeo.env.example .env
-# Edit .env database container credentials, then switch config/tikeo.yml storage.database to mysql and match host/user/password/database.
+# Edit .env database container credentials, then switch config/tikeo.toml storage.database to mysql and match host/user/password/database.
 docker compose --env-file .env -f docker-compose.mysql.yml pull
 docker compose --env-file .env -f docker-compose.mysql.yml up -d
 curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
@@ -1285,16 +1285,16 @@ docker network create tikeo || true
 docker volume create tikeo-data
 docker volume create tikeo-logs
 mkdir -p ./tikeo/config/tls
-cp config/tikeo.yml ./tikeo/config/tikeo.yml
-# Edit ./tikeo/config/tikeo.yml for service behavior changes; keep .env for deployment differences.
+cp config/tikeo.toml ./tikeo/config/tikeo.toml
+# Edit ./tikeo/config/tikeo.toml for service behavior changes; keep .env for deployment differences.
 
 docker run -d --name tikeo-server --network tikeo \
   -p 9090:9090 -p 9998:9998 \
-  -v "$PWD/tikeo/config/tikeo.yml:/config/tikeo.yml:ro" \
+  -v "$PWD/tikeo/config/tikeo.toml:/config/tikeo.toml:ro" \
   -v "$PWD/tikeo/config/tls:/config/tls:ro" \
   -v tikeo-data:/data \
   -v tikeo-logs:/logs \
-  yhyzgn/tikeo-server:latest serve --config /config/tikeo.yml
+  yhyzgn/tikeo-server:latest serve --config /config/tikeo.toml
 
 docker run -d --name tikeo-web --network tikeo \
   -p 8080:80 \
@@ -1314,9 +1314,9 @@ Production environments should prefer PostgreSQL or MySQL and durable log direct
 ```bash
 cargo build --release --bin tikeo
 install -d ./var/lib/tikeo ./logs
-cp config/tikeo.yml ./tikeo.yml
-# Edit ./tikeo.yml, for example set observability.logging.log_dir = "./logs".
-./target/release/tikeo serve --config ./tikeo.yml
+cp config/tikeo.toml ./tikeo.toml
+# Edit ./tikeo.toml, for example set observability.logging.log_dir = "./logs".
+./target/release/tikeo serve --config ./tikeo.toml
 curl -fsS http://127.0.0.1:9090/readyz
 ```
 
@@ -1326,7 +1326,7 @@ Systemd deployment uses the checked-in unit files:
 sudo useradd --system --home /var/lib/tikeo --shell /usr/sbin/nologin tikeo || true
 sudo install -d -o tikeo -g tikeo /opt/tikeo/bin /var/lib/tikeo /var/log/tikeo /etc/tikeo
 sudo install -m 0755 target/release/tikeo /opt/tikeo/bin/tikeo
-sudo install -m 0644 config/tikeo.yml /etc/tikeo/tikeo.yml
+sudo install -m 0644 config/tikeo.toml /etc/tikeo/tikeo.toml
 sudo install -m 0644 deploy/systemd/tikeo.env /etc/tikeo/tikeo.env
 sudo install -m 0644 deploy/systemd/tikeo.service /etc/systemd/system/tikeo.service
 sudo systemctl daemon-reload

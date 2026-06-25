@@ -15,7 +15,7 @@ Primary sources:
 - HTTP routes and OpenAPI annotations: `crates/tikeo-server/src/http/routes/notifications.rs`, `crates/tikeo-server/src/http/routes/notification_templates.rs`
 - Storage repositories and redaction: `crates/tikeo-storage/src/repository/notification.rs`, `crates/tikeo-storage/src/repository/notification_template.rs`
 - Storage entities/migration: `crates/tikeo-storage/src/entities/notification_*.rs`, `crates/tikeo-storage/src/migration/notification_center.rs`
-- Config defaults: `crates/tikeo-config/src/lib.rs`, `config/dev.toml`, `config/tikeo.yml`
+- Config defaults: `crates/tikeo-config/src/lib.rs`, `config/dev.toml`, `config/tikeo.toml`
 - Web UI: `web/src/pages/NotificationCenterPage.tsx`, `web/src/api/notifications.ts`
 
 ## Domain model

@@ -58,7 +58,7 @@ server:
       enabled: false
 ```
 
-The chart injects structured database Secret keys as `TIKEO__STORAGE__DATABASE__*`, overriding the generated `/config/tikeo.yml` defaults. Passwords may contain special characters without manual URL escaping.
+The chart injects structured database Secret keys as `TIKEO__STORAGE__DATABASE__*`, overriding the generated `/config/tikeo.toml` defaults. Passwords may contain special characters without manual URL escaping.
 
 
 ## Server Raft HA
