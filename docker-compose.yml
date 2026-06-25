@@ -1,5 +1,6 @@
 services:
-  tikeo:
+  tikeo-server:
+    container_name: tikeo-server
     image: ${TIKEO_IMAGE:-yhyzgn/tikeo-server:latest}
     command: ["serve", "--config", "/config/tikeo.yml"]
     environment:
@@ -24,10 +25,11 @@ services:
       start_period: 10s
     restart: unless-stopped
 
-  web:
+  tikeo-web:
+    container_name: tikeo-web
     image: ${TIKEO_WEB_IMAGE:-yhyzgn/tikeo-web:latest}
     depends_on:
-      tikeo:
+      tikeo-server:
         condition: service_healthy
     ports:
       - "${TIKEO_WEB_PORT:-8080}:80"
@@ -39,11 +41,12 @@ services:
       start_period: 5s
     restart: unless-stopped
 
-  prometheus:
+  tikeo-prometheus:
+    container_name: tikeo-prometheus
     image: prom/prometheus:v3.0.1
     profiles: ["observability"]
     depends_on:
-      tikeo:
+      tikeo-server:
         condition: service_healthy
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"

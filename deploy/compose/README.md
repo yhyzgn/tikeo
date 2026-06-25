@@ -14,6 +14,8 @@ All stacks use published Docker Hub images by default:
 They do **not** build from the local `Dockerfile`. Pin `TIKEO_IMAGE` and `TIKEO_WEB_IMAGE` to a
 release tag in `.env` for production rollback safety.
 
+Compose service keys and container names are explicit and stable: `tikeo-server`, `tikeo-web`, `tikeo-prometheus`, `tikeo-postgres`, and `tikeo-mysql`. The checked-in Web nginx config proxies API/SSE traffic to `http://tikeo-server:9090`, so keep custom overrides aligned with those names.
+
 ```bash
 cp deploy/compose/tikeo.env.example .env
 # Edit .env for Docker parameters; edit config/tikeo.yml for Tikeo service settings.

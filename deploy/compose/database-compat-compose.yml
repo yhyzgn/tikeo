@@ -1,5 +1,6 @@
 services:
-  postgres:
+  tikeo-postgres:
+    container_name: tikeo-postgres
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: tikeo
@@ -13,7 +14,8 @@ services:
       timeout: 3s
       retries: 30
 
-  mysql:
+  tikeo-mysql:
+    container_name: tikeo-mysql
     image: mysql:8.4
     environment:
       MYSQL_DATABASE: tikeo

@@ -445,7 +445,7 @@ Config files live in `config/`. For Docker/Compose deployments, edit and mount t
 storage:
   database:
     type: postgres
-    host: postgres
+    host: tikeo-postgres
     port: 5432
     username: tikeo
     password: "p@ss/word:with#chars"
@@ -1246,6 +1246,8 @@ If a plugin or app-style provider needs `appId`/`appSecret`, store those values 
 Use this for the fastest local product evaluation. Compose pulls Docker Hub release images by default:
 `yhyzgn/tikeo-server:latest` and `yhyzgn/tikeo-web:latest`. For production, pin the two image variables
 to `v${TIKEO_VERSION}` in `.env` before startup.
+
+Compose service keys and container names are explicit and stable: `tikeo-server`, `tikeo-web`, `tikeo-prometheus`, `tikeo-postgres`, and `tikeo-mysql`. The checked-in Web nginx config proxies API/SSE traffic to `http://tikeo-server:9090`, so keep custom overrides aligned with those names.
 
 ```bash
 cp deploy/compose/tikeo.env.example .env

@@ -22,7 +22,7 @@ storage:
   # PostgreSQL example; replace storage.database above with this block when using docker-compose.postgres.yml:
   # database:
   #   type: postgres
-  #   host: postgres
+  #   host: tikeo-postgres
   #   port: 5432
   #   username: tikeo
   #   password: "change-me-with-special-characters-like-@-allowed"
@@ -33,7 +33,7 @@ storage:
   # MySQL example; replace storage.database above with this block when using docker-compose.mysql.yml:
   # database:
   #   type: mysql
-  #   host: mysql
+  #   host: tikeo-mysql
   #   port: 3306
   #   username: tikeo
   #   password: "change-me-with-special-characters-like-@-allowed"

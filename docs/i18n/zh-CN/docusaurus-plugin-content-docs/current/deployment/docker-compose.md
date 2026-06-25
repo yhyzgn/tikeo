@@ -12,6 +12,8 @@ description: 使用 Docker Hub 镜像、挂载 config/tikeo.yml、持久化 data
 
 它们不会从本地 Dockerfile 构建。生产或需要回滚时，在 `.env` 中固定 `TIKEO_IMAGE` 和 `TIKEO_WEB_IMAGE` tag。
 
+Compose 的 service key 与 container_name 都是显式稳定名称：`tikeo-server`、`tikeo-web`、`tikeo-prometheus`、`tikeo-postgres`、`tikeo-mysql`。仓库内置 Web nginx 会把 API/SSE 流量反代到 `http://tikeo-server:9090`，自定义 override 时要保持一致。
+
 ## 配置归属
 
 | 配置面 | 应该放什么 | 不应该放什么 |
@@ -50,7 +52,7 @@ open http://127.0.0.1:${TIKEO_WEB_PORT:-8080}
 storage:
   database:
     type: postgres
-    host: postgres
+    host: tikeo-postgres
     port: 5432
     username: tikeo
     password: "p@ss/word:with#chars"
@@ -77,7 +79,7 @@ curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
 storage:
   database:
     type: mysql
-    host: mysql
+    host: tikeo-mysql
     port: 3306
     username: tikeo
     password: "p@ss/word:with#chars"
@@ -101,7 +103,7 @@ curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
 ## 可选 Prometheus
 
 ```bash
-docker compose --env-file .env --profile observability up -d prometheus
+docker compose --env-file .env --profile observability up -d tikeo-prometheus
 curl -fsS http://127.0.0.1:${TIKEO_PROMETHEUS_PORT:-9091}/-/ready
 ```
 

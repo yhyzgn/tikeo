@@ -12,6 +12,8 @@ The checked-in Compose files use published Docker Hub images by default:
 
 They do **not** build local images. Pin `TIKEO_IMAGE` and `TIKEO_WEB_IMAGE` in `.env` when you need rollback-safe production operations.
 
+Compose service keys and container names are explicit and stable: `tikeo-server`, `tikeo-web`, `tikeo-prometheus`, `tikeo-postgres`, and `tikeo-mysql`. The checked-in Web nginx config proxies API/SSE traffic to `http://tikeo-server:9090`, so keep custom overrides aligned with those names.
+
 ## Configuration ownership
 
 | Surface | What belongs here | What does not belong here |
@@ -51,7 +53,7 @@ Before startup, edit `config/tikeo.yml`:
 storage:
   database:
     type: postgres
-    host: postgres
+    host: tikeo-postgres
     port: 5432
     username: tikeo
     password: "p@ss/word:with#chars"
@@ -78,7 +80,7 @@ Before startup, edit `config/tikeo.yml`:
 storage:
   database:
     type: mysql
-    host: mysql
+    host: tikeo-mysql
     port: 3306
     username: tikeo
     password: "p@ss/word:with#chars"
@@ -102,7 +104,7 @@ Use `storage.database.*` fields for database settings. Passwords with `@`, `/`, 
 ## Optional Prometheus
 
 ```bash
-docker compose --env-file .env --profile observability up -d prometheus
+docker compose --env-file .env --profile observability up -d tikeo-prometheus
 curl -fsS http://127.0.0.1:${TIKEO_PROMETHEUS_PORT:-9091}/-/ready
 ```
 
