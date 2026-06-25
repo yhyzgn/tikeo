@@ -1683,3 +1683,9 @@ Verification:
 - No source-level suppression attributes/comments were found across SDKs and demos.
 - Found one typecheck downgrade in `sdks/nodejs/tikeo/tsconfig.json`: `skipLibCheck: true`; removed it so the Node SDK build type-checks dependency declarations too.
 - Verified Node SDK/demo after removal: `bun run --cwd sdks/nodejs/tikeo build`, `bun test --cwd sdks/nodejs/tikeo`, and `bun test --cwd examples/nodejs/worker-demo` all passed.
+
+## 2026-06-25 — Python worker demo Ctrl+C graceful shutdown
+
+- Fixed Python demo live worker Ctrl+C behavior: a KeyboardInterrupt raised while blocked in `session.process_next(...)` now stops heartbeat, closes the session, logs `python worker interrupted, shutting down`, and exits without traceback.
+- Added regression coverage in `examples/python/worker-demo/tests/test_demo.py` for the interrupted blocking stream path.
+- Verification: Python SDK/demo tests 26 passed; dry-run demo output produced registration JSON and `dry_run_heartbeat_sequence=1`; simulated interrupt path had no `Traceback`/`KeyboardInterrupt`; suppression scan remained zero; `git diff --check` passed.

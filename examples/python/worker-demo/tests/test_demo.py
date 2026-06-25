@@ -4,6 +4,7 @@ import logging
 from types import SimpleNamespace
 
 import tikeo
+import tikeo_python_worker_demo.__main__ as demo
 from tikeo.client import process_dispatch_task
 from tikeo_python_worker_demo.__main__ import script_sandbox_backend, process_task
 
@@ -18,6 +19,71 @@ def test_auto_sandbox_backend_matches_java_lightweight_defaults(monkeypatch):
     assert script_sandbox_backend("python") == "srt"
     assert script_sandbox_backend("javascript") == "deno"
     assert script_sandbox_backend("typescript") == "deno"
+
+
+
+def test_main_handles_ctrl_c_shutdown_without_traceback(monkeypatch, caplog):
+    class StopEvent:
+        def __init__(self):
+            self.was_set = False
+
+        def set(self):
+            self.was_set = True
+
+    class FakeSession:
+        def __init__(self):
+            self.worker_id = "worker-python-test"
+            self.generation = 1
+            self.lease_seconds = 30
+            self.stop = StopEvent()
+            self.closed = False
+
+        def start_heartbeat(self):
+            return self.stop
+
+        def process_next(self, _processor, _scripts):
+            raise KeyboardInterrupt
+
+        def close(self):
+            self.closed = True
+
+    class FakeClient:
+        last_session = None
+
+        def __init__(self, _config):
+            pass
+
+        def registration(self):
+            return demo.tikeo.Registration(
+                client_instance_id="python-worker-demo-local",
+                namespace="dev-alpha",
+                app="orders",
+                name="python-worker",
+                region="local",
+                version="dev",
+                cluster="local",
+                capabilities=[],
+                labels={},
+                structured=demo.tikeo.WorkerCapabilities(),
+            )
+
+        def connect(self):
+            self.last_session = FakeSession()
+            FakeClient.last_session = self.last_session
+            return self.last_session
+
+    monkeypatch.setattr(demo, "configure_scripts", lambda _config: demo.tikeo.ScriptRunnerRegistry())
+    monkeypatch.setattr(demo.tikeo, "Client", FakeClient)
+    monkeypatch.delenv("TIKEO_WORKER_DRY_RUN", raising=False)
+    monkeypatch.delenv("TIKEO_WORKER_CONNECT", raising=False)
+    caplog.set_level(logging.INFO)
+
+    demo.main()
+
+    assert FakeClient.last_session is not None
+    assert FakeClient.last_session.stop.was_set
+    assert FakeClient.last_session.closed
+    assert "python worker interrupted, shutting down" in caplog.text
 
 
 def _task(instance_id: str, processor_name: str, payload: bytes):

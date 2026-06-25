@@ -48,24 +48,30 @@ def main() -> None:
         return
 
     oneshot = enabled("TIKEO_WORKER_ONESHOT")
-    while True:
-        try:
-            session = client.connect()
-            stop = session.start_heartbeat()
-            logging.info("python worker connected: worker_id=%s generation=%s lease_seconds=%s", session.worker_id, session.generation, session.lease_seconds)
+    try:
+        while True:
             try:
-                while True:
-                    outcome = session.process_next(process_task, scripts)
-                    logging.info("processed task success=%s message=%s", outcome.success, outcome.message)
-                    if oneshot:
-                        return
-                    time.sleep(0.05)
-            finally:
-                stop.set()
-                session.close()
-        except Exception as exc:
-            logging.warning("worker tunnel ended, reconnecting: %s", exc)
-            time.sleep(2)
+                session = client.connect()
+                stop = session.start_heartbeat()
+                logging.info("python worker connected: worker_id=%s generation=%s lease_seconds=%s", session.worker_id, session.generation, session.lease_seconds)
+                try:
+                    while True:
+                        outcome = session.process_next(process_task, scripts)
+                        logging.info("processed task success=%s message=%s", outcome.success, outcome.message)
+                        if oneshot:
+                            return
+                        time.sleep(0.05)
+                finally:
+                    stop.set()
+                    try:
+                        session.close()
+                    except Exception as exc:
+                        logging.warning("worker session close failed: %s", exc)
+            except Exception as exc:
+                logging.warning("worker tunnel ended, reconnecting: %s", exc)
+                time.sleep(2)
+    except KeyboardInterrupt:
+        logging.info("python worker interrupted, shutting down")
 
 
 def configure_scripts(config: tikeo.WorkerConfig) -> tikeo.ScriptRunnerRegistry:
