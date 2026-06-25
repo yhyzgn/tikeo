@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct WorkflowDefinition {
     /// Nodes value.
     pub nodes: Vec<WorkflowNodeSpec>,
@@ -13,11 +14,13 @@ pub struct WorkflowDefinition {
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct WorkflowNodeSpec {
     /// Key value.
     pub key: String,
     /// Name value.
     pub name: Option<String>,
+    /// Public storage field.
     pub kind: Option<String>,
     /// Identifier value.
     pub job_id: Option<String>,
@@ -33,6 +36,7 @@ pub struct WorkflowNodeSpec {
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct WorkflowEdgeSpec {
     /// From value.
     pub from: String,
@@ -43,6 +47,7 @@ pub struct WorkflowEdgeSpec {
 }
 
 #[derive(Debug, Clone)]
+/// Public storage data type.
 pub struct CreateWorkflow {
     /// Name value.
     pub name: String,
@@ -53,6 +58,7 @@ pub struct CreateWorkflow {
 }
 
 #[derive(Debug, Clone)]
+/// Public storage data type.
 pub struct UpdateWorkflow {
     /// Name value.
     pub name: String,
@@ -62,6 +68,7 @@ pub struct UpdateWorkflow {
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct WorkflowSummary {
     /// Identifier value.
     pub id: String,
@@ -81,6 +88,7 @@ pub struct WorkflowSummary {
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct WorkflowValidationResult {
     /// Valid value.
     pub valid: bool,
@@ -90,6 +98,7 @@ pub struct WorkflowValidationResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct AdvanceWorkflowInput {
     /// Node key value.
     pub node_key: String,
@@ -101,6 +110,7 @@ pub struct AdvanceWorkflowInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct AdvanceWorkflowResult {
     /// Instance value.
     pub instance: WorkflowInstanceSummary,
@@ -112,6 +122,7 @@ pub struct AdvanceWorkflowResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct WorkflowInstanceSummary {
     /// Identifier value.
     pub id: String,
@@ -131,6 +142,7 @@ pub struct WorkflowInstanceSummary {
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct WorkflowNodeInstanceSummary {
     /// Identifier value.
     pub id: String,
@@ -152,6 +164,7 @@ pub struct WorkflowNodeInstanceSummary {
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct WorkflowJobBindingSummary {
     /// Node kind value.
     pub node_kind: String,
@@ -163,6 +176,7 @@ pub struct WorkflowJobBindingSummary {
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct WorkflowShardSummary {
     /// Identifier value.
     pub id: String,
@@ -194,6 +208,7 @@ pub struct WorkflowShardSummary {
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct CompleteWorkflowShardInput {
     /// Status value.
     pub status: String,
@@ -241,6 +256,7 @@ pub(super) struct ShardCompletionEventInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct CompleteWorkflowShardResult {
     /// Shard value.
     pub shard: WorkflowShardSummary,
@@ -254,6 +270,7 @@ pub struct CompleteWorkflowShardResult {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct DispatchQueueSloSummary {
     /// Total value.
     pub total: u64,
@@ -285,6 +302,7 @@ pub struct DispatchQueueSloSummary {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct WorkflowSloSummary {
     /// Instances total value.
     pub instances_total: u64,
@@ -314,6 +332,7 @@ pub struct WorkflowSloSummary {
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct DispatchQueueSummary {
     /// Identifier value.
     pub id: String,
@@ -355,6 +374,7 @@ pub struct DispatchQueueSummary {
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct DispatchQueueClaim {
     /// Item value.
     pub item: DispatchQueueSummary,
@@ -367,6 +387,7 @@ pub struct DispatchQueueClaim {
 }
 
 #[derive(Debug, Clone)]
+/// Public storage data type.
 pub struct DispatchQueueShardOwner {
     /// Identifier value.
     pub shard_id: i32,
@@ -384,6 +405,7 @@ pub struct DispatchQueueShardOwner {
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct QueueOverview {
     /// Pending value.
     pub pending: usize,
@@ -399,6 +421,7 @@ pub struct QueueOverview {
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct RecoverWorkflowNodeInput {
     /// Node key value.
     pub node_key: String,
@@ -410,6 +433,7 @@ pub struct RecoverWorkflowNodeInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct RebalanceWorkflowShardsInput {
     /// Node key value.
     pub node_key: Option<String>,
@@ -421,6 +445,7 @@ pub struct RebalanceWorkflowShardsInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct RebalanceWorkflowShardsResult {
     /// Requeued shards value.
     pub requeued_shards: Vec<WorkflowShardSummary>,
@@ -428,6 +453,7 @@ pub struct RebalanceWorkflowShardsResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct MaterializeWorkflowNodeResult {
     /// Instance value.
     pub instance: WorkflowInstanceSummary,
@@ -440,6 +466,7 @@ pub struct MaterializeWorkflowNodeResult {
 }
 
 #[derive(Debug, Clone)]
+/// Public storage data type.
 pub struct WorkflowJobResultOutcome {
     /// Identifier value.
     pub workflow_instance_id: String,
@@ -455,6 +482,7 @@ pub struct WorkflowJobResultOutcome {
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct RecoverWorkflowNodeResult {
     /// Instance value.
     pub instance: WorkflowInstanceSummary,
@@ -464,6 +492,7 @@ pub struct RecoverWorkflowNodeResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct InstanceEventSummary {
     /// Identifier value.
     pub id: String,

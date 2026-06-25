@@ -7,6 +7,7 @@ use super::util::{new_id, now_rfc3339};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct PluginProcessorTypeSummary {
     /// Record type discriminator.
     pub r#type: String,
@@ -31,6 +32,7 @@ pub struct PluginProcessorTypeSummary {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct PluginAlertChannelTypeSummary {
     /// Record type discriminator.
     pub r#type: String,
@@ -45,9 +47,11 @@ pub struct PluginAlertChannelTypeSummary {
 }
 
 #[derive(Debug, Clone)]
+/// Public storage data type.
 pub struct CreatePlugin {
     /// Name value.
     pub name: String,
+    /// Public storage field.
     pub kind: String,
     /// Processor types value.
     pub processor_types: Vec<PluginProcessorTypeSummary>,
@@ -58,9 +62,11 @@ pub struct CreatePlugin {
 }
 
 #[derive(Debug, Clone, Default)]
+/// Public storage data type.
 pub struct UpdatePlugin {
     /// Name value.
     pub name: Option<String>,
+    /// Public storage field.
     pub kind: Option<String>,
     /// Processor types value.
     pub processor_types: Option<Vec<PluginProcessorTypeSummary>>,
@@ -72,11 +78,13 @@ pub struct UpdatePlugin {
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct PluginSummary {
     /// Identifier value.
     pub id: String,
     /// Name value.
     pub name: String,
+    /// Public storage field.
     pub kind: String,
     /// Processor types value.
     pub processor_types: Vec<PluginProcessorTypeSummary>,

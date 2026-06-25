@@ -8,6 +8,7 @@ use crate::entities::notification_template;
 use super::util::{new_id, now_rfc3339};
 
 #[derive(Debug, Clone)]
+/// Public storage data type.
 pub struct CreateNotificationTemplate {
     /// Template key value.
     pub template_key: String,
@@ -28,6 +29,7 @@ pub struct CreateNotificationTemplate {
 }
 
 #[derive(Debug, Clone, Default)]
+/// Public storage data type.
 pub struct UpdateNotificationTemplate {
     /// Template key value.
     pub template_key: Option<String>,
@@ -50,6 +52,7 @@ pub struct UpdateNotificationTemplate {
 }
 
 #[derive(Debug, Clone, Default)]
+/// Public storage data type.
 pub struct NotificationTemplateFilters {
     /// Provider value.
     pub provider: Option<String>,
@@ -61,6 +64,7 @@ pub struct NotificationTemplateFilters {
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct NotificationTemplateSummary {
     /// Identifier value.
     pub id: String,
@@ -91,6 +95,7 @@ pub struct NotificationTemplateSummary {
 }
 
 #[derive(Debug, Clone)]
+/// Public storage data type.
 pub struct NotificationTemplateRepository {
     db: DatabaseConnection,
 }

@@ -27,13 +27,13 @@ message ServerMessage {
 }
 
 message RegisterWorker {
-  // Optional client-side stable instance hint. The tikeo still assigns the authoritative worker_id.
+  // Optional client-side stable instance hint. The tikeo still assigns the authoritative `worker_id`.
   string client_instance_id = 1;
   string app = 2;
   string namespace = 3;
   string cluster = 4;
   string region = 5;
-  // Legacy free-form labels/capabilities. New routing must use structured_capabilities.
+  // Legacy free-form labels/capabilities. New routing must use `structured_capabilities`.
   repeated string capabilities = 6;
   map<string, string> labels = 7;
   WorkerCapabilities structured_capabilities = 8;
@@ -101,7 +101,7 @@ message DispatchTask {
   string instance_id = 1;
   string job_id = 2;
   bytes payload = 3;
-  // Explicit processor key used by SDK adapters. Defaults to job_id for backwards compatibility.
+  // Explicit processor key used by SDK adapters. Defaults to `job_id` for backwards compatibility.
   string processor_name = 4;
   // Optional dynamic processor metadata. Empty for normal processors.
   TaskProcessorBinding processor_binding = 5;

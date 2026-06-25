@@ -9,6 +9,7 @@ use super::util::{new_id, now_rfc3339};
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct CalendarWindowSummary {
     /// Start value.
     pub start: String,
@@ -18,6 +19,7 @@ pub struct CalendarWindowSummary {
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct CalendarSummary {
     /// Identifier value.
     pub id: String,
@@ -46,6 +48,7 @@ pub struct CalendarSummary {
 }
 
 #[derive(Debug, Clone)]
+/// Public storage data type.
 pub struct UpsertCalendar {
     /// Namespace value.
     pub namespace: String,
@@ -68,6 +71,7 @@ pub struct UpsertCalendar {
 }
 
 #[derive(Debug, Clone)]
+/// Public storage data type.
 pub struct CalendarRepository {
     db: DatabaseConnection,
 }

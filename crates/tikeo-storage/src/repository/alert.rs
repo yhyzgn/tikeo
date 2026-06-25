@@ -9,6 +9,7 @@ use crate::entities::{alert_delivery_attempt, alert_event, alert_rule};
 use super::util::{new_id, now_rfc3339};
 
 #[derive(Debug, Clone)]
+/// Public storage data type.
 pub struct RecordAlertDeliveryAttempt {
     /// Identifier value.
     pub event_id: String,
@@ -33,6 +34,7 @@ pub struct RecordAlertDeliveryAttempt {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+/// Public storage data type.
 pub struct AlertDeliveryAttemptSummary {
     /// Identifier value.
     pub id: String,
@@ -61,6 +63,7 @@ pub struct AlertDeliveryAttemptSummary {
 }
 
 #[derive(Debug, Clone, Default)]
+/// Public storage data type.
 pub struct AlertDeliveryAttemptFilters {
     /// Identifier value.
     pub event_id: Option<String>,
@@ -73,6 +76,7 @@ pub struct AlertDeliveryAttemptFilters {
 }
 
 #[derive(Debug, Clone)]
+/// Public storage data type.
 pub struct CreateAlertRule {
     /// Name value.
     pub name: String,
@@ -91,6 +95,7 @@ pub struct CreateAlertRule {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+/// Public storage data type.
 pub struct AlertRuleSummary {
     /// Identifier value.
     pub id: String,
@@ -115,6 +120,7 @@ pub struct AlertRuleSummary {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+/// Public storage data type.
 pub struct AlertEventSummary {
     /// Identifier value.
     pub id: String,
@@ -143,6 +149,7 @@ pub struct AlertEventSummary {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+/// Public storage data type.
 pub struct AlertNotificationSummary {
     /// Identifier value.
     pub rule_id: String,
@@ -179,6 +186,7 @@ pub struct AlertNotificationSummary {
 }
 
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+/// Public storage data type.
 pub struct AlertEventStatusCounts {
     /// Total events value.
     pub total_events: u64,
@@ -191,6 +199,7 @@ pub struct AlertEventStatusCounts {
 }
 
 #[derive(Debug, Clone, Default)]
+/// Public storage data type.
 pub struct AlertEventFilters {
     /// Resource type value.
     pub resource_type: Option<String>,
@@ -205,6 +214,7 @@ pub struct AlertEventFilters {
 }
 
 #[derive(Debug, Clone)]
+/// Public storage data type.
 pub struct AlertRepository {
     db: DatabaseConnection,
 }

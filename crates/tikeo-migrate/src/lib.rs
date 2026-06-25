@@ -158,7 +158,7 @@ pub struct ApplyCommand {
     #[arg(long, visible_alias = "path")]
     /// Project value.
     pub project: Option<PathBuf>,
-    /// Optional output evidence path. Defaults to <bundle>/code-apply-evidence.json.
+    /// Optional output evidence path. Defaults to `<bundle>/code-apply-evidence.json`.
     #[arg(long)]
     /// Output value.
     pub output: Option<PathBuf>,

@@ -7,6 +7,7 @@ use super::util::{new_id, now_rfc3339};
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// Public storage data type.
 pub struct SecretSummary {
     /// Identifier value.
     pub id: String,
@@ -29,6 +30,7 @@ pub struct SecretSummary {
 }
 
 #[derive(Debug, Clone)]
+/// Public storage data type.
 pub struct CreateSecret {
     /// Namespace value.
     pub namespace: String,
@@ -43,6 +45,7 @@ pub struct CreateSecret {
 }
 
 #[derive(Debug, Clone)]
+/// Public storage data type.
 pub struct SecretRepository {
     db: DatabaseConnection,
 }

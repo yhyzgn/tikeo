@@ -5,6 +5,7 @@ use crate::entities::{app, job, namespace, worker_pool};
 use super::util::{new_id, now_rfc3339};
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, utoipa::ToSchema)]
+/// Public storage data type.
 pub struct NamespaceSummary {
     /// Identifier value.
     pub id: String,
@@ -17,6 +18,7 @@ pub struct NamespaceSummary {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, utoipa::ToSchema)]
+/// Public storage data type.
 pub struct AppSummary {
     /// Identifier value.
     pub id: String,
@@ -31,6 +33,7 @@ pub struct AppSummary {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, utoipa::ToSchema)]
+/// Public storage data type.
 pub struct WorkerPoolSummary {
     /// Identifier value.
     pub id: String,
@@ -51,6 +54,7 @@ pub struct WorkerPoolSummary {
 }
 
 #[derive(Debug, Clone)]
+/// Public storage data type.
 pub struct UpdateWorkerPoolQuota {
     /// Max queue depth value.
     pub max_queue_depth: i32,
@@ -59,6 +63,7 @@ pub struct UpdateWorkerPoolQuota {
 }
 
 #[derive(Debug, Clone)]
+/// Public storage data type.
 pub struct ScopeRepository {
     db: DatabaseConnection,
 }

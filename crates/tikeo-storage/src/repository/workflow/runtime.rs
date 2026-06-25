@@ -13,27 +13,13 @@ use super::{
     aggregate_shard_node_status, dispatch_queue_age_seconds, elapsed_seconds,
     insert_shard_completion_event, json_string, maybe_persist_map_reduce_result, new_id, node_kind,
     normalize_processor_name, normalize_terminal_status, now_rfc3339, rfc3339_after_seconds,
-    scheduler_shard_policy, success_ratio, update_shard_terminal, workflow_config_i64,
-    workflow_config_string,
+    success_ratio, update_shard_terminal, workflow_config_i64, workflow_config_string,
 };
 use crate::entities::{
     app as app_entity, dispatch_queue, instance_event, job_instance, namespace as namespace_entity,
     workflow_instance, workflow_node_instance, workflow_shard,
 };
 use crate::repository::ClusterShardOwnershipRepository;
-
-fn workflow_runtime_dispatch_shard(
-    namespace: &str,
-    app: &str,
-    durable_id: &str,
-) -> (i32, i64, i32) {
-    let policy = scheduler_shard_policy();
-    (
-        policy.shard_id_for(namespace, app, durable_id),
-        policy.shard_map_version,
-        policy.shard_count,
-    )
-}
 
 fn dispatch_queue_current_shard_owner(
     row: &dispatch_queue::Model,

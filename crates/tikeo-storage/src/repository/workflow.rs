@@ -273,6 +273,7 @@ fn aggregate_shard_node_status(has_failed: bool, all_succeeded: bool) -> Option<
 }
 
 #[derive(Debug, Clone)]
+/// Public storage data type.
 pub struct WorkflowRepository {
     db: DatabaseConnection,
 }
