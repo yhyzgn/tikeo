@@ -3240,3 +3240,10 @@ Verification:
 - Ran the exact CI job locally and fixed root causes without warning suppression: standalone Rust SDK rustfmt drift, `WorkerConfig` `Eq` derive, markdown docs for `ScriptRunner`/`TaskProcessor`, redundant private-module visibility, and `unused_braces` in sandbox tool resolver.
 - Exact CI job now passes locally: Rust SDK fmt, clippy `-D warnings`, test, package; Rust worker demo fmt, clippy `-D warnings`, test.
 - Hygiene also passes: `python3 scripts/check-source-size.py`, `git diff --check`, and suppression scan only matches the red-line text in `AGENTS.md`/`prompt.md`.
+
+## 2026-06-25 — SDK/demo suppression scan
+
+- Scanned `sdks/` and `examples/` for Rust `allow/expect` attributes, Java/Kotlin suppress annotations, TypeScript `ts-ignore`/`ts-expect-error`/eslint disables, Python `type: ignore`/noqa/pylint disables, Go `nolint`/`lint:ignore`, warning downgrades, and TypeScript `skipLibCheck`.
+- No source-level suppression attributes/comments were found across SDKs and demos.
+- Found one typecheck downgrade in `sdks/nodejs/tikeo/tsconfig.json`: `skipLibCheck: true`; removed it so the Node SDK build type-checks dependency declarations too.
+- Verified Node SDK/demo after removal: `bun run --cwd sdks/nodejs/tikeo build`, `bun test --cwd sdks/nodejs/tikeo`, and `bun test --cwd examples/nodejs/worker-demo` all passed.

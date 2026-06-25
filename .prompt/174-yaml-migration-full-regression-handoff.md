@@ -28,3 +28,9 @@
 - Remote CI run `28149289282` failed only in `Rust SDK + demo`; Coverage and other CI jobs were already green.
 - Root cause: root workspace verification did not cover standalone `sdks/rust/tikeo` rustfmt/clippy gates, so SDK formatting drift and clippy warning debt reached CI.
 - Fixed without `allow`/`expect` suppression and verified with the exact CI Rust SDK job command sequence, including `cargo package --manifest-path sdks/rust/tikeo/Cargo.toml --allow-dirty` because that is the existing release packaging command, not a lint suppression.
+
+## SDK/demo suppression follow-up on 2026-06-25
+
+- Full SDK/demo suppression scan found no source `allow`/`expect` attributes, suppress annotations, ignore comments, noqa, nolint, or eslint/TypeScript suppressions.
+- Removed `skipLibCheck: true` from the Node SDK `tsconfig.json` because it was a typecheck downgrade rather than a source fix.
+- Verified Node SDK build/tests and Node worker demo tests after the removal.
