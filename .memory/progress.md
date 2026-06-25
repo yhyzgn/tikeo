@@ -1659,3 +1659,13 @@ Verification:
 - SDK 全量：Node/Python/Go/Rust/Java ✅
 - Demo 全量：Node/Python/Go/Rust/Spring Boot 2/3/4 ✅
 - `python3 scripts/check-source-size.py && git diff --check` ✅
+
+## 2026-06-25 — YAML migration and warning-clean full business regression
+
+- Completed full business-output regression after the dev/tikeo config YAML migration and repository-wide warning cleanup. Regression plan/evidence is under `.dev/reports/full-regression-20260625/` (local, ignored artifact directory).
+- Fixed Rust SDK generated protobuf warning root cause in `sdks/rust/tikeo/build.rs` by post-processing generated bindings and documenting generated items/fields, without `#[allow]`/`#[expect]` or lint downgrades. `sdks/rust/tikeo/proto/worker.proto` comments now use proper identifier markup.
+- Updated `scripts/migration-cli-full-chain-smoke.sh` to assert the current migration business output: concrete Spring Boot starter dependency `0.3.10`, legacy scheduler keys removed, and minimal worker/management placeholders reserved.
+- Business-output smoke evidence passed: notification provider delivery/retry/DLQ, management trigger with Node worker execution and logs, SDK API key lifecycle/scope-deny/redaction/audit, web live routes, migration CLI full chain, Docker compose config, server/web/docs image builds.
+- SDK/demo evidence passed: Java SDK, Node SDK, Python SDK/demo, Go SDK/demo, Rust SDK/demo with `RUSTFLAGS=-D warnings`, and Java Spring Boot 2/3/4 worker demos.
+- Final hygiene passed: `cargo fmt --all -- --check`; `cargo build --workspace --all-features`; `cargo clippy --workspace --all-targets --all-features --no-deps -- -D warnings`; `cargo test --workspace --all-features`; `RUSTDOCFLAGS='-D warnings' cargo doc --workspace --all-features --no-deps`; web/docs Bun lint/typecheck/test/build; `python3 scripts/check-source-size.py`; `git diff --check`.
+- Suppression scan found no source suppression bypasses; only the red-line rule text in `AGENTS.md` and `prompt.md` matched the exact `#[allow]/#[expect]` pattern.

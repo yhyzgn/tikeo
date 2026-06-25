@@ -158,3 +158,9 @@
 
 - New and historical `#[allow(...)]`, `#![allow(...)]`, `#[expect(...)]`, lint downgrades, or equivalent warning/error suppressions are prohibited.
 - Existing allow attributes in the repository must be removed by fixing root causes rather than replacing them with broader suppressions.
+
+## 2026-06-25 — Full regression residual risks after YAML migration
+
+- Full local business-output regression passed for the repository-owned harnesses and local loopback/provider smokes. Live third-party SaaS provider acceptance (Slack/DingTalk/Feishu/WeCom/PagerDuty) remains credential-gated and should not be claimed without real secrets.
+- Web build still reports the known Vite large-chunk warning from Ant Design/vendor bundles; lint/typecheck/tests/build pass and this is not a source warning-suppression bypass.
+- `deploy/smoke/sdk-api-key-live-smoke.sh` currently lacks executable bit; the verified command is `bash deploy/smoke/sdk-api-key-live-smoke.sh` unless a later change intentionally fixes file mode.

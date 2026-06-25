@@ -1,6 +1,6 @@
 # Latest completed slice
 
-- 2026-06-13: Exception demos, SDK stack capture, Feishu/Lark job cards, public execution console, and externally configurable public console card URLs are complete locally. `demo.fail` covers business failure; `demo.exception` covers runtime exception/panic/error stack capture. Feishu interactive metadata now has failed/success/status card examples, and notification card buttons open `/public/instances/{id}/console` without login. Local Rust/Web/docs/SDK/demo verification passed.
+- 2026-06-25: YAML migration / warning-clean full business-output regression is complete locally. Rust SDK generated protobuf warnings are fixed at the generator/post-processing root, migration CLI smoke assertions now match current output, all source suppression bypasses are absent except red-line text in `AGENTS.md`/`prompt.md`, and business-output smokes for notifications, management trigger, SDK API keys, migration CLI, web/docs, SDKs/demos, and Docker images passed.
 
 # Next Work
 
@@ -38,3 +38,5 @@
 ## New configuration note
 
 - For Feishu/Lark or other office-platform cards opened outside the Tikeo browser origin, set `notification_delivery.public_console_base_url` / `TIKEO__NOTIFICATION_DELIVERY__PUBLIC_CONSOLE_BASE_URL` to the externally reachable Web base URL so card buttons contain absolute public console links.
+
+- Red line remains active: do not add/keep `#[allow(...)]`, `#![allow(...)]`, `#[expect(...)]`, lint downgrades, or equivalent suppression bypasses; fix warning/error root causes instead.
