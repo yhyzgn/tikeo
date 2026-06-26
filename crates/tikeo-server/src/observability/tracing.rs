@@ -288,7 +288,7 @@ impl LogCategory {
         match self {
             Self::Http => "\u{001b}[36;1m[HTTP]\u{001b}[0m",
             Self::Sql => "\u{001b}[35;1m[SQL ]\u{001b}[0m",
-            Self::App => "\u{001b}[37;1m[APP ]\u{001b}[0m",
+            Self::App => "\u{001b}[34;1m[APP ]\u{001b}[0m",
         }
     }
 }
