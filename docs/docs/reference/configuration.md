@@ -99,6 +99,7 @@ The following is the Complete default-value table for Server settings: config ke
 | `transport_security.worker_tunnel.client_ca_path` | `TIKEO__TRANSPORT_SECURITY__WORKER_TUNNEL__CLIENT_CA_PATH` | If mTLS required | unset | Worker client CA bundle. |
 | `observability.logging.root.level` | `TIKEO__OBSERVABILITY__LOGGING__ROOT__LEVEL` | No | `info` | Root log filter used when `RUST_LOG` is not set. |
 | `observability.logging.http.*` | `TIKEO__OBSERVABILITY__LOGGING__HTTP__*` | No | headers/body disabled, `65536` bytes | HTTP access/detail policy. INFO logs summary only; full headers/bodies require `include_headers`/`include_body` and DEBUG for `tikeo_server::http::trace`. |
+| `observability.logging.sql.*` | `TIKEO__OBSERVABILITY__LOGGING__SQL__*` | No | disabled, `DEBUG`, values disabled, `250ms` | SQL execution logging policy. Keep disabled for normal operation; enable at DEBUG when diagnosing storage queries. `include_values` may expose sensitive data. |
 | `observability.logging.channels.console.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__CONSOLE__*` | No | enabled, `info` | Console/stdout sink. |
 | `observability.logging.channels.file.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__FILE__*` or `TIKEO_LOG_PATH` in templates | No | disabled, `info`, `/logs` | Non-blocking JSON file sink writing `tikeo.log`. |
 | `observability.logging.channels.error-file.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__ERROR_FILE__*` or `TIKEO_LOG_PATH` in templates | No | disabled, `error`, `/logs` | Non-blocking JSON error-file sink writing `tikeo-error.log`. |

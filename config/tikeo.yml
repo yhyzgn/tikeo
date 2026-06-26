@@ -76,6 +76,11 @@ observability:
       include_headers: false
       include_body: false
       max_body_bytes: 65536
+    sql:
+      enabled: false
+      level: DEBUG
+      include_values: false
+      slow_threshold_ms: 250
     channels:
       console:
         enabled: true

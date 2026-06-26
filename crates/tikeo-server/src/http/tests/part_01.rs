@@ -679,6 +679,11 @@
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
         assert_eq!(json["code"], 0);
         assert_eq!(json["data"]["logging"]["root_level"], "info");
+        assert_eq!(json["data"]["logging"]["http"]["include_body"], false);
+        assert_eq!(json["data"]["logging"]["sql"]["enabled"], false);
+        assert_eq!(json["data"]["logging"]["sql"]["level"], "DEBUG");
+        assert_eq!(json["data"]["logging"]["sql"]["include_values"], false);
+        assert_eq!(json["data"]["logging"]["sql"]["slow_threshold_ms"], 250);
         assert_eq!(json["data"]["logging"]["console"]["enabled"], true);
         assert_eq!(json["data"]["logging"]["console"]["target"], "stdout");
         assert_eq!(json["data"]["logging"]["file"]["enabled"], false);
@@ -693,6 +698,10 @@
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
         let mut observability = tikeo_config::ObservabilityConfig::default();
         observability.logging.root.level = "WARN".to_owned();
+        observability.logging.sql.enabled = true;
+        observability.logging.sql.level = "TRACE".to_owned();
+        observability.logging.sql.include_values = true;
+        observability.logging.sql.slow_threshold_ms = 125;
         observability.logging.channels.file.enabled = true;
         observability.logging.channels.file.path = "/tmp/tikeo-test-logs".to_owned();
         observability.logging.channels.elk.enabled = true;
@@ -728,6 +737,10 @@
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
         assert_eq!(json["code"], 0);
         assert_eq!(json["data"]["logging"]["root_level"], "WARN");
+        assert_eq!(json["data"]["logging"]["sql"]["enabled"], true);
+        assert_eq!(json["data"]["logging"]["sql"]["level"], "TRACE");
+        assert_eq!(json["data"]["logging"]["sql"]["include_values"], true);
+        assert_eq!(json["data"]["logging"]["sql"]["slow_threshold_ms"], 125);
         assert_eq!(json["data"]["logging"]["file"]["enabled"], true);
         assert_eq!(
             json["data"]["logging"]["file"]["target"],

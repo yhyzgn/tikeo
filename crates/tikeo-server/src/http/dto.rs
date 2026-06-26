@@ -878,6 +878,10 @@ pub struct ObservabilityStatusResponse {
 pub struct LoggingStatus {
     /// Root filter level.
     pub root_level: String,
+    /// HTTP detail logging status.
+    pub http: HttpLogStatus,
+    /// SQL execution logging status.
+    pub sql: SqlLogStatus,
     /// Console sink status.
     pub console: LogSinkStatus,
     /// Main file sink status.
@@ -897,6 +901,30 @@ pub struct LogSinkStatus {
     pub level: String,
     /// Configured path or endpoint summary.
     pub target: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+/// `HttpLogStatus` payload.
+pub struct HttpLogStatus {
+    /// Include full request/response headers when DEBUG detail logging is active.
+    pub include_headers: bool,
+    /// Include request/response bodies when DEBUG detail logging is active.
+    pub include_body: bool,
+    /// Maximum captured body bytes.
+    pub max_body_bytes: usize,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+/// `SqlLogStatus` payload.
+pub struct SqlLogStatus {
+    /// Enable SQL execution logging.
+    pub enabled: bool,
+    /// SQL execution log level.
+    pub level: String,
+    /// Include bound values when supported by the ORM/driver.
+    pub include_values: bool,
+    /// Slow statement warning threshold in milliseconds.
+    pub slow_threshold_ms: u64,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]

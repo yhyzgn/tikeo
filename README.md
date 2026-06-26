@@ -474,6 +474,11 @@ observability:
       include_headers: false
       include_body: false
       max_body_bytes: 65536
+    sql:
+      enabled: false
+      level: DEBUG
+      include_values: false
+      slow_threshold_ms: 250
     channels:
       console:
         enabled: true
@@ -1153,6 +1158,7 @@ Server configuration is loaded from defaults, then a config file, then `TIKEO__.
 | `transport_security.worker_tunnel.*` | `TIKEO__TRANSPORT_SECURITY__WORKER_TUNNEL__*` | Only when enabled | TLS/mTLS disabled | Worker Tunnel TLS/mTLS and cert/key/client CA paths. |
 | `observability.logging.root.level` | `TIKEO__OBSERVABILITY__LOGGING__ROOT__LEVEL` | No | `info` | Root log filter used when `RUST_LOG` is not set. |
 | `observability.logging.http.*` | `TIKEO__OBSERVABILITY__LOGGING__HTTP__*` | No | headers/body disabled, `65536` bytes | HTTP access/detail policy. INFO logs summary only; full headers/bodies require `include_headers`/`include_body` and DEBUG for `tikeo_server::http::trace`. |
+| `observability.logging.sql.*` | `TIKEO__OBSERVABILITY__LOGGING__SQL__*` | No | disabled, `DEBUG`, values disabled, `250ms` | SQL execution logging policy. Keep disabled for normal operation; enable at DEBUG when diagnosing storage queries. `include_values` may expose sensitive data. |
 | `observability.logging.channels.console.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__CONSOLE__*` | No | enabled, `info` | Console/stdout sink. |
 | `observability.logging.channels.file.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__FILE__*` or `TIKEO_LOG_PATH` in templates | No | disabled, `info`, `/logs` | Non-blocking JSON file sink writing `tikeo.log`. Mount `/logs` if enabled in containers. |
 | `observability.logging.channels.error-file.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__ERROR_FILE__*` or `TIKEO_LOG_PATH` in templates | No | disabled, `error`, `/logs` | Non-blocking JSON error-file sink writing `tikeo-error.log`. |

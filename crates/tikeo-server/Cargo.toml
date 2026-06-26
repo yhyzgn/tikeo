@@ -51,6 +51,7 @@ tonic = { version = "0.14", features = ["tls-ring"] }
 tonic-prost = "0.14"
 tower = "0"
 tracing = "0"
+log = "0.4"
 tracing-opentelemetry = "0.31"
 tracing-appender = "0.2"
 opentelemetry = "0.30"

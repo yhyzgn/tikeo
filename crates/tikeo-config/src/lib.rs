@@ -504,6 +504,9 @@ pub struct LoggingConfig {
     /// HTTP access/detail logging behavior.
     #[serde(default)]
     pub http: HttpLogConfig,
+    /// SQL execution logging behavior.
+    #[serde(default)]
+    pub sql: SqlLogConfig,
     /// Log output channel sinks.
     #[serde(default)]
     pub channels: LogChannelsConfig,
@@ -647,6 +650,45 @@ const DEFAULT_HTTP_LOG_MAX_BODY_BYTES_I64: i64 = 64 * 1024;
 
 const fn default_http_log_max_body_bytes() -> usize {
     DEFAULT_HTTP_LOG_MAX_BODY_BYTES
+}
+
+/// SQL execution logging behavior.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SqlLogConfig {
+    /// Enable SQL execution logging from the storage driver.
+    #[serde(default)]
+    pub enabled: bool,
+    /// SQL log event level.
+    #[serde(default = "default_sql_log_level")]
+    pub level: String,
+    /// Include bound values when supported by the ORM/driver. Values may contain sensitive data.
+    #[serde(default)]
+    pub include_values: bool,
+    /// Slow statement warning threshold in milliseconds.
+    #[serde(default = "default_sql_slow_threshold_ms")]
+    pub slow_threshold_ms: u64,
+}
+
+impl Default for SqlLogConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            level: default_sql_log_level(),
+            include_values: false,
+            slow_threshold_ms: default_sql_slow_threshold_ms(),
+        }
+    }
+}
+
+fn default_sql_log_level() -> String {
+    "DEBUG".to_owned()
+}
+
+const DEFAULT_SQL_SLOW_THRESHOLD_MS: u64 = 250;
+const DEFAULT_SQL_SLOW_THRESHOLD_MS_I64: i64 = 250;
+
+const fn default_sql_slow_threshold_ms() -> u64 {
+    DEFAULT_SQL_SLOW_THRESHOLD_MS
 }
 
 /// ELK/log collector sink.
@@ -905,6 +947,13 @@ pub fn load_config(path: Option<&Path>) -> Result<TikeoConfig, ConfigError> {
         .set_default(
             "observability.logging.http.max_body_bytes",
             DEFAULT_HTTP_LOG_MAX_BODY_BYTES_I64,
+        )?
+        .set_default("observability.logging.sql.enabled", false)?
+        .set_default("observability.logging.sql.level", default_sql_log_level())?
+        .set_default("observability.logging.sql.include_values", false)?
+        .set_default(
+            "observability.logging.sql.slow_threshold_ms",
+            DEFAULT_SQL_SLOW_THRESHOLD_MS_I64,
         )?
         .set_default("observability.logging.channels.console.enabled", true)?
         .set_default(
@@ -1201,6 +1250,10 @@ mod tests {
         assert!(!config.observability.logging.http.include_headers);
         assert!(!config.observability.logging.http.include_body);
         assert_eq!(config.observability.logging.http.max_body_bytes, 64 * 1024);
+        assert!(!config.observability.logging.sql.enabled);
+        assert_eq!(config.observability.logging.sql.level, "DEBUG");
+        assert!(!config.observability.logging.sql.include_values);
+        assert_eq!(config.observability.logging.sql.slow_threshold_ms, 250);
         assert!(!config.observability.logging.channels.elk.enabled);
         assert_eq!(
             config.observability.logging.channels.elk.servers,
@@ -1228,6 +1281,11 @@ mod tests {
       include_headers: true
       include_body: true
       max_body_bytes: 4096
+    sql:
+      enabled: true
+      level: TRACE
+      include_values: true
+      slow_threshold_ms: 125
     channels:
       console:
         enabled: false
@@ -1261,6 +1319,10 @@ mod tests {
         assert!(config.observability.logging.http.include_headers);
         assert!(config.observability.logging.http.include_body);
         assert_eq!(config.observability.logging.http.max_body_bytes, 4096);
+        assert!(config.observability.logging.sql.enabled);
+        assert_eq!(config.observability.logging.sql.level, "TRACE");
+        assert!(config.observability.logging.sql.include_values);
+        assert_eq!(config.observability.logging.sql.slow_threshold_ms, 125);
         assert!(!config.observability.logging.channels.console.enabled);
         assert_eq!(config.observability.logging.channels.console.level, "ERROR");
         assert!(config.observability.logging.channels.file.enabled);
@@ -1327,6 +1389,10 @@ mod tests {
             assert!(!config.observability.logging.http.include_headers);
             assert!(!config.observability.logging.http.include_body);
             assert_eq!(config.observability.logging.http.max_body_bytes, 65_536);
+            assert!(!config.observability.logging.sql.enabled);
+            assert_eq!(config.observability.logging.sql.level, "DEBUG");
+            assert!(!config.observability.logging.sql.include_values);
+            assert_eq!(config.observability.logging.sql.slow_threshold_ms, 250);
             assert!(config.observability.logging.channels.console.enabled);
             assert!(config.observability.logging.channels.file.enabled);
             assert!(config.observability.logging.channels.error_file.enabled);

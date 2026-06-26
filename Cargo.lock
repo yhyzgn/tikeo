@@ -4429,6 +4429,7 @@ dependencies = [
  "hex",
  "humantime",
  "hyper-util",
+ "log",
  "metrics",
  "metrics-exporter-prometheus",
  "metrics-util",

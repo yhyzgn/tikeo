@@ -150,7 +150,7 @@ impl TracingRuntime {
         Registry::default().with(env_filter).with(layers).init();
 
         debug!(
-            root_filter = %root_filter(&logging.root.level),
+            root_filter = %root_filter(logging),
             console_level = %normalize_log_level(&logging.channels.console.level),
             file_level = %normalize_log_level(&logging.channels.file.level),
             error_file_level = %normalize_log_level(&logging.channels.error_file.level),
@@ -607,22 +607,21 @@ fn local_hostname() -> Option<String> {
 }
 
 fn env_filter(logging: &LoggingConfig) -> EnvFilter {
-    let default_filter = root_filter(&logging.root.level);
+    let default_filter = root_filter(logging);
     let env_filter = std::env::var("RUST_LOG")
         .ok()
-        .map_or(default_filter, |value| scoped_rust_log_filter(&value));
-    EnvFilter::try_new(&env_filter)
-        .unwrap_or_else(|_| EnvFilter::new(root_filter(&logging.root.level)))
+        .map_or(default_filter, |value| {
+            scoped_rust_log_filter(&value, logging)
+        });
+    EnvFilter::try_new(&env_filter).unwrap_or_else(|_| EnvFilter::new(root_filter(logging)))
 }
 
-fn scoped_rust_log_filter(rust_log: &str) -> String {
+fn scoped_rust_log_filter(rust_log: &str, logging: &LoggingConfig) -> String {
     let mut filter = rust_log.trim().to_owned();
     if filter.is_empty() {
-        return root_filter("info");
+        return root_filter(logging);
     }
-    if !env_flag_enabled("TIKEO_SQL_VERBOSE_VALUES", false) {
-        filter.push_str(",sea_orm=off");
-    }
+    filter.push_str(&sql_filter_directives(logging));
     filter
 }
 
@@ -661,23 +660,25 @@ fn build_tracer_provider(tracing: &TracingConfig) -> Result<SdkTracerProvider> {
     Ok(provider)
 }
 
-fn root_filter(level: &str) -> String {
-    let level = normalize_log_level(level);
-    let sea_orm_level = if env_flag_enabled("TIKEO_SQL_VERBOSE_VALUES", false) {
-        level
-    } else {
-        "off"
-    };
+fn root_filter(logging: &LoggingConfig) -> String {
+    let level = normalize_log_level(&logging.root.level);
     format!(
-        "tikeo={level},tikeo_server={level},tikeo_storage={level},tikeo_config={level},sqlx={level},sea_orm={sea_orm_level},tower_http={level},tokio={level},hyper={level},tonic={level}"
+        "tikeo={level},tikeo_server={level},tikeo_storage={level},tikeo_config={level},tower_http={level},tokio={level},hyper={level},tonic={level}{}",
+        sql_filter_directives(logging)
     )
 }
 
-fn env_flag_enabled(name: &str, default: bool) -> bool {
-    std::env::var(name).map_or(default, |value| {
-        let value = value.trim();
-        !(value == "0" || value.eq_ignore_ascii_case("false") || value.eq_ignore_ascii_case("off"))
-    })
+fn sql_filter_directives(logging: &LoggingConfig) -> String {
+    if !logging.sql.enabled {
+        return ",sqlx=off,sea_orm=off".to_owned();
+    }
+    let sql_level = normalize_log_level(&logging.sql.level);
+    let sea_orm_level = if logging.sql.include_values {
+        sql_level
+    } else {
+        "off"
+    };
+    format!(",sqlx={sql_level},sea_orm={sea_orm_level}")
 }
 
 fn file_logging_writer(

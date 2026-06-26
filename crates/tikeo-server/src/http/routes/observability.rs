@@ -5,8 +5,8 @@ use axum::{Json, extract::State, http::HeaderMap};
 use crate::http::{
     AppState, auth,
     dto::{
-        ApiResponse, LogSinkStatus, LoggingStatus, ObservabilityStatusApiResponse,
-        ObservabilityStatusResponse, TracingStatus,
+        ApiResponse, HttpLogStatus, LogSinkStatus, LoggingStatus, ObservabilityStatusApiResponse,
+        ObservabilityStatusResponse, SqlLogStatus, TracingStatus,
     },
     error::ApiError,
 };
@@ -38,6 +38,17 @@ pub async fn observability_status(
     Ok(Json(ApiResponse::success(ObservabilityStatusResponse {
         logging: LoggingStatus {
             root_level: logging.root.level.clone(),
+            http: HttpLogStatus {
+                include_headers: logging.http.include_headers,
+                include_body: logging.http.include_body,
+                max_body_bytes: logging.http.max_body_bytes,
+            },
+            sql: SqlLogStatus {
+                enabled: logging.sql.enabled,
+                level: logging.sql.level.clone(),
+                include_values: logging.sql.include_values,
+                slow_threshold_ms: logging.sql.slow_threshold_ms,
+            },
             console: LogSinkStatus {
                 enabled: logging.channels.console.enabled,
                 level: logging.channels.console.level.clone(),

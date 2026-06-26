@@ -9,9 +9,9 @@ use tikeo_storage::{
     AuditLogRepository, JobInstanceAttemptRepository, JobInstanceLogRepository,
     JobInstanceRepository, JobRepository, NotificationChannelRepository,
     NotificationDeliveryAttemptRepository, NotificationMessageRepository,
-    NotificationPolicyRepository, RaftRepository, ScriptRepository, UserRepository,
-    WorkerDispatchOutboxRepository, WorkerLifecycleRepository, WorkflowRepository,
-    connect_and_migrate,
+    NotificationPolicyRepository, RaftRepository, ScriptRepository, SqlLoggingOptions,
+    UserRepository, WorkerDispatchOutboxRepository, WorkerLifecycleRepository, WorkflowRepository,
+    connect_and_migrate_with_sql_logging,
 };
 use tokio::try_join;
 use tracing::{debug, error, info, trace, warn};
@@ -50,6 +50,10 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
         log_file_enabled = observability.logging.channels.file.enabled,
         log_error_file_enabled = observability.logging.channels.error_file.enabled,
         log_elk_enabled = observability.logging.channels.elk.enabled,
+        sql_logging_enabled = observability.logging.sql.enabled,
+        sql_log_level = %observability.logging.sql.level,
+        sql_include_values = observability.logging.sql.include_values,
+        sql_slow_threshold_ms = observability.logging.sql.slow_threshold_ms,
         "starting tikeo server runtime"
     );
     tikeo_storage::set_timestamp_offset(offset);
@@ -64,7 +68,16 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
         "configured scheduler shard policy"
     );
     info!(database_type = %config.storage.database.kind, "initializing storage and migrations");
-    let db = match connect_and_migrate(&connection_url).await {
+    let sql_logging_options = SqlLoggingOptions {
+        enabled: observability.logging.sql.enabled,
+        level: sql_log_level_filter(&observability.logging.sql.level),
+        include_values: observability.logging.sql.include_values,
+        slow_threshold: std::time::Duration::from_millis(
+            observability.logging.sql.slow_threshold_ms,
+        ),
+    };
+    let db = match connect_and_migrate_with_sql_logging(&connection_url, &sql_logging_options).await
+    {
         Ok(db) => db,
         Err(error) => {
             error!(database_type = %config.storage.database.kind, %error, "storage initialization failed");
@@ -380,4 +393,15 @@ async fn run_notification_delivery_worker(
         std::future::pending::<()>().await;
     }
     Ok(())
+}
+
+fn sql_log_level_filter(level: &str) -> log::LevelFilter {
+    match level.trim().to_ascii_lowercase().as_str() {
+        "off" => log::LevelFilter::Off,
+        "error" => log::LevelFilter::Error,
+        "warn" | "warning" => log::LevelFilter::Warn,
+        "info" => log::LevelFilter::Info,
+        "trace" => log::LevelFilter::Trace,
+        _ => log::LevelFilter::Debug,
+    }
 }

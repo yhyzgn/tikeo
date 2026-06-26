@@ -9,6 +9,7 @@ pub mod migration;
 /// `Repository` module.
 pub mod repository;
 
+use log::LevelFilter;
 use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use sea_orm_migration::MigratorTrait;
 use sqlx::sqlite::{SqliteJournalMode, SqliteSynchronous};
@@ -91,19 +92,55 @@ pub enum StorageError {
     Connect(#[from] sea_orm::DbErr),
 }
 
+/// SQL execution logging behavior for storage connections.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SqlLoggingOptions {
+    /// Enable SQL execution logging from SeaORM/sqlx.
+    pub enabled: bool,
+    /// SQL execution log level.
+    pub level: LevelFilter,
+    /// Include bound values when supported. Values may contain sensitive business data.
+    pub include_values: bool,
+    /// Slow statement warning threshold.
+    pub slow_threshold: Duration,
+}
+
+impl Default for SqlLoggingOptions {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            level: LevelFilter::Debug,
+            include_values: false,
+            slow_threshold: Duration::from_millis(250),
+        }
+    }
+}
+
 /// Connect to the configured database and run schema migrations.
 ///
 /// # Errors
 ///
 /// Returns an error when the database cannot be opened or migrations fail.
 pub async fn connect_and_migrate(connection_url: &str) -> Result<DatabaseConnection, StorageError> {
+    connect_and_migrate_with_sql_logging(connection_url, &SqlLoggingOptions::from_env()).await
+}
+
+/// Connect to the configured database and run schema migrations with explicit SQL logging options.
+///
+/// # Errors
+///
+/// Returns an error when the database cannot be opened or migrations fail.
+pub async fn connect_and_migrate_with_sql_logging(
+    connection_url: &str,
+    logging_options: &SqlLoggingOptions,
+) -> Result<DatabaseConnection, StorageError> {
     let database_kind = database_kind(connection_url);
     let safe_connection = redact_connection_url(connection_url);
     debug!(database_kind, connection_url = %safe_connection, "preparing database connection");
     ensure_sqlite_database_parent(connection_url)?;
 
-    let sqlx_logging = env_flag_enabled("TIKEO_SQLX_LOGGING", true);
-    let sql_value_logging = env_flag_enabled("TIKEO_SQL_VERBOSE_VALUES", false);
+    let sql_logging_enabled = logging_options.enabled;
+    let sql_value_logging = logging_options.include_values;
     if sql_value_logging {
         warn!(
             database_kind,
@@ -112,13 +149,13 @@ pub async fn connect_and_migrate(connection_url: &str) -> Result<DatabaseConnect
     }
     debug!(
         database_kind,
-        sqlx_logging,
+        sql_logging_enabled,
         sql_value_logging,
         max_connections = 16,
         min_connections = 1,
         connect_timeout_ms = 8_000_u64,
         idle_timeout_ms = 60_000_u64,
-        slow_statement_threshold_ms = 250_u64,
+        slow_statement_threshold_ms = duration_millis_u64(logging_options.slow_threshold),
         "database connection pool parameters configured"
     );
     let mut options = ConnectOptions::new(connection_url.to_owned());
@@ -126,9 +163,12 @@ pub async fn connect_and_migrate(connection_url: &str) -> Result<DatabaseConnect
         .max_connections(16)
         .min_connections(1)
         .connect_timeout(Duration::from_secs(8))
-        .sqlx_logging(sqlx_logging)
-        .sqlx_logging_level(log::LevelFilter::Debug)
-        .sqlx_slow_statements_logging_settings(log::LevelFilter::Warn, Duration::from_millis(250))
+        .sqlx_logging(sql_logging_enabled)
+        .sqlx_logging_level(logging_options.level)
+        .sqlx_slow_statements_logging_settings(
+            log::LevelFilter::Warn,
+            logging_options.slow_threshold,
+        )
         .idle_timeout(Duration::from_mins(1));
     configure_sqlite_connect_options(connection_url, &mut options);
 
@@ -137,7 +177,7 @@ pub async fn connect_and_migrate(connection_url: &str) -> Result<DatabaseConnect
         Ok(db) => {
             info!(
                 database_kind,
-                sqlx_logging,
+                sql_logging_enabled,
                 elapsed_ms = connect_started.elapsed().as_secs_f64() * 1000.0,
                 "database connection established"
             );
@@ -171,6 +211,20 @@ pub async fn connect_and_migrate(connection_url: &str) -> Result<DatabaseConnect
         "database compatibility checks completed"
     );
     Ok(db)
+}
+
+impl SqlLoggingOptions {
+    fn from_env() -> Self {
+        Self {
+            enabled: env_flag_enabled("TIKEO_SQLX_LOGGING", false),
+            include_values: env_flag_enabled("TIKEO_SQL_VERBOSE_VALUES", false),
+            ..Self::default()
+        }
+    }
+}
+
+fn duration_millis_u64(duration: Duration) -> u64 {
+    u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
 }
 
 fn env_flag_enabled(name: &str, default: bool) -> bool {
