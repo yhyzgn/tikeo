@@ -272,15 +272,44 @@ where
     ) -> fmt::Result {
         let captured = CapturedFields::from_event(event);
         let metadata = event.metadata();
+        let category = LogCategory::from_target(metadata.target());
         write!(
             writer,
-            "\u{001b}[2m{}\u{001b}[0m {} \u{001b}[2m{}\u{001b}[0m {}",
+            "\u{001b}[2m{}\u{001b}[0m {} {} \u{001b}[2m{}\u{001b}[0m {}",
             current_datetime(),
             ansi_level(*metadata.level()),
+            category.ansi_label(),
             metadata.target(),
             captured.message_with_fields()
         )?;
         writeln!(writer)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LogCategory {
+    Http,
+    Sql,
+    App,
+}
+
+impl LogCategory {
+    fn from_target(target: &str) -> Self {
+        if target == "sqlx::query" || target.starts_with("sea_orm") {
+            Self::Sql
+        } else if target.contains("http") || target.contains("tower_http") {
+            Self::Http
+        } else {
+            Self::App
+        }
+    }
+
+    const fn ansi_label(self) -> &'static str {
+        match self {
+            Self::Http => "\u{001b}[36;1m[HTTP]\u{001b}[0m",
+            Self::Sql => "\u{001b}[35;1m[SQL ]\u{001b}[0m",
+            Self::App => "\u{001b}[37;1m[APP ]\u{001b}[0m",
+        }
     }
 }
 
