@@ -427,16 +427,16 @@ impl CapturedFields {
     }
 
     fn message_with_fields(&self) -> String {
-        let mut message = self.message();
-        for (key, value) in self.loggable_fields() {
-            if !message.is_empty() {
-                message.push(' ');
-            }
-            message.push_str(key);
-            message.push('=');
-            message.push_str(&json_value_to_log_text(value));
+        let mut parts = Vec::new();
+        let message = self.message();
+        if !message.is_empty() {
+            parts.push(message);
         }
-        message
+        parts.extend(
+            self.loggable_fields()
+                .map(|(key, value)| format!("{key}={}", json_value_to_log_text(value))),
+        );
+        parts.join(" | ")
     }
 
     fn fields_json(&self) -> Map<String, Value> {
