@@ -207,7 +207,11 @@ async fn create_management_examples(config: &WorkerConfig) -> Result<(), WorkerS
         config.namespace.clone(),
         config.app.clone(),
     );
-    let worker_pool = config.labels.get("worker_pool").cloned().unwrap_or_default();
+    let worker_pool = config
+        .labels
+        .get("worker_pool")
+        .cloned()
+        .unwrap_or_default();
     for job in [
         ManagementCreateJobRequest::api("rust-echo-api", "demo.echo")
             .with_worker_pool(worker_pool.clone()),
