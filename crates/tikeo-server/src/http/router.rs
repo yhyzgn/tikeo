@@ -11,6 +11,7 @@ use axum::{
     response::Response,
     routing::get,
 };
+use tikeo_config::HttpLogConfig;
 use tikeo_storage::{
     AuditLogRepository, JobInstanceAttemptRepository, JobInstanceLogRepository,
     JobInstanceRepository, JobRepository, ScriptRepository, UserRepository, WorkflowRepository,
@@ -55,9 +56,16 @@ pub fn router_with_state(state: AppState) -> Router {
                 )),
         )
         .route("/api-docs/openapi.json", get(openapi_json))
-        .layer(middleware::from_fn(trace::trace_http))
+        .layer(middleware::from_fn_with_state(
+            http_log_config(&state),
+            trace::trace_http,
+        ))
         .layer(Extension(recorder))
         .with_state(Arc::new(state))
+}
+
+fn http_log_config(state: &AppState) -> Arc<HttpLogConfig> {
+    Arc::new(state.observability.logging.http.clone())
 }
 
 /// Router for database.

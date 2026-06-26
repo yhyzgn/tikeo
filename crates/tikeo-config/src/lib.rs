@@ -510,6 +510,9 @@ pub struct LoggingConfig {
     /// Error-only file sink.
     #[serde(default, rename = "error-file", alias = "error_file")]
     pub error_file: FileLogSinkConfig,
+    /// HTTP access/detail logging behavior.
+    #[serde(default)]
+    pub http: HttpLogConfig,
     /// ELK/log collector sink.
     #[serde(default)]
     pub elk: ElkLogConfig,
@@ -528,6 +531,7 @@ impl Default for LoggingConfig {
                 level: "error".to_owned(),
                 path: default_app_log_path(),
             },
+            http: HttpLogConfig::default(),
             elk: ElkLogConfig::default(),
         }
     }
@@ -591,6 +595,34 @@ impl Default for FileLogSinkConfig {
             path: default_app_log_path(),
         }
     }
+}
+
+/// HTTP access/detail logging behavior.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HttpLogConfig {
+    /// Log complete request/response headers at DEBUG/detail level.
+    #[serde(default)]
+    pub include_headers: bool,
+    /// Log request/response bodies at DEBUG/detail level.
+    #[serde(default)]
+    pub include_body: bool,
+    /// Maximum request/response body bytes captured for detail logging.
+    #[serde(default = "default_http_log_max_body_bytes")]
+    pub max_body_bytes: usize,
+}
+
+impl Default for HttpLogConfig {
+    fn default() -> Self {
+        Self {
+            include_headers: false,
+            include_body: false,
+            max_body_bytes: default_http_log_max_body_bytes(),
+        }
+    }
+}
+
+const fn default_http_log_max_body_bytes() -> usize {
+    64 * 1024
 }
 
 /// ELK/log collector sink.
@@ -1099,6 +1131,9 @@ mod tests {
         assert!(!config.observability.logging.error_file.enabled);
         assert_eq!(config.observability.logging.error_file.level, "error");
         assert_eq!(config.observability.logging.error_file.path, "/logs");
+        assert!(!config.observability.logging.http.include_headers);
+        assert!(!config.observability.logging.http.include_body);
+        assert_eq!(config.observability.logging.http.max_body_bytes, 64 * 1024);
         assert!(!config.observability.logging.elk.enabled);
         assert_eq!(
             config.observability.logging.elk.servers,
