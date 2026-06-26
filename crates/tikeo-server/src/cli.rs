@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use tikeo_config::load_config;
+use tracing::{error, info};
 
 use crate::{observability::tracing::TracingRuntime, server};
 
@@ -30,9 +31,16 @@ impl Cli {
     pub async fn run(self) -> Result<()> {
         match self.command {
             Command::Serve { config } => {
+                let config_path = config.clone();
                 let config = load_config(config.as_deref())?;
                 let mut tracing_runtime = TracingRuntime::start_from_config(&config)?;
+                info!(config_path = ?config_path, "loaded tikeo server configuration");
                 let result = Box::pin(server::serve(config)).await;
+                if let Err(error) = &result {
+                    error!(%error, "tikeo server runtime exited with error");
+                } else {
+                    info!("tikeo server runtime exited cleanly");
+                }
                 tokio::task::spawn_blocking(move || tracing_runtime.shutdown()).await??;
                 result
             }

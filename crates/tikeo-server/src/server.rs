@@ -14,7 +14,7 @@ use tikeo_storage::{
     connect_and_migrate,
 };
 use tokio::try_join;
-use tracing::info;
+use tracing::{debug, error, info, trace, warn};
 
 use crate::{alert, cluster::coordinator_from_config_with_storage, http, tikeo, tunnel};
 
@@ -64,10 +64,16 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
         "configured scheduler shard policy"
     );
     info!(database_type = %config.storage.database.kind, "initializing storage and migrations");
-    let db = connect_and_migrate(&connection_url)
-        .await
-        .with_context(|| format!("failed to initialize storage at {connection_url}"))?;
+    let db = match connect_and_migrate(&connection_url).await {
+        Ok(db) => db,
+        Err(error) => {
+            error!(database_type = %config.storage.database.kind, %error, "storage initialization failed");
+            return Err(error)
+                .with_context(|| format!("failed to initialize storage at {connection_url}"));
+        }
+    };
     info!(database_type = %config.storage.database.kind, "storage initialized and migrations applied");
+    debug!("constructing repository handles");
     let raft = RaftRepository::new(db.clone());
     let cluster = coordinator_from_config_with_storage(&cluster_config, &raft)
         .await
@@ -136,6 +142,7 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
                 cluster_config.transport_token.clone(),
             ),
         ));
+    trace!("building HTTP router state");
     let http_router = build_http_router(HttpRouterParts {
         jobs: jobs.clone(),
         instances: instances.clone(),
@@ -173,7 +180,7 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
 
     info!(%http_addr, %tunnel_addr, "starting tikeo listeners");
 
-    try_join!(
+    let run_result = try_join!(
         run_http_listener(http_addr, http_router, transport_security.http.clone()),
         tunnel::serve_with_security(
             tunnel_addr,
@@ -231,10 +238,17 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
             Some(notification_delivery_trigger),
         ),
         run_worker_lease_scanner(worker_lifecycle),
-    )
-    .context("tikeo listener failed")?;
-
-    Ok(())
+    );
+    match run_result {
+        Ok(_) => {
+            info!("all tikeo runtime loops exited");
+            Ok(())
+        }
+        Err(error) => {
+            error!(%error, "tikeo listener failed");
+            Err(error).context("tikeo listener failed")
+        }
+    }
 }
 
 struct HttpRouterParts {
@@ -282,6 +296,7 @@ fn build_http_router(parts: HttpRouterParts) -> axum::Router {
 }
 
 async fn run_worker_lease_scanner(lifecycle: WorkerLifecycleRepository) -> Result<()> {
+    debug!(interval_seconds = 10, "configuring worker lease scanner");
     info!(interval_seconds = 10, "starting worker lease scanner");
     tunnel::lifecycle::run_lease_scanner(lifecycle, std::time::Duration::from_secs(10)).await;
     Ok(())
@@ -292,9 +307,11 @@ async fn run_http_listener(
     http_router: axum::Router,
     tls: tikeo_config::TlsEndpointConfig,
 ) -> Result<()> {
+    debug!(%http_addr, tls_enabled = tls.tls_enabled, mtls_required = tls.mtls_required, "binding HTTP listener");
     let listener = tokio::net::TcpListener::bind(http_addr)
         .await
         .with_context(|| format!("failed to bind HTTP listener at {http_addr}"))?;
+    info!(%http_addr, tls_enabled = tls.tls_enabled, mtls_required = tls.mtls_required, "HTTP listener bound");
     http::serve_listener_with_state(listener, http_router, &tls).await
 }
 
@@ -322,7 +339,7 @@ async fn run_alert_retry_worker(
         )
         .await;
     } else {
-        info!("alert retry worker disabled");
+        warn!("alert retry worker disabled by configuration");
         std::future::pending::<()>().await;
     }
     Ok(())
@@ -359,7 +376,7 @@ async fn run_notification_delivery_worker(
         );
         crate::notification::run_delivery_loop(context).await;
     } else {
-        info!("notification delivery worker disabled");
+        warn!("notification delivery worker disabled by configuration");
         std::future::pending::<()>().await;
     }
     Ok(())

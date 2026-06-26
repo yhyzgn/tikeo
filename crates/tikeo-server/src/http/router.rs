@@ -49,13 +49,13 @@ pub fn router_with_state(state: AppState) -> Router {
             "/api/v1",
             api_router()
                 .layer(middleware::from_fn(record_http_metrics))
-                .layer(middleware::from_fn(trace::trace_http))
                 .layer(middleware::from_fn_with_state(
                     Arc::new(state.clone()),
                     attach_node_id_header,
                 )),
         )
         .route("/api-docs/openapi.json", get(openapi_json))
+        .layer(middleware::from_fn(trace::trace_http))
         .layer(Extension(recorder))
         .with_state(Arc::new(state))
 }

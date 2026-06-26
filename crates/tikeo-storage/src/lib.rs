@@ -12,8 +12,12 @@ pub mod repository;
 use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use sea_orm_migration::MigratorTrait;
 use sqlx::sqlite::{SqliteJournalMode, SqliteSynchronous};
-use std::{path::Path, time::Duration};
+use std::{
+    path::Path,
+    time::{Duration, Instant},
+};
 use thiserror::Error;
+use tracing::{debug, error, info, trace, warn};
 
 #[doc(hidden)]
 pub use repository::reset_scheduler_shard_policy_for_test;
@@ -93,21 +97,112 @@ pub enum StorageError {
 ///
 /// Returns an error when the database cannot be opened or migrations fail.
 pub async fn connect_and_migrate(connection_url: &str) -> Result<DatabaseConnection, StorageError> {
+    let database_kind = database_kind(connection_url);
+    let safe_connection = redact_connection_url(connection_url);
+    debug!(database_kind, connection_url = %safe_connection, "preparing database connection");
     ensure_sqlite_database_parent(connection_url)?;
 
+    let sqlx_logging = env_flag_enabled("TIKEO_SQLX_LOGGING", true);
+    let sql_value_logging = env_flag_enabled("TIKEO_SQL_VERBOSE_VALUES", false);
+    if sql_value_logging {
+        warn!(
+            database_kind,
+            "verbose SQL value logging is enabled; bound values may include sensitive business data"
+        );
+    }
+    debug!(
+        database_kind,
+        sqlx_logging,
+        sql_value_logging,
+        max_connections = 16,
+        min_connections = 1,
+        connect_timeout_ms = 8_000_u64,
+        idle_timeout_ms = 60_000_u64,
+        slow_statement_threshold_ms = 250_u64,
+        "database connection pool parameters configured"
+    );
     let mut options = ConnectOptions::new(connection_url.to_owned());
     options
         .max_connections(16)
         .min_connections(1)
         .connect_timeout(Duration::from_secs(8))
-        .sqlx_logging(std::env::var_os("TIKEO_SQLX_LOGGING").is_some())
+        .sqlx_logging(sqlx_logging)
+        .sqlx_logging_level(log::LevelFilter::Debug)
+        .sqlx_slow_statements_logging_settings(log::LevelFilter::Warn, Duration::from_millis(250))
         .idle_timeout(Duration::from_mins(1));
     configure_sqlite_connect_options(connection_url, &mut options);
 
-    let db = Database::connect(options).await?;
-    migration::Migrator::up(&db, None).await?;
-    migration::apply_sqlite_schema_compatibility(&db).await?;
+    let connect_started = Instant::now();
+    let db = match Database::connect(options).await {
+        Ok(db) => {
+            info!(
+                database_kind,
+                sqlx_logging,
+                elapsed_ms = connect_started.elapsed().as_secs_f64() * 1000.0,
+                "database connection established"
+            );
+            db
+        }
+        Err(error) => {
+            error!(database_kind, %error, "database connection failed");
+            return Err(error.into());
+        }
+    };
+    let migration_started = Instant::now();
+    trace!(database_kind, "running database migrations");
+    if let Err(error) = migration::Migrator::up(&db, None).await {
+        error!(database_kind, %error, "database migrations failed");
+        return Err(error.into());
+    }
+    info!(
+        database_kind,
+        elapsed_ms = migration_started.elapsed().as_secs_f64() * 1000.0,
+        "database migrations completed"
+    );
+    let compat_started = Instant::now();
+    trace!(database_kind, "applying database compatibility checks");
+    if let Err(error) = migration::apply_sqlite_schema_compatibility(&db).await {
+        error!(database_kind, %error, "database compatibility checks failed");
+        return Err(error.into());
+    }
+    debug!(
+        database_kind,
+        elapsed_ms = compat_started.elapsed().as_secs_f64() * 1000.0,
+        "database compatibility checks completed"
+    );
     Ok(db)
+}
+
+fn env_flag_enabled(name: &str, default: bool) -> bool {
+    std::env::var(name).map_or(default, |value| {
+        let value = value.trim();
+        !(value == "0" || value.eq_ignore_ascii_case("false") || value.eq_ignore_ascii_case("off"))
+    })
+}
+
+fn database_kind(connection_url: &str) -> &'static str {
+    if connection_url.starts_with("sqlite:") {
+        "sqlite"
+    } else if connection_url.starts_with("postgres:") || connection_url.starts_with("postgresql:") {
+        "postgres"
+    } else if connection_url.starts_with("mysql:") {
+        "mysql"
+    } else {
+        "unknown"
+    }
+}
+
+fn redact_connection_url(connection_url: &str) -> String {
+    let Some((scheme, rest)) = connection_url.split_once("://") else {
+        return connection_url.to_owned();
+    };
+    let Some((userinfo, host_and_path)) = rest.split_once('@') else {
+        return connection_url.to_owned();
+    };
+    let username = userinfo
+        .split_once(':')
+        .map_or(userinfo, |(username, _)| username);
+    format!("{scheme}://{username}:***@{host_and_path}")
 }
 
 fn ensure_sqlite_database_parent(connection_url: &str) -> Result<(), StorageError> {

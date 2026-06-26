@@ -18,7 +18,7 @@ use tikeo_storage::{
 };
 use tokio::time;
 use tonic_prost::prost::Message as _;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, trace, warn};
 use uuid::Uuid;
 
 use super::{WorkerRegistry, capability::WorkerRequirement, governance};
@@ -125,8 +125,9 @@ pub async fn run(context: DispatcherContext) {
     );
     loop {
         ticker.tick().await;
+        trace!("worker dispatcher tick fired");
         if let Err(error) = dispatch_once_if_owner(context.refs(), &context.cluster).await {
-            warn!(%error, "worker dispatch iteration failed");
+            error!(%error, "worker dispatch iteration failed");
         }
     }
 }
@@ -183,6 +184,7 @@ async fn dispatch_once_with_shards(
     fencing_token: &str,
     owned_shards: &[ClusterShardOwnershipSummary],
 ) -> Result<(), tikeo_storage::DbErr> {
+    trace!(%owner_node_id, owned_shard_count = owned_shards.len(), "running dispatch scan");
     let recovered = context
         .workflows
         .requeue_stale_running_job_dispatches(DISPATCH_STALE_RUNNING_SECONDS)
@@ -190,10 +192,13 @@ async fn dispatch_once_with_shards(
     if recovered > 0 {
         warn!(recovered, "requeued stale running job dispatches");
     }
-    let _expired = context
+    let expired = context
         .workflows
         .clear_expired_dispatch_queue_leases()
         .await?;
+    if expired > 0 {
+        debug!(expired, "cleared expired dispatch queue leases");
+    }
     if owned_shards.is_empty() {
         if let Some(materialized) = context
             .workflows
@@ -204,6 +209,7 @@ async fn dispatch_once_with_shards(
             )
             .await?
         {
+            debug!(workflow_instance_id = %materialized.instance.id, owner_node_id = %owner_node_id, "materialized workflow node through dispatcher fencing");
             crate::notification::emit_workflow_notification_node_requested_best_effort(
                 context.notifications,
                 context.workflows,
@@ -383,6 +389,7 @@ async fn dispatch_single_claim(
     claim: DispatchQueueClaim,
 ) -> Result<(), tikeo_storage::DbErr> {
     let Some(instance_id) = claim.item.job_instance_id.clone() else {
+        warn!(queue_id = %claim.item.id, "dispatch queue item has no job instance id");
         return Ok(());
     };
     let Some(instance) = context.instances.get(&instance_id).await? else {
@@ -415,6 +422,7 @@ async fn dispatch_single_claim(
             .workflows
             .release_dispatch_queue_item(&claim.item.id, dispatch_queue_lease_owner(&claim))
             .await?;
+        debug!(instance_id = %instance.id, queue_id = %claim.item.id, "released dispatch queue item because instance was already claimed");
         return Ok(());
     }
     let Some(job) = context.jobs.get(&instance.job_id).await? else {
@@ -442,6 +450,15 @@ async fn dispatch_single_claim(
     };
 
     let requirement = required_task_requirement_for_executor(&task, &executor);
+    trace!(
+        instance_id = %instance.id,
+        job_id = %job.id,
+        namespace = %job.namespace,
+        app = %job.app,
+        worker_pool = ?job.worker_pool,
+        requirement = ?requirement.as_ref().map(WorkerRequirement::display_label),
+        "resolving eligible workers for dispatch"
+    );
     let eligible_workers = context
         .registry
         .find_lasso_persisted_dispatch_workers(
@@ -1075,6 +1092,13 @@ async fn dispatch_broadcast_attempts(
         };
 
         let requirement = required_task_requirement_for_executor(&task, &executor);
+        trace!(
+            instance_id = %instance.id,
+            attempt_id = %attempt.id,
+            worker_id = %attempt.worker_id,
+            requirement = ?requirement.as_ref().map(WorkerRequirement::display_label),
+            "validating persisted broadcast worker capability"
+        );
         if !context
             .registry
             .persisted_worker_supports_requirement(&attempt.worker_id, requirement.as_ref())

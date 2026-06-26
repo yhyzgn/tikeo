@@ -5,7 +5,7 @@ use tikeo_proto::worker::v1::DispatchTask;
 use tikeo_storage::{WorkerDispatchOutboxRepository, WorkerDispatchOutboxSummary};
 use tokio::time::{self, Duration};
 use tonic_prost::prost::Message as _;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, trace, warn};
 
 use super::WorkerRegistry;
 
@@ -32,17 +32,18 @@ pub async fn run(
     info!(gateway_node_id = %gateway_node_id, interval_ms = OUTBOX_DELIVERY_INTERVAL.as_millis(), "starting worker dispatch outbox delivery loop");
     loop {
         ticker.tick().await;
+        trace!(%gateway_node_id, "worker dispatch outbox delivery tick fired");
         if let Err(error) = outbox
             .requeue_expired_delivered(OUTBOX_DELIVERY_RETRY_SECONDS)
             .await
         {
-            warn!(%error, %gateway_node_id, "worker dispatch outbox visibility scan failed");
+            error!(%error, %gateway_node_id, "worker dispatch outbox visibility scan failed");
         }
         if let Err(error) = reroute_stale_logical_rows(&outbox, &registry).await {
-            warn!(%error, %gateway_node_id, "worker dispatch outbox reroute scan failed");
+            error!(%error, %gateway_node_id, "worker dispatch outbox reroute scan failed");
         }
         if let Err(error) = deliver_once(&outbox, &registry, &gateway_node_id).await {
-            warn!(%error, %gateway_node_id, "worker dispatch outbox delivery iteration failed");
+            error!(%error, %gateway_node_id, "worker dispatch outbox delivery iteration failed");
         }
     }
 }
@@ -95,8 +96,10 @@ pub async fn deliver_once(
     gateway_node_id: &str,
 ) -> Result<Option<WorkerDispatchOutboxSummary>, tikeo_storage::DbErr> {
     let Some(row) = outbox.claim_next_for_gateway(gateway_node_id, 1).await? else {
+        trace!(%gateway_node_id, "no worker dispatch outbox row available for gateway");
         return Ok(None);
     };
+    debug!(outbox_id = %row.id, worker_id = %row.worker_id, %gateway_node_id, "claimed worker dispatch outbox row");
     let task = match decode_dispatch_payload(&row.dispatch_payload) {
         Ok(task) => task,
         Err(error) => {
@@ -129,6 +132,7 @@ pub async fn deliver_once(
             )
             .await;
     }
+    warn!(outbox_id = %row.id, worker_id = %row.worker_id, %gateway_node_id, "local worker stream is not schedulable for outbox delivery");
     outbox
         .mark_delivery_failed(
             &row.id,

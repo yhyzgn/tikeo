@@ -16,7 +16,7 @@ use tikeo_storage::{
     CalendarRepository, CalendarSummary, CreateJobInstance, JobInstanceRepository, JobRepository,
     JobSummary, ScheduleCursorRepository,
 };
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, trace, warn};
 
 const TICK_INTERVAL: Duration = Duration::from_secs(1);
 const MISFIRE_GRACE: chrono::Duration = chrono::Duration::seconds(5);
@@ -41,10 +41,11 @@ pub async fn run_tick_loop(
 
     loop {
         ticker.tick().await;
+        trace!("schedule tick fired");
         if let Err(error) =
             tick_once_if_owner(&jobs, &instances, &state, &cluster, Utc::now()).await
         {
-            warn!(%error, "schedule tick iteration failed");
+            error!(%error, "schedule tick iteration failed");
         }
     }
 }
@@ -71,15 +72,26 @@ async fn tick_once(
     now: DateTime<Utc>,
 ) -> Result<(), tikeo_storage::DbErr> {
     let cursors = ScheduleCursorRepository::new(jobs.db());
-    for job in jobs.list_enabled_scheduled_jobs().await? {
+    let scheduled_jobs = jobs.list_enabled_scheduled_jobs().await?;
+    trace!(
+        job_count = scheduled_jobs.len(),
+        "loaded enabled scheduled jobs for tick"
+    );
+    for job in scheduled_jobs {
         let decision = match due_triggers(jobs, &job, instances, &cursors, now).await {
             Ok(decision) => decision,
             Err(error) => {
-                warn!(job_id = %job.id, %error, "schedule decision failed");
+                error!(job_id = %job.id, %error, "schedule decision failed");
                 continue;
             }
         };
 
+        debug!(
+            job_id = %job.id,
+            job_name = %job.name,
+            trigger_count = decision.triggers.len(),
+            "evaluated scheduled job triggers"
+        );
         for trigger in decision.triggers {
             info!(
                 job_id = %job.id,
@@ -126,6 +138,7 @@ async fn due_triggers(
     now: DateTime<Utc>,
 ) -> Result<ScheduleDecision, ScheduleDecisionError> {
     if !within_lifecycle_window(jobs, job, now).await? {
+        trace!(job_id = %job.id, job_name = %job.name, "scheduled job outside lifecycle window");
         return Ok(ScheduleDecision::default());
     }
     let schedule_type = ScheduleType::from_str(&job.schedule_type)
@@ -547,6 +560,16 @@ fn misfire_decision(
     } else {
         1
     };
+    if misfired {
+        warn!(
+            job_id = %job.id,
+            trigger_type = %trigger_type,
+            due_count = due_times.len(),
+            policy = ?policy,
+            latest_fire_at = %latest.to_rfc3339(),
+            "scheduled job misfire detected"
+        );
+    }
     let selected: Vec<DateTime<Utc>> =
         if misfired && matches!(policy, MisfirePolicy::FireOnce | MisfirePolicy::LatestOnly) {
             due_times.last().copied().into_iter().collect()

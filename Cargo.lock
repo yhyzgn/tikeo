@@ -4474,6 +4474,7 @@ dependencies = [
 name = "tikeo-storage"
 version = "0.3.20"
 dependencies = [
+ "log",
  "sea-orm",
  "sea-orm-migration",
  "serde",
@@ -4484,6 +4485,7 @@ dependencies = [
  "tikeo-core",
  "time",
  "tokio",
+ "tracing",
  "url",
  "utoipa",
  "uuid",

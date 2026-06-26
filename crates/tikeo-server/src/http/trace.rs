@@ -1,12 +1,14 @@
 //! Local tracing utilities for HTTP request correlation.
 
+use std::time::Instant;
+
 use axum::{
     body::Body,
     http::{HeaderMap, HeaderValue, Request},
     middleware::Next,
     response::Response,
 };
-use tracing::Instrument;
+use tracing::{Instrument, debug, error, info, warn};
 use uuid::Uuid;
 
 const TRACE_ID_HEADER: &str = "x-trace-id";
@@ -27,13 +29,74 @@ pub async fn trace_http(mut request: Request<Body>, next: Next) -> Response {
         request.headers_mut().insert(TRACE_ID_HEADER, value.clone());
         let method = request.method().clone();
         let path = request.uri().path().to_owned();
+        let query_present = request.uri().query().is_some();
+        let user_agent = request
+            .headers()
+            .get("user-agent")
+            .and_then(|header| header.to_str().ok())
+            .unwrap_or("-")
+            .to_owned();
+        let request_size = request
+            .headers()
+            .get("content-length")
+            .and_then(|header| header.to_str().ok())
+            .and_then(|value| value.parse::<u64>().ok());
         let span = tracing::info_span!(
             "http.request",
             trace_id = %trace_id,
             method = %method,
             path = %path
         );
+        debug!(
+            trace_id = %trace_id,
+            method = %method,
+            path = %path,
+            query_present,
+            request_size,
+            user_agent = %user_agent,
+            "HTTP request received"
+        );
+        let started = Instant::now();
         let mut response = next.run(request).instrument(span).await;
+        let status = response.status();
+        let status_code = status.as_u16();
+        let latency_ms = started.elapsed().as_secs_f64() * 1000.0;
+        let response_size = response
+            .headers()
+            .get("content-length")
+            .and_then(|header| header.to_str().ok())
+            .and_then(|value| value.parse::<u64>().ok());
+        if status.is_server_error() {
+            error!(
+                trace_id = %trace_id,
+                method = %method,
+                path = %path,
+                status = status_code,
+                latency_ms,
+                response_size,
+                "HTTP request completed with server error"
+            );
+        } else if status.is_client_error() {
+            warn!(
+                trace_id = %trace_id,
+                method = %method,
+                path = %path,
+                status = status_code,
+                latency_ms,
+                response_size,
+                "HTTP request completed with client error"
+            );
+        } else {
+            info!(
+                trace_id = %trace_id,
+                method = %method,
+                path = %path,
+                status = status_code,
+                latency_ms,
+                response_size,
+                "HTTP request completed"
+            );
+        }
         response.headers_mut().insert(TRACE_ID_HEADER, value);
         response
     } else {

@@ -24,6 +24,7 @@ use opentelemetry_otlp::{Protocol, SpanExporter, WithExportConfig, WithHttpConfi
 use opentelemetry_sdk::{Resource, trace::SdkTracerProvider};
 use serde_json::json;
 use tikeo_config::{ElkLogConfig, FileLogSinkConfig, LoggingConfig, TikeoConfig, TracingConfig};
+use tracing::{debug, error, trace, warn};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{
     Layer, Registry,
@@ -73,8 +74,7 @@ impl TracingRuntime {
     ///
     /// Returns an error when local file logging or OTLP exporter setup fails.
     pub fn start_with_logging(tracing: &TracingConfig, logging: &LoggingConfig) -> Result<Self> {
-        let env_filter = EnvFilter::try_from_default_env()
-            .unwrap_or_else(|_| EnvFilter::new(root_filter(&logging.root.level)));
+        let env_filter = env_filter(logging);
         let mut file_log_guards = Vec::new();
         let mut layers = Vec::new();
 
@@ -146,6 +146,30 @@ impl TracingRuntime {
         }
 
         Registry::default().with(env_filter).with(layers).init();
+
+        debug!(
+            root_filter = %root_filter(&logging.root.level),
+            console_level = %normalize_log_level(&logging.console.level),
+            file_level = %normalize_log_level(&logging.file.level),
+            error_file_level = %normalize_log_level(&logging.error_file.level),
+            elk_level = %normalize_log_level(&logging.elk.level),
+            "tikeo logging filters configured"
+        );
+        trace!(
+            file_raw_path = %logging.file.path,
+            error_file_raw_path = %logging.error_file.path,
+            elk_servers = %logging.elk.servers,
+            "tikeo logging sink raw configuration loaded"
+        );
+        if !logging.console.enabled
+            && !logging.file.enabled
+            && !logging.error_file.enabled
+            && !logging.elk.enabled
+        {
+            warn!(
+                "all logging sinks are disabled; runtime diagnostics will be unavailable unless RUST_LOG subscriber is installed externally"
+            );
+        }
 
         tracing::info!(
             root_level = %normalize_log_level(&logging.root.level),
@@ -231,6 +255,26 @@ impl Drop for TracingRuntime {
     }
 }
 
+fn env_filter(logging: &LoggingConfig) -> EnvFilter {
+    let default_filter = root_filter(&logging.root.level);
+    let env_filter = std::env::var("RUST_LOG")
+        .ok()
+        .map_or(default_filter, |value| scoped_rust_log_filter(&value));
+    EnvFilter::try_new(&env_filter)
+        .unwrap_or_else(|_| EnvFilter::new(root_filter(&logging.root.level)))
+}
+
+fn scoped_rust_log_filter(rust_log: &str) -> String {
+    let mut filter = rust_log.trim().to_owned();
+    if filter.is_empty() {
+        return root_filter("info");
+    }
+    if !env_flag_enabled("TIKEO_SQL_VERBOSE_VALUES", false) {
+        filter.push_str(",sea_orm=off");
+    }
+    filter
+}
+
 fn build_tracer_provider(tracing: &TracingConfig) -> Result<SdkTracerProvider> {
     let endpoint = tracing
         .otlp_endpoint
@@ -267,14 +311,22 @@ fn build_tracer_provider(tracing: &TracingConfig) -> Result<SdkTracerProvider> {
 }
 
 fn root_filter(level: &str) -> String {
+    let level = normalize_log_level(level);
+    let sea_orm_level = if env_flag_enabled("TIKEO_SQL_VERBOSE_VALUES", false) {
+        level
+    } else {
+        "off"
+    };
     format!(
-        "tikeo={},tower_http={},tokio={},hyper={},tonic={}",
-        normalize_log_level(level),
-        normalize_log_level(level),
-        normalize_log_level(level),
-        normalize_log_level(level),
-        normalize_log_level(level)
+        "tikeo={level},tikeo_server={level},tikeo_storage={level},tikeo_config={level},sqlx={level},sea_orm={sea_orm_level},tower_http={level},tokio={level},hyper={level},tonic={level}"
     )
+}
+
+fn env_flag_enabled(name: &str, default: bool) -> bool {
+    std::env::var(name).map_or(default, |value| {
+        let value = value.trim();
+        !(value == "0" || value.eq_ignore_ascii_case("false") || value.eq_ignore_ascii_case("off"))
+    })
 }
 
 fn file_logging_writer(
@@ -287,6 +339,7 @@ fn file_logging_writer(
     let (directory, file_name) = log_directory_and_file(&config.path, default_file_name);
     std::fs::create_dir_all(&directory)
         .with_context(|| format!("failed to create log directory: {}", directory.display()))?;
+    debug!(directory = %directory.display(), file_name = %file_name, "configured non-blocking file log sink");
     let appender = tracing_appender::rolling::never(directory, file_name);
     Ok(tracing_appender::non_blocking(appender))
 }
@@ -366,10 +419,16 @@ impl ElkForwarder {
         let stop = Arc::new(AtomicBool::new(false));
         let worker = ElkWorkerConfig::from(config);
         let worker_stop = Arc::clone(&stop);
-        let handle = thread::Builder::new()
+        let handle = match thread::Builder::new()
             .name("tikeo-elk-log-forwarder".to_owned())
             .spawn(move || run_elk_forwarder(&receiver, &worker_stop, &worker))
-            .ok();
+        {
+            Ok(handle) => Some(handle),
+            Err(error) => {
+                error!(%error, "failed to start elk log forwarder thread");
+                None
+            }
+        };
         ElkForwarderGuard {
             stop,
             sender,
@@ -405,25 +464,42 @@ impl From<&ElkLogConfig> for ElkWorkerConfig {
 
 fn run_elk_forwarder(receiver: &Receiver<Vec<u8>>, stop: &AtomicBool, config: &ElkWorkerConfig) {
     if config.servers.is_empty() {
+        warn!("elk log forwarding is enabled but no servers are configured");
         return;
     }
+    debug!(server_count = config.servers.len(), topic = %config.topic, sasl_enabled = config.sasl_enabled, "starting elk log forwarder worker");
     let mut server_index = 0_usize;
     let mut stream = None;
     let mut batch = Vec::with_capacity(ELK_BATCH_MAX_LINES * 256);
+    let mut batch_line_count = 0_usize;
     while !stop.load(Ordering::Relaxed) {
         match receiver.recv_timeout(ELK_RECV_TIMEOUT) {
             Ok(line) if line.is_empty() && stop.load(Ordering::Relaxed) => break,
             Ok(line) if !line.is_empty() => {
                 append_elk_frame(&mut batch, &line, config);
+                batch_line_count = batch_line_count.saturating_add(1);
                 for line in receiver.try_iter().take(ELK_BATCH_MAX_LINES - 1) {
                     if !line.is_empty() {
                         append_elk_frame(&mut batch, &line, config);
+                        batch_line_count = batch_line_count.saturating_add(1);
                     }
                 }
-                if !flush_elk_batch(&mut stream, &mut server_index, &config.servers, &batch) {
+                if flush_elk_batch(&mut stream, &mut server_index, &config.servers, &batch) {
+                    trace!(
+                        line_count = batch_line_count,
+                        byte_count = batch.len(),
+                        "flushed elk log batch"
+                    );
+                } else {
+                    warn!(
+                        line_count = batch_line_count,
+                        server_count = config.servers.len(),
+                        "failed to flush elk log batch; backing off"
+                    );
                     thread::sleep(ELK_RECONNECT_BACKOFF);
                 }
                 batch.clear();
+                batch_line_count = 0;
             }
             Ok(_) | Err(mpsc::RecvTimeoutError::Timeout) => {}
             Err(mpsc::RecvTimeoutError::Disconnected) => break,
@@ -432,15 +508,30 @@ fn run_elk_forwarder(receiver: &Receiver<Vec<u8>>, stop: &AtomicBool, config: &E
     while let Ok(line) = receiver.try_recv() {
         if !line.is_empty() {
             append_elk_frame(&mut batch, &line, config);
+            batch_line_count = batch_line_count.saturating_add(1);
         }
         if batch.len() >= ELK_BATCH_MAX_LINES * 256 {
             let _ = flush_elk_batch(&mut stream, &mut server_index, &config.servers, &batch);
             batch.clear();
+            batch_line_count = 0;
         }
     }
     if !batch.is_empty() {
-        let _ = flush_elk_batch(&mut stream, &mut server_index, &config.servers, &batch);
+        if flush_elk_batch(&mut stream, &mut server_index, &config.servers, &batch) {
+            debug!(
+                line_count = batch_line_count,
+                byte_count = batch.len(),
+                "flushed final elk log batch during shutdown"
+            );
+        } else {
+            error!(
+                line_count = batch_line_count,
+                byte_count = batch.len(),
+                "failed to flush final elk log batch during shutdown"
+            );
+        }
     }
+    debug!("elk log forwarder worker stopped");
 }
 
 fn append_elk_frame(batch: &mut Vec<u8>, line: &[u8], config: &ElkWorkerConfig) {
@@ -471,18 +562,24 @@ fn flush_elk_batch(
             *server_index = server_index.saturating_add(1);
             match TcpStream::connect(server) {
                 Ok(next) => {
+                    trace!(%server, "connected elk log forwarder stream");
                     let _ = next.set_nodelay(true);
                     let _ = next.set_write_timeout(Some(Duration::from_secs(2)));
                     *stream = Some(next);
                 }
-                Err(_) => continue,
+                Err(error) => {
+                    debug!(%server, %error, "failed to connect elk log forwarder stream");
+                    continue;
+                }
             }
         }
         if let Some(current) = stream.as_mut() {
-            if current.write_all(batch).is_ok() {
+            if let Err(error) = current.write_all(batch) {
+                debug!(%error, "elk log forwarder stream write failed");
+                *stream = None;
+            } else {
                 return true;
             }
-            *stream = None;
         }
     }
     false
@@ -512,7 +609,11 @@ impl Write for ElkWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         if !buf.is_empty() {
             match self.sender.try_send(buf.to_vec()) {
-                Ok(()) | Err(TrySendError::Full(_) | TrySendError::Disconnected(_)) => {}
+                Ok(()) => {}
+                Err(TrySendError::Full(_)) => trace!("elk log queue full; dropping log frame"),
+                Err(TrySendError::Disconnected(_)) => {
+                    trace!("elk log queue disconnected; dropping log frame");
+                }
             }
         }
         Ok(buf.len())
