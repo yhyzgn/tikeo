@@ -42,7 +42,9 @@ pub async fn trace_http(
     let path = uri.path().to_owned();
     let query = uri.query().unwrap_or_default().to_owned();
     let request_size = content_length(request.headers());
-    let request_detail = RequestDetail::capture(&config, request).await;
+    let detail_enabled =
+        tracing::enabled!(target: "tikeo_server::http::trace", tracing::Level::DEBUG);
+    let request_detail = RequestDetail::capture(&config, detail_enabled, request).await;
     let request_body_size = request_detail.body_size;
     let span = tracing::info_span!(
         "http.request",
@@ -90,7 +92,9 @@ async fn response_with_logged_body(
     let status = response.status();
     let status_code = status.as_u16();
     let response_size = content_length(response.headers());
-    let response_detail = ResponseDetail::capture(config, response).await;
+    let detail_enabled =
+        tracing::enabled!(target: "tikeo_server::http::trace", tracing::Level::DEBUG);
+    let response_detail = ResponseDetail::capture(config, detail_enabled, response).await;
     let response_body_size = response_detail.body_size;
     log_response_summary(&ResponseLogSummary {
         trace_id,
@@ -180,7 +184,16 @@ struct RequestDetail {
 }
 
 impl RequestDetail {
-    async fn capture(config: &HttpLogConfig, request: Request<Body>) -> Self {
+    async fn capture(config: &HttpLogConfig, detail_enabled: bool, request: Request<Body>) -> Self {
+        if !detail_enabled {
+            return Self {
+                request,
+                body_size: None,
+                headers: None,
+                body: None,
+                detail_status: "detail-disabled".to_owned(),
+            };
+        }
         let headers = config
             .include_headers
             .then(|| format_headers(request.headers()));
@@ -251,7 +264,16 @@ struct ResponseDetail {
 }
 
 impl ResponseDetail {
-    async fn capture(config: &HttpLogConfig, response: Response) -> Self {
+    async fn capture(config: &HttpLogConfig, detail_enabled: bool, response: Response) -> Self {
+        if !detail_enabled {
+            return Self {
+                response,
+                body_size: None,
+                headers: None,
+                body: None,
+                detail_status: "detail-disabled".to_owned(),
+            };
+        }
         let headers = config
             .include_headers
             .then(|| format_headers(response.headers()));
@@ -527,6 +549,51 @@ mod tests {
         assert!(!logs.contains("request_headers"));
         assert!(!logs.contains("request_body"));
         assert!(!logs.contains("secret-token"));
+    }
+
+    #[tokio::test]
+    async fn trace_http_does_not_capture_detail_when_debug_is_disabled() {
+        let writer = SharedWriter::default();
+        let captured = writer.0.clone();
+        let subscriber = tracing_subscriber::registry().with(
+            tracing_subscriber::fmt::layer()
+                .json()
+                .with_writer(writer)
+                .with_filter(tracing_subscriber::filter::LevelFilter::INFO),
+        );
+        let _guard = tracing::subscriber::set_default(subscriber);
+        let config = HttpLogConfig {
+            include_headers: true,
+            include_body: true,
+            max_body_bytes: 64 * 1024,
+        };
+        let app = Router::new()
+            .route("/echo", post(|body: String| async move { body }))
+            .layer(middleware::from_fn_with_state(
+                Arc::new(config),
+                super::trace_http,
+            ));
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/echo")
+                    .header("x-request-id", "trace-info-gated")
+                    .header("x-demo", "request-header-value")
+                    .body(Body::from(r#"{"hello":"world"}"#))
+                    .unwrap_or_else(|error| panic!("request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("request should complete: {error}"));
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let logs = captured_text(&captured);
+        assert!(logs.contains("HTTP request received"));
+        assert!(logs.contains("HTTP request completed"));
+        assert!(logs.contains("detail-disabled"));
+        assert!(!logs.contains("HTTP request detail"));
+        assert!(!logs.contains("HTTP response detail"));
+        assert!(!logs.contains("request-header-value"));
+        assert!(!logs.contains("hello"));
     }
 
     #[tokio::test]
