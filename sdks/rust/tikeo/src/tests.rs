@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, pin::Pin};
+use std::{collections::VecDeque, net::SocketAddr, pin::Pin};
 
 use sha2::{Digest, Sha256};
 use tokio::{
@@ -952,6 +952,83 @@ async fn worker_session_processes_dispatched_task_and_reports_result() {
     server.abort();
 }
 
+#[tokio::test]
+async fn worker_session_skips_duplicate_completed_assignment_tokens() {
+    let first = DispatchTask {
+        instance_id: "instance-duplicate".to_owned(),
+        job_id: "job-1".to_owned(),
+        payload: b"hello".to_vec(),
+        processor_name: "demo.echo".to_owned(),
+        processor_binding: None,
+        assignment_token: "assign-token-duplicate".to_owned(),
+    };
+    let next = DispatchTask {
+        instance_id: "instance-next".to_owned(),
+        job_id: "job-2".to_owned(),
+        payload: b"hello".to_vec(),
+        processor_name: "demo.echo".to_owned(),
+        processor_binding: None,
+        assignment_token: "assign-token-next".to_owned(),
+    };
+    let (addr, server, mut events) = start_mock_tunnel_server_with_after_result_dispatches(
+        Some(first.clone()),
+        vec![first, next],
+    )
+    .await;
+    let config = WorkerConfig::local(format!("http://{addr}"), "worker-sdk-dedupe");
+    let mut session = WorkerClient::new(config)
+        .connect()
+        .await
+        .unwrap_or_else(|error| panic!("worker should register: {error}"));
+
+    session
+        .process_next(&EchoProcessor)
+        .await
+        .unwrap_or_else(|error| panic!("first task should process: {error}"));
+    let first_result = next_task_result(&mut events).await;
+    assert_eq!(first_result.instance_id, "instance-duplicate");
+
+    let second = tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        session.process_next(&EchoProcessor),
+    )
+    .await
+    .unwrap_or_else(|_| panic!("duplicate dispatch should be skipped before processing next task"))
+    .unwrap_or_else(|error| panic!("next task should process: {error}"));
+    assert_eq!(second, TaskOutcome::Succeeded);
+    let second_result = next_task_result(&mut events).await;
+    assert_eq!(second_result.instance_id, "instance-next");
+
+    server.abort();
+}
+
+async fn start_mock_tunnel_server_with_after_result_dispatches(
+    dispatch: Option<DispatchTask>,
+    after_result_dispatches: Vec<DispatchTask>,
+) -> (SocketAddr, JoinHandle<()>, mpsc::Receiver<WorkerMessage>) {
+    let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+        .await
+        .unwrap_or_else(|error| panic!("listener should bind: {error}"));
+    let addr = listener
+        .local_addr()
+        .unwrap_or_else(|error| panic!("listener should expose addr: {error}"));
+    let incoming = TcpListenerStream::new(listener);
+    let (events_tx, events_rx) = mpsc::channel(16);
+    let service = WorkerTunnelServiceServer::new(MockTunnel {
+        dispatch,
+        after_result_dispatches,
+        events: events_tx,
+    });
+    let server = tokio::spawn(async move {
+        Server::builder()
+            .add_service(service)
+            .serve_with_incoming(incoming)
+            .await
+            .unwrap_or_else(|error| panic!("test server should run: {error}"));
+    });
+    (addr, server, events_rx)
+}
+
 async fn start_mock_tunnel_server(
     dispatch: Option<DispatchTask>,
 ) -> (SocketAddr, JoinHandle<()>, mpsc::Receiver<WorkerMessage>) {
@@ -965,6 +1042,7 @@ async fn start_mock_tunnel_server(
     let (events_tx, events_rx) = mpsc::channel(16);
     let service = WorkerTunnelServiceServer::new(MockTunnel {
         dispatch,
+        after_result_dispatches: Vec::new(),
         events: events_tx,
     });
     let server = tokio::spawn(async move {
@@ -1118,6 +1196,7 @@ async fn next_task_result(
 
 struct MockTunnel {
     dispatch: Option<DispatchTask>,
+    after_result_dispatches: Vec<DispatchTask>,
     events: mpsc::Sender<WorkerMessage>,
 }
 
@@ -1137,6 +1216,7 @@ impl worker_tunnel_service_server::WorkerTunnelService for MockTunnel {
         let (outbound_tx, outbound_rx) = mpsc::channel(16);
         let events = self.events.clone();
         let dispatch = self.dispatch.clone();
+        let mut after_result_dispatches: VecDeque<_> = self.after_result_dispatches.clone().into();
         tokio::spawn(async move {
             while let Some(message) = inbound.next().await {
                 let Ok(message) = message else { break };
@@ -1170,9 +1250,17 @@ impl worker_tunnel_service_server::WorkerTunnelService for MockTunnel {
                             }))
                             .await;
                     }
+                    Some(worker_message::Kind::TaskResult(_)) => {
+                        while let Some(task) = after_result_dispatches.pop_front() {
+                            let _ = outbound_tx
+                                .send(Ok(ServerMessage {
+                                    kind: Some(server_message::Kind::DispatchTask(task)),
+                                }))
+                                .await;
+                        }
+                    }
                     Some(
-                        worker_message::Kind::TaskResult(_)
-                        | worker_message::Kind::TaskLog(_)
+                        worker_message::Kind::TaskLog(_)
                         | worker_message::Kind::TaskCheckpoint(_)
                         | worker_message::Kind::Unregister(_),
                     )

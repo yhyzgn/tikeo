@@ -1,5 +1,6 @@
 use std::{
     backtrace::Backtrace,
+    collections::{HashSet, VecDeque},
     sync::{
         Arc, Mutex,
         atomic::{AtomicI64, Ordering},
@@ -10,6 +11,8 @@ use std::{
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Streaming;
+
+const COMPLETED_ASSIGNMENT_TOKEN_CACHE: usize = 1024;
 
 use crate::{
     config::WorkerConfig,
@@ -35,6 +38,8 @@ pub struct WorkerSession {
     inbound: Streaming<ServerMessage>,
     heartbeat_sequence: u64,
     log_sequence: Arc<AtomicI64>,
+    completed_assignment_tokens: HashSet<String>,
+    completed_assignment_order: VecDeque<String>,
 }
 
 impl WorkerSession {
@@ -231,10 +236,43 @@ impl WorkerSession {
                 message = self.next_server_message() => {
                     if let Some(server_message::Kind::DispatchTask(task)) = message?.kind {
                         self.send_heartbeat_message().await?;
+                        if self.assignment_already_completed(&task.assignment_token) {
+                            sdk_log(
+                                SdkLogLevel::Warning,
+                                format!(
+                                    "skipping duplicate dispatch instance_id={} assignment_token={}",
+                                    task.instance_id, task.assignment_token
+                                ),
+                            );
+                            continue;
+                        }
                         sdk_log(SdkLogLevel::Info, "dispatch received from worker tunnel");
-                        return self.process_task(processor, script_runners, task).await;
+                        let assignment_token = task.assignment_token.clone();
+                        let outcome = self.process_task(processor, script_runners, task).await?;
+                        self.remember_completed_assignment(assignment_token);
+                        return Ok(outcome);
                     }
                 }
+            }
+        }
+    }
+
+    fn assignment_already_completed(&self, assignment_token: &str) -> bool {
+        !assignment_token.is_empty() && self.completed_assignment_tokens.contains(assignment_token)
+    }
+
+    fn remember_completed_assignment(&mut self, assignment_token: String) {
+        if assignment_token.is_empty()
+            || !self
+                .completed_assignment_tokens
+                .insert(assignment_token.clone())
+        {
+            return;
+        }
+        self.completed_assignment_order.push_back(assignment_token);
+        while self.completed_assignment_order.len() > COMPLETED_ASSIGNMENT_TOKEN_CACHE {
+            if let Some(expired) = self.completed_assignment_order.pop_front() {
+                self.completed_assignment_tokens.remove(&expired);
             }
         }
     }
@@ -437,6 +475,8 @@ impl WorkerClient {
             inbound,
             heartbeat_sequence: 0,
             log_sequence: Arc::new(AtomicI64::new(0)),
+            completed_assignment_tokens: HashSet::new(),
+            completed_assignment_order: VecDeque::new(),
         })
     }
 }
