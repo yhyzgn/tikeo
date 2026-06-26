@@ -10,7 +10,7 @@ use axum::{
     response::Response,
 };
 use tikeo_config::HttpLogConfig;
-use tracing::{Instrument, debug, error, info, warn};
+use tracing::{Instrument, error, info, warn};
 use uuid::Uuid;
 
 const TRACE_ID_HEADER: &str = "x-trace-id";
@@ -42,8 +42,8 @@ pub async fn trace_http(
     let path = uri.path().to_owned();
     let query = uri.query().unwrap_or_default().to_owned();
     let request_size = content_length(request.headers());
-    let detail_enabled =
-        tracing::enabled!(target: "tikeo_server::http::trace", tracing::Level::DEBUG);
+    let detail_level = HttpDetailLevel::from_config(&config.level);
+    let detail_enabled = detail_level.enabled();
     let request_detail = RequestDetail::capture(&config, detail_enabled, request).await;
     let request_body_size = request_detail.body_size;
     let span = tracing::info_span!(
@@ -62,7 +62,7 @@ pub async fn trace_http(
         request_detail = %request_detail.detail_status,
         "HTTP request received"
     );
-    request_detail.log(&trace_id, method.as_ref(), &path);
+    request_detail.log(&trace_id, method.as_ref(), &path, detail_level);
     let request = request_detail.request;
 
     let started = Instant::now();
@@ -92,8 +92,8 @@ async fn response_with_logged_body(
     let status = response.status();
     let status_code = status.as_u16();
     let response_size = content_length(response.headers());
-    let detail_enabled =
-        tracing::enabled!(target: "tikeo_server::http::trace", tracing::Level::DEBUG);
+    let detail_level = HttpDetailLevel::from_config(&config.level);
+    let detail_enabled = detail_level.enabled();
     let response_detail = ResponseDetail::capture(config, detail_enabled, response).await;
     let response_body_size = response_detail.body_size;
     log_response_summary(&ResponseLogSummary {
@@ -108,7 +108,14 @@ async fn response_with_logged_body(
         response_body_size,
         response_detail: &response_detail.detail_status,
     });
-    response_detail.log(trace_id, method, path, status_code, latency_ms);
+    response_detail.log(
+        trace_id,
+        method,
+        path,
+        status_code,
+        latency_ms,
+        detail_level,
+    );
     let mut response = response_detail.response;
     response.headers_mut().insert(TRACE_ID_HEADER, trace_header);
     response
@@ -241,15 +248,14 @@ impl RequestDetail {
         }
     }
 
-    fn log(&self, trace_id: &str, method: &str, path: &str) {
+    fn log(&self, trace_id: &str, method: &str, path: &str, level: HttpDetailLevel) {
         if self.headers.is_some() || self.body.is_some() {
-            debug!(
+            level.log_request(
                 trace_id,
                 method,
                 path,
-                request_headers = %self.headers.as_deref().unwrap_or_default(),
-                request_body = %self.body.as_deref().unwrap_or_default(),
-                "HTTP request detail"
+                self.headers.as_deref().unwrap_or_default(),
+                self.body.as_deref().unwrap_or_default(),
             );
         }
     }
@@ -321,20 +327,132 @@ impl ResponseDetail {
         }
     }
 
-    fn log(&self, trace_id: &str, method: &str, path: &str, status: u16, latency_ms: f64) {
+    fn log(
+        &self,
+        trace_id: &str,
+        method: &str,
+        path: &str,
+        status: u16,
+        latency_ms: f64,
+        level: HttpDetailLevel,
+    ) {
         if self.headers.is_some() || self.body.is_some() {
-            debug!(
+            level.log_response(&HttpResponseDetailEvent {
                 trace_id,
                 method,
                 path,
                 status,
                 latency_ms,
-                response_headers = %self.headers.as_deref().unwrap_or_default(),
-                response_body = %self.body.as_deref().unwrap_or_default(),
-                "HTTP response detail"
-            );
+                response_headers: self.headers.as_deref().unwrap_or_default(),
+                response_body: self.body.as_deref().unwrap_or_default(),
+            });
         }
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum HttpDetailLevel {
+    Trace,
+    Debug,
+    Info,
+    Warn,
+    Error,
+}
+
+impl HttpDetailLevel {
+    fn from_config(level: &str) -> Self {
+        match level.trim().to_ascii_lowercase().as_str() {
+            "trace" => Self::Trace,
+            "debug" => Self::Debug,
+            "warn" | "warning" => Self::Warn,
+            "error" => Self::Error,
+            _ => Self::Info,
+        }
+    }
+
+    fn enabled(self) -> bool {
+        match self {
+            Self::Trace => {
+                tracing::enabled!(target: "tikeo_server::http::detail", tracing::Level::TRACE)
+            }
+            Self::Debug => {
+                tracing::enabled!(target: "tikeo_server::http::detail", tracing::Level::DEBUG)
+            }
+            Self::Info => {
+                tracing::enabled!(target: "tikeo_server::http::detail", tracing::Level::INFO)
+            }
+            Self::Warn => {
+                tracing::enabled!(target: "tikeo_server::http::detail", tracing::Level::WARN)
+            }
+            Self::Error => {
+                tracing::enabled!(target: "tikeo_server::http::detail", tracing::Level::ERROR)
+            }
+        }
+    }
+
+    fn log_request(
+        self,
+        trace_id: &str,
+        method: &str,
+        path: &str,
+        request_headers: &str,
+        request_body: &str,
+    ) {
+        match self {
+            Self::Trace => {
+                tracing::trace!(target: "tikeo_server::http::detail", trace_id, method, path, request_headers, request_body, "HTTP request detail");
+            }
+            Self::Debug => {
+                tracing::debug!(target: "tikeo_server::http::detail", trace_id, method, path, request_headers, request_body, "HTTP request detail");
+            }
+            Self::Info => {
+                tracing::info!(target: "tikeo_server::http::detail", trace_id, method, path, request_headers, request_body, "HTTP request detail");
+            }
+            Self::Warn => {
+                tracing::warn!(target: "tikeo_server::http::detail", trace_id, method, path, request_headers, request_body, "HTTP request detail");
+            }
+            Self::Error => {
+                tracing::error!(target: "tikeo_server::http::detail", trace_id, method, path, request_headers, request_body, "HTTP request detail");
+            }
+        }
+    }
+
+    fn log_response(self, event: &HttpResponseDetailEvent<'_>) {
+        let trace_id = event.trace_id;
+        let method = event.method;
+        let path = event.path;
+        let status = event.status;
+        let latency_ms = event.latency_ms;
+        let response_headers = event.response_headers;
+        let response_body = event.response_body;
+        match self {
+            Self::Trace => {
+                tracing::trace!(target: "tikeo_server::http::detail", trace_id, method, path, status, latency_ms, response_headers, response_body, "HTTP response detail");
+            }
+            Self::Debug => {
+                tracing::debug!(target: "tikeo_server::http::detail", trace_id, method, path, status, latency_ms, response_headers, response_body, "HTTP response detail");
+            }
+            Self::Info => {
+                tracing::info!(target: "tikeo_server::http::detail", trace_id, method, path, status, latency_ms, response_headers, response_body, "HTTP response detail");
+            }
+            Self::Warn => {
+                tracing::warn!(target: "tikeo_server::http::detail", trace_id, method, path, status, latency_ms, response_headers, response_body, "HTTP response detail");
+            }
+            Self::Error => {
+                tracing::error!(target: "tikeo_server::http::detail", trace_id, method, path, status, latency_ms, response_headers, response_body, "HTTP response detail");
+            }
+        }
+    }
+}
+
+struct HttpResponseDetailEvent<'a> {
+    trace_id: &'a str,
+    method: &'a str,
+    path: &'a str,
+    status: u16,
+    latency_ms: f64,
+    response_headers: &'a str,
+    response_body: &'a str,
 }
 
 fn content_length(headers: &HeaderMap) -> Option<u64> {
@@ -563,6 +681,7 @@ mod tests {
         );
         let _guard = tracing::subscriber::set_default(subscriber);
         let config = HttpLogConfig {
+            level: "DEBUG".to_owned(),
             include_headers: true,
             include_body: true,
             max_body_bytes: 64 * 1024,
@@ -600,6 +719,7 @@ mod tests {
     async fn trace_http_logs_full_request_and_response_details_when_enabled() {
         let (captured, _guard) = capture_logs();
         let config = HttpLogConfig {
+            level: "DEBUG".to_owned(),
             include_headers: true,
             include_body: true,
             max_body_bytes: 64 * 1024,
@@ -656,6 +776,7 @@ mod tests {
     async fn trace_http_skips_streaming_or_binary_body_capture() {
         let (captured, _guard) = capture_logs();
         let config = HttpLogConfig {
+            level: "DEBUG".to_owned(),
             include_headers: true,
             include_body: true,
             max_body_bytes: 64 * 1024,

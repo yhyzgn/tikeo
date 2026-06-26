@@ -598,7 +598,10 @@ impl Default for FileLogSinkConfig {
 /// HTTP access/detail logging behavior.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HttpLogConfig {
-    /// Log complete request/response headers at DEBUG/detail level.
+    /// HTTP request/response detail log level.
+    #[serde(default = "default_log_level")]
+    pub level: String,
+    /// Log complete request/response headers at configured detail level.
     #[serde(default)]
     pub include_headers: bool,
     /// Log request/response bodies at DEBUG/detail level.
@@ -612,6 +615,7 @@ pub struct HttpLogConfig {
 impl Default for HttpLogConfig {
     fn default() -> Self {
         Self {
+            level: default_log_level(),
             include_headers: false,
             include_body: false,
             max_body_bytes: default_http_log_max_body_bytes(),
@@ -916,6 +920,7 @@ pub fn load_config(path: Option<&Path>) -> Result<TikeoConfig, ConfigError> {
         .set_default("transport_security.worker_tunnel.tls_enabled", false)?
         .set_default("transport_security.worker_tunnel.mtls_required", false)?
         .set_default("observability.logging.root.level", default_log_level())?
+        .set_default("observability.logging.http.level", default_log_level())?
         .set_default("observability.logging.http.include_headers", false)?
         .set_default("observability.logging.http.include_body", false)?
         .set_default(
@@ -1203,6 +1208,7 @@ mod tests {
         assert_eq!(config.observability.logging.channels.console.level, "info");
         assert!(!config.observability.logging.channels.file.enabled);
         assert_eq!(config.observability.logging.channels.file.path, "/logs");
+        assert_eq!(config.observability.logging.http.level, "info");
         assert!(!config.observability.logging.http.include_headers);
         assert!(!config.observability.logging.http.include_body);
         assert_eq!(config.observability.logging.http.max_body_bytes, 64 * 1024);
@@ -1234,6 +1240,7 @@ mod tests {
     root:
       level: WARN
     http:
+      level: DEBUG
       include_headers: true
       include_body: true
       max_body_bytes: 4096
@@ -1268,6 +1275,7 @@ mod tests {
             .unwrap_or_else(|error| panic!("temp config should delete: {error}"));
 
         assert_eq!(config.observability.logging.root.level, "WARN");
+        assert_eq!(config.observability.logging.http.level, "DEBUG");
         assert!(config.observability.logging.http.include_headers);
         assert!(config.observability.logging.http.include_body);
         assert_eq!(config.observability.logging.http.max_body_bytes, 4096);
@@ -1333,6 +1341,7 @@ mod tests {
                 .unwrap_or_else(|error| panic!("{name} should load: {error}"));
 
             assert_eq!(config.observability.logging.root.level, "INFO");
+            assert_eq!(config.observability.logging.http.level, "INFO");
             assert!(!config.observability.logging.http.include_headers);
             assert!(!config.observability.logging.http.include_body);
             assert_eq!(config.observability.logging.http.max_body_bytes, 65_536);

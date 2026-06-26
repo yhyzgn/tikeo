@@ -641,8 +641,9 @@ fn build_tracer_provider(tracing: &TracingConfig) -> Result<SdkTracerProvider> {
 
 fn root_filter(logging: &LoggingConfig) -> String {
     let level = normalize_log_level(&logging.root.level);
+    let http_detail_level = normalize_log_level(&logging.http.level);
     format!(
-        "tikeo={level},tikeo_server={level},tikeo_storage={level},tikeo_config={level},tower_http={level},tokio={level},hyper={level},tonic={level}{}",
+        "tikeo={level},tikeo_server={level},tikeo_server::http::detail={http_detail_level},tikeo_storage={level},tikeo_config={level},tower_http={level},tokio={level},hyper={level},tonic={level}{}",
         sql_filter_directives(logging)
     )
 }

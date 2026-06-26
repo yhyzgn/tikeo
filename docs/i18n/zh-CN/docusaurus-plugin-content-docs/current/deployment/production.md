@@ -61,6 +61,7 @@ observability:
     root:
       level: INFO
     http:
+      level: INFO
       include_headers: false
       include_body: false
       max_body_bytes: 65536

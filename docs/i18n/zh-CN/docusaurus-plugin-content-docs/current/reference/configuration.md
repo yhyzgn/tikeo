@@ -79,8 +79,8 @@ storage:
 | `transport_security.http.*` | `TIKEO__TRANSPORT_SECURITY__HTTP__*` | 启用时 | TLS/mTLS 关闭 | HTTP listener TLS/mTLS 与证书路径。 |
 | `transport_security.worker_tunnel.*` | `TIKEO__TRANSPORT_SECURITY__WORKER_TUNNEL__*` | 启用时 | TLS/mTLS 关闭 | Worker Tunnel TLS/mTLS 与证书路径。 |
 | `observability.logging.root.level` | `TIKEO__OBSERVABILITY__LOGGING__ROOT__LEVEL` | 否 | `info` | 未设置 `RUST_LOG` 时的根日志过滤级别。 |
-| `observability.logging.http.*` | `TIKEO__OBSERVABILITY__LOGGING__HTTP__*` | 否 | header/body 关闭，`65536` bytes | HTTP 访问/明细日志策略。INFO 只打印摘要；完整 header/body 还需要开启 `include_headers`/`include_body` 并让 `tikeo_server::http::trace` 达到 DEBUG。 |
-| `observability.logging.sql.*` | `TIKEO__OBSERVABILITY__LOGGING__SQL__*` | 否 | 关闭，`DEBUG`，值关闭，`250ms` | SQL 执行日志策略。常规运行保持关闭；排查存储查询时在 DEBUG 开启。`include_values` 可能暴露敏感数据。 |
+| `observability.logging.http.*` | `TIKEO__OBSERVABILITY__LOGGING__HTTP__*` | 否 | `INFO`，header/body 关闭，`65536` bytes | HTTP 访问/明细日志策略。摘要仍按 INFO/WARN/ERROR 输出；完整 header/body 需要开启 `include_headers`/`include_body`，并按 `http.level` 输出。 |
+| `observability.logging.sql.*` | `TIKEO__OBSERVABILITY__LOGGING__SQL__*` | 否 | 关闭，`DEBUG`，值关闭，`250ms` | SQL 执行日志策略。常规运行保持关闭；排查存储查询时开启。`level` 控制 SQL 事件级别；`include_values` 可能暴露敏感数据。 |
 | `observability.logging.channels.console.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__CONSOLE__*` | 否 | 启用，`info` | console/stdout sink。 |
 | `observability.logging.channels.file.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__FILE__*` 或模板中的 `TIKEO_LOG_PATH` | 否 | 禁用，`info`，`/logs` | 非阻塞 JSON 文件日志 sink，写入 `tikeo.log`。 |
 | `observability.logging.channels.elk.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__ELK__*` | 否 | 禁用，topic `ivs-dev` | 非阻塞批量 JSON-lines 转发到配置的日志采集器。 |

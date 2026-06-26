@@ -679,6 +679,7 @@
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
         assert_eq!(json["code"], 0);
         assert_eq!(json["data"]["logging"]["root_level"], "info");
+        assert_eq!(json["data"]["logging"]["http"]["level"], "info");
         assert_eq!(json["data"]["logging"]["http"]["include_body"], false);
         assert_eq!(json["data"]["logging"]["sql"]["enabled"], false);
         assert_eq!(json["data"]["logging"]["sql"]["level"], "DEBUG");
@@ -697,6 +698,7 @@
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
         let mut observability = tikeo_config::ObservabilityConfig::default();
         observability.logging.root.level = "WARN".to_owned();
+        observability.logging.http.level = "DEBUG".to_owned();
         observability.logging.sql.enabled = true;
         observability.logging.sql.level = "TRACE".to_owned();
         observability.logging.sql.include_values = true;
@@ -736,6 +738,7 @@
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
         assert_eq!(json["code"], 0);
         assert_eq!(json["data"]["logging"]["root_level"], "WARN");
+        assert_eq!(json["data"]["logging"]["http"]["level"], "DEBUG");
         assert_eq!(json["data"]["logging"]["sql"]["enabled"], true);
         assert_eq!(json["data"]["logging"]["sql"]["level"], "TRACE");
         assert_eq!(json["data"]["logging"]["sql"]["include_values"], true);

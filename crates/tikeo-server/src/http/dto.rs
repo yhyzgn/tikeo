@@ -904,9 +904,11 @@ pub struct LogSinkStatus {
 #[derive(Debug, Clone, Serialize, ToSchema)]
 /// `HttpLogStatus` payload.
 pub struct HttpLogStatus {
-    /// Include full request/response headers when DEBUG detail logging is active.
+    /// HTTP request/response detail log level.
+    pub level: String,
+    /// Include full request/response headers when detail logging is active.
     pub include_headers: bool,
-    /// Include request/response bodies when DEBUG detail logging is active.
+    /// Include request/response bodies when detail logging is active.
     pub include_body: bool,
     /// Maximum captured body bytes.
     pub max_body_bytes: usize,

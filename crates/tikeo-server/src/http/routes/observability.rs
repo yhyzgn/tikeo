@@ -39,6 +39,7 @@ pub async fn observability_status(
         logging: LoggingStatus {
             root_level: logging.root.level.clone(),
             http: HttpLogStatus {
+                level: logging.http.level.clone(),
                 include_headers: logging.http.include_headers,
                 include_body: logging.http.include_body,
                 max_body_bytes: logging.http.max_body_bytes,

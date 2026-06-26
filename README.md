@@ -471,6 +471,7 @@ observability:
     root:
       level: INFO
     http:
+      level: INFO
       include_headers: false
       include_body: false
       max_body_bytes: 65536
@@ -1153,8 +1154,8 @@ Server configuration is loaded from defaults, then a config file, then `TIKEO__.
 | `transport_security.http.*` | `TIKEO__TRANSPORT_SECURITY__HTTP__*` | Only when enabled | TLS/mTLS disabled | HTTP listener TLS/mTLS and cert/key/client CA paths. |
 | `transport_security.worker_tunnel.*` | `TIKEO__TRANSPORT_SECURITY__WORKER_TUNNEL__*` | Only when enabled | TLS/mTLS disabled | Worker Tunnel TLS/mTLS and cert/key/client CA paths. |
 | `observability.logging.root.level` | `TIKEO__OBSERVABILITY__LOGGING__ROOT__LEVEL` | No | `info` | Root log filter used when `RUST_LOG` is not set. |
-| `observability.logging.http.*` | `TIKEO__OBSERVABILITY__LOGGING__HTTP__*` | No | headers/body disabled, `65536` bytes | HTTP access/detail policy. INFO logs summary only; full headers/bodies require `include_headers`/`include_body` and DEBUG for `tikeo_server::http::trace`. |
-| `observability.logging.sql.*` | `TIKEO__OBSERVABILITY__LOGGING__SQL__*` | No | disabled, `DEBUG`, values disabled, `250ms` | SQL execution logging policy. Keep disabled for normal operation; enable at DEBUG when diagnosing storage queries. `include_values` may expose sensitive data. |
+| `observability.logging.http.*` | `TIKEO__OBSERVABILITY__LOGGING__HTTP__*` | No | `INFO`, headers/body disabled, `65536` bytes | HTTP access/detail policy. Summaries stay INFO/WARN/ERROR; full headers/bodies require `include_headers`/`include_body` and are emitted at `http.level`. |
+| `observability.logging.sql.*` | `TIKEO__OBSERVABILITY__LOGGING__SQL__*` | No | disabled, `DEBUG`, values disabled, `250ms` | SQL execution logging policy. Keep disabled for normal operation; enable when diagnosing storage queries. `level` controls SQL event level; `include_values` may expose sensitive data. |
 | `observability.logging.channels.console.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__CONSOLE__*` | No | enabled, `info` | Console/stdout sink. |
 | `observability.logging.channels.file.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__FILE__*` or `TIKEO_LOG_PATH` in templates | No | disabled, `info`, `/logs` | Non-blocking JSON file sink writing `tikeo.log`. Mount `/logs` if enabled in containers. |
 | `observability.logging.channels.elk.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__ELK__*` | No | disabled, topic `ivs-dev` | Non-blocking batched JSON-lines forwarding to configured log collectors. |
