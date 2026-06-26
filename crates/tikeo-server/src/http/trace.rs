@@ -8,7 +8,7 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use tracing::{Instrument, debug, error, info, warn};
+use tracing::{Instrument, error, info, warn};
 use uuid::Uuid;
 
 const TRACE_ID_HEADER: &str = "x-trace-id";
@@ -47,7 +47,7 @@ pub async fn trace_http(mut request: Request<Body>, next: Next) -> Response {
             method = %method,
             path = %path
         );
-        debug!(
+        info!(
             trace_id = %trace_id,
             method = %method,
             path = %path,

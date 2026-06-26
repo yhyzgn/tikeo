@@ -127,7 +127,7 @@ pub async fn connect_and_migrate(connection_url: &str) -> Result<DatabaseConnect
         .min_connections(1)
         .connect_timeout(Duration::from_secs(8))
         .sqlx_logging(sqlx_logging)
-        .sqlx_logging_level(log::LevelFilter::Debug)
+        .sqlx_logging_level(log::LevelFilter::Info)
         .sqlx_slow_statements_logging_settings(log::LevelFilter::Warn, Duration::from_millis(250))
         .idle_timeout(Duration::from_mins(1));
     configure_sqlite_connect_options(connection_url, &mut options);
