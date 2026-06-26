@@ -25,7 +25,6 @@ Prefer the mounted config file for normal deployment. Use environment overrides 
 | `/config/tikeo.yml` | Dockerfile, Compose, Kubernetes, Helm | Server config selected by `serve --config /config/tikeo.yml`. | Mount read-only from host path, ConfigMap, or Secret. |
 | `/config/tls` | TLS/mTLS config | Certificate, private key, and CA files referenced by `transport_security.*`. | Mount read-only. Never bake private keys into images. |
 | `/data/tikeo.db` | SQLite mode | SQLite database file from `storage.database.path=/data/tikeo.db`. | Persist `/data` when SQLite data must survive restarts. |
-| `/logs/tikeo.log` and `/logs/tikeo-error.log` | Optional file logging | File sinks create JSON logs when enabled and pointed at `/logs`. | Optional; stdout logging is always emitted. |
 | `/etc/tikeo/tikeo.yml` | systemd/bare metal | Conventional host config file. | Own by root/deployment automation; readable by the process. |
 | `/var/lib/tikeo` | systemd/bare metal | Durable local state, usually SQLite on a VM. | Own by the `tikeo` user; include in backups if SQLite is used. |
 | `/var/log/tikeo` | systemd/bare metal | Host file logs. | Create before startup and rotate with host policy. |
@@ -102,7 +101,6 @@ The following is the Complete default-value table for Server settings: config ke
 | `observability.logging.sql.*` | `TIKEO__OBSERVABILITY__LOGGING__SQL__*` | No | disabled, `DEBUG`, values disabled, `250ms` | SQL execution logging policy. Keep disabled for normal operation; enable at DEBUG when diagnosing storage queries. `include_values` may expose sensitive data. |
 | `observability.logging.channels.console.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__CONSOLE__*` | No | enabled, `info` | Console/stdout sink. |
 | `observability.logging.channels.file.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__FILE__*` or `TIKEO_LOG_PATH` in templates | No | disabled, `info`, `/logs` | Non-blocking JSON file sink writing `tikeo.log`. |
-| `observability.logging.channels.error-file.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__ERROR_FILE__*` or `TIKEO_LOG_PATH` in templates | No | disabled, `error`, `/logs` | Non-blocking JSON error-file sink writing `tikeo-error.log`. |
 | `observability.logging.channels.elk.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__ELK__*` | No | disabled, topic `ivs-dev` | Non-blocking batched JSON-lines forwarding to configured log collectors. |
 | `observability.tracing.enabled` | `TIKEO__OBSERVABILITY__TRACING__ENABLED` | No | `false` | Enable OTLP trace export. |
 | `observability.tracing.otlp_endpoint` | `TIKEO__OBSERVABILITY__TRACING__OTLP_ENDPOINT` | If tracing enabled | unset | OTLP collector endpoint. |

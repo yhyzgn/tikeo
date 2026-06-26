@@ -86,12 +86,8 @@ observability:
         enabled: true
         level: INFO
       file:
-        enabled: true
+        enabled: false
         level: INFO
-        path: "${TIKEO_LOG_PATH:/logs}"
-      error-file:
-        enabled: true
-        level: ERROR
         path: "${TIKEO_LOG_PATH:/logs}"
       elk:
         enabled: ${ELK_ENABLED:false}

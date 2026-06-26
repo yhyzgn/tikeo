@@ -456,12 +456,8 @@ observability:
         enabled: true
         level: INFO
       file:
-        enabled: true
+        enabled: false
         level: INFO
-        path: ./logs
-      error-file:
-        enabled: true
-        level: ERROR
         path: ./logs
       elk:
         enabled: false
@@ -910,7 +906,6 @@ Server 配置加载顺序是默认值、配置文件、`TIKEO__...` 环境变量
 | `observability.logging.sql.*` | `TIKEO__OBSERVABILITY__LOGGING__SQL__*` | 否 | 关闭，`DEBUG`，值关闭，`250ms` | SQL 执行日志策略。常规运行保持关闭；排查存储查询时在 DEBUG 开启。`include_values` 可能暴露敏感数据。 |
 | `observability.logging.channels.console.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__CONSOLE__*` | 否 | 启用，`info` | console/stdout sink。 |
 | `observability.logging.channels.file.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__FILE__*` 或模板中的 `TIKEO_LOG_PATH` | 否 | 禁用，`info`，`/logs` | 非阻塞 JSON 文件日志 sink，写入 `tikeo.log`；容器中启用时挂载 `/logs`。 |
-| `observability.logging.channels.error-file.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__ERROR_FILE__*` 或模板中的 `TIKEO_LOG_PATH` | 否 | 禁用，`error`，`/logs` | 非阻塞 JSON 错误日志 sink，写入 `tikeo-error.log`。 |
 | `observability.logging.channels.elk.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__ELK__*` | 否 | 禁用，topic `ivs-dev` | 非阻塞批量 JSON-lines 转发到配置的日志采集器。 |
 | `observability.tracing.enabled` | `TIKEO__OBSERVABILITY__TRACING__ENABLED` | 否 | `false` | 启用 OTLP trace 导出。 |
 | `observability.tracing.otlp_endpoint` | `TIKEO__OBSERVABILITY__TRACING__OTLP_ENDPOINT` | tracing 启用时 | 未设置 | OTLP collector endpoint。 |
@@ -966,7 +961,6 @@ docker run -d --name tikeo-server \
 
 仓库内置 Docker Compose 文件已经显式挂载 `./config/tikeo.yml:/config/tikeo.yml:ro`、`./config/tls:/config/tls:ro`、`tikeo-data:/data`、`tikeo-logs:/logs`。PostgreSQL/MySQL stack 的数据库持久化仍在数据库服务 volume 中；Server 同样挂载 `/data` 以保持运行时目录一致。使用内置数据库容器时，先改 `.env` 中数据库容器凭据，再把 `config/tikeo.yml` 的 `storage.database` 切换到 `postgres` 或 `mysql` 并填入相同的 host/user/password/database。
 
-Kubernetes 和 Helm 中，Server 配置从 ConfigMap/Secret 挂到 `/config/tikeo.yml`，SQLite 模式挂 PVC 到 `/data`；外部数据库模式从 Secret 注入结构化数据库字段。集群日志优先走 stdout；如果启用 `observability.logging.channels.file.enabled` 或 `observability.logging.channels.error-file.enabled`，必须额外挂载 volume/PVC。
 
 ### 实时控制台流与代理配置
 

@@ -74,12 +74,8 @@ observability:
         enabled: true
         level: INFO
       file:
-        enabled: true
+        enabled: false
         level: INFO
-        path: /logs
-      error-file:
-        enabled: true
-        level: ERROR
         path: /logs
 ```
 

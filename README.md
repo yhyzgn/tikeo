@@ -484,12 +484,8 @@ observability:
         enabled: true
         level: INFO
       file:
-        enabled: true
+        enabled: false
         level: INFO
-        path: ./logs
-      error-file:
-        enabled: true
-        level: ERROR
         path: ./logs
       elk:
         enabled: false
@@ -1161,7 +1157,6 @@ Server configuration is loaded from defaults, then a config file, then `TIKEO__.
 | `observability.logging.sql.*` | `TIKEO__OBSERVABILITY__LOGGING__SQL__*` | No | disabled, `DEBUG`, values disabled, `250ms` | SQL execution logging policy. Keep disabled for normal operation; enable at DEBUG when diagnosing storage queries. `include_values` may expose sensitive data. |
 | `observability.logging.channels.console.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__CONSOLE__*` | No | enabled, `info` | Console/stdout sink. |
 | `observability.logging.channels.file.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__FILE__*` or `TIKEO_LOG_PATH` in templates | No | disabled, `info`, `/logs` | Non-blocking JSON file sink writing `tikeo.log`. Mount `/logs` if enabled in containers. |
-| `observability.logging.channels.error-file.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__ERROR_FILE__*` or `TIKEO_LOG_PATH` in templates | No | disabled, `error`, `/logs` | Non-blocking JSON error-file sink writing `tikeo-error.log`. |
 | `observability.logging.channels.elk.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__ELK__*` | No | disabled, topic `ivs-dev` | Non-blocking batched JSON-lines forwarding to configured log collectors. |
 | `observability.tracing.enabled` | `TIKEO__OBSERVABILITY__TRACING__ENABLED` | No | `false` | Enable OTLP trace export. |
 | `observability.tracing.otlp_endpoint` | `TIKEO__OBSERVABILITY__TRACING__OTLP_ENDPOINT` | If tracing enabled | unset | OTLP collector endpoint. |
@@ -1190,7 +1185,6 @@ notification secrets into images; mount and edit the appropriate config file ins
 | SQLite data/db | `/data/tikeo.db` from `sqlite:///data/tikeo.db?mode=rwc` | `/var/lib/tikeo/tikeo.db` or another local path | Persistent volume/PVC/bind mount for the whole `/data` or data directory. | Required only when using SQLite and data must survive restart/recreate. |
 | PostgreSQL data | Not stored in the Server container | Managed DB or database host volume | Persist the PostgreSQL service's `/var/lib/postgresql/data`, or use a managed database backup/snapshot. | Required when PostgreSQL is self-hosted. |
 | MySQL data | Not stored in the Server container | Managed DB or database host volume | Persist the MySQL service's `/var/lib/mysql`, or use a managed database backup/snapshot. | Required when MySQL is self-hosted. |
-| File logs | `/logs/tikeo.log` and `/logs/tikeo-error.log` when file sinks are enabled and target `/logs` | `/var/log/tikeo/tikeo.log` | Optional log volume. Console/stdout logging is always emitted and is the default container logging path. | Optional; enable when you need file retention beyond stdout collection. |
 | TLS certificates | `/config/tls`, `/etc/tikeo/tls`, or Helm TLS secret mount paths | `/etc/tikeo/tls` | Read-only cert/key/CA mounts referenced by `transport_security.*.*_path`. | Required only when process-level TLS/mTLS is enabled. |
 | Web and Docs images | none | none | Static nginx bundles; normally no persistent data. Mount custom nginx config only if you intentionally override the image behavior. | Not required. |
 
@@ -1235,7 +1229,6 @@ for PostgreSQL or `tikeo-mysql-data:/var/lib/mysql` for MySQL, and configure Ser
 For Kubernetes and Helm, Tikeo mounts the Server ConfigMap at `/config` and runs
 `serve --config /config/tikeo.yml`. SQLite mode mounts a PVC at `/data`; external database mode
 injects the database URL from a Secret and does not need a SQLite data PVC. Prefer stdout
-logs for cluster log collection; if you enable `observability.logging.channels.file.enabled` or `observability.logging.channels.error-file.enabled`, add an explicit volume
 or PVC for the configured path.
 
 ### Realtime console streams and proxies
@@ -1352,7 +1345,7 @@ Production environments should prefer PostgreSQL or MySQL and durable log direct
 cargo build --release --bin tikeo
 install -d ./var/lib/tikeo ./logs
 cp config/tikeo.yml ./tikeo.yml
-# Edit ./tikeo.yml, for example enable observability.logging.channels.file/error-file and set paths to "./logs".
+# Edit ./tikeo.yml, for example enable observability.logging.channels.file and set path to "./logs".
 ./target/release/tikeo serve --config ./tikeo.yml
 curl -fsS http://127.0.0.1:9090/readyz
 ```

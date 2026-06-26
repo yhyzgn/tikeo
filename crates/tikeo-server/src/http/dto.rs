@@ -886,8 +886,6 @@ pub struct LoggingStatus {
     pub console: LogSinkStatus,
     /// Main file sink status.
     pub file: LogSinkStatus,
-    /// Error file sink status.
-    pub error_file: LogSinkStatus,
     /// ELK/log collector sink status.
     pub elk: LogSinkStatus,
 }

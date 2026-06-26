@@ -516,21 +516,13 @@ pub struct LoggingConfig {
     /// Deprecated top-level main file sink accepted for backward compatibility.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub file: Option<FileLogSinkConfig>,
-    /// Deprecated top-level error-only file sink accepted for backward compatibility.
-    #[serde(
-        default,
-        rename = "error-file",
-        alias = "error_file",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub error_file: Option<FileLogSinkConfig>,
     /// Deprecated top-level ELK/log collector sink accepted for backward compatibility.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub elk: Option<ElkLogConfig>,
 }
 
 /// Log output channel sink configuration.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LogChannelsConfig {
     /// Console/stdout sink.
     #[serde(default)]
@@ -538,27 +530,9 @@ pub struct LogChannelsConfig {
     /// Main file sink.
     #[serde(default)]
     pub file: FileLogSinkConfig,
-    /// Error-only file sink.
-    #[serde(default, rename = "error-file", alias = "error_file")]
-    pub error_file: FileLogSinkConfig,
     /// ELK/log collector sink.
     #[serde(default)]
     pub elk: ElkLogConfig,
-}
-
-impl Default for LogChannelsConfig {
-    fn default() -> Self {
-        Self {
-            console: LogSinkConfig::default(),
-            file: FileLogSinkConfig::default(),
-            error_file: FileLogSinkConfig {
-                enabled: false,
-                level: "error".to_owned(),
-                path: default_app_log_path(),
-            },
-            elk: ElkLogConfig::default(),
-        }
-    }
 }
 
 /// Single log level block.
@@ -969,12 +943,6 @@ pub fn load_config(path: Option<&Path>) -> Result<TikeoConfig, ConfigError> {
             "observability.logging.channels.file.path",
             default_app_log_path(),
         )?
-        .set_default("observability.logging.channels.error-file.enabled", false)?
-        .set_default("observability.logging.channels.error-file.level", "error")?
-        .set_default(
-            "observability.logging.channels.error-file.path",
-            default_app_log_path(),
-        )?
         .set_default("observability.logging.channels.elk.enabled", false)?
         .set_default(
             "observability.logging.channels.elk.servers",
@@ -1039,9 +1007,6 @@ fn apply_legacy_logging_compat(logging: &mut LoggingConfig) {
     }
     if let Some(file) = logging.file.take() {
         logging.channels.file = file;
-    }
-    if let Some(error_file) = logging.error_file.take() {
-        logging.channels.error_file = error_file;
     }
     if let Some(elk) = logging.elk.take() {
         logging.channels.elk = elk;
@@ -1238,15 +1203,6 @@ mod tests {
         assert_eq!(config.observability.logging.channels.console.level, "info");
         assert!(!config.observability.logging.channels.file.enabled);
         assert_eq!(config.observability.logging.channels.file.path, "/logs");
-        assert!(!config.observability.logging.channels.error_file.enabled);
-        assert_eq!(
-            config.observability.logging.channels.error_file.level,
-            "error"
-        );
-        assert_eq!(
-            config.observability.logging.channels.error_file.path,
-            "/logs"
-        );
         assert!(!config.observability.logging.http.include_headers);
         assert!(!config.observability.logging.http.include_body);
         assert_eq!(config.observability.logging.http.max_body_bytes, 64 * 1024);
@@ -1294,10 +1250,6 @@ mod tests {
         enabled: true
         level: INFO
         path: "${TIKEO_LOG_PATH:./var/tikeo/logs}"
-      error-file:
-        enabled: true
-        level: ERROR
-        path: "${TIKEO_LOG_PATH:./var/tikeo/logs}"
       elk:
         enabled: ${ELK_ENABLED:false}
         servers: "${ELK_SERVERS:203.83.233.63:8094,36.111.150.189:8094,106.63.7.44:8094}"
@@ -1328,11 +1280,6 @@ mod tests {
         assert!(config.observability.logging.channels.file.enabled);
         assert_eq!(
             config.observability.logging.channels.file.path,
-            "./var/tikeo/logs"
-        );
-        assert!(config.observability.logging.channels.error_file.enabled);
-        assert_eq!(
-            config.observability.logging.channels.error_file.path,
             "./var/tikeo/logs"
         );
         assert!(!config.observability.logging.channels.elk.enabled);
@@ -1394,8 +1341,7 @@ mod tests {
             assert!(!config.observability.logging.sql.include_values);
             assert_eq!(config.observability.logging.sql.slow_threshold_ms, 250);
             assert!(config.observability.logging.channels.console.enabled);
-            assert!(config.observability.logging.channels.file.enabled);
-            assert!(config.observability.logging.channels.error_file.enabled);
+            assert!(!config.observability.logging.channels.file.enabled);
             assert!(!config.observability.logging.channels.elk.enabled);
             let expected_log_path = if name == "dev.yml" {
                 ".dev/logs"
@@ -1404,10 +1350,6 @@ mod tests {
             };
             assert_eq!(
                 config.observability.logging.channels.file.path,
-                expected_log_path
-            );
-            assert_eq!(
-                config.observability.logging.channels.error_file.path,
                 expected_log_path
             );
         }

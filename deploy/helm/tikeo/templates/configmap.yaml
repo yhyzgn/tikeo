@@ -95,10 +95,6 @@ data:
             enabled: false
             level: INFO
             path: /logs
-          error-file:
-            enabled: false
-            level: ERROR
-            path: /logs
           elk:
             enabled: false
             servers: "203.83.233.63:8094,36.111.150.189:8094,106.63.7.44:8094"

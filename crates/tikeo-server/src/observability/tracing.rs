@@ -106,21 +106,6 @@ impl TracingRuntime {
             );
         }
 
-        if logging.channels.error_file.enabled {
-            let (writer, guard) =
-                file_logging_writer(&logging.channels.error_file, "tikeo-error.log")?;
-            file_log_guards.push(guard);
-            layers.push(
-                tracing_subscriber::fmt::layer()
-                    .event_format(DirectJsonFormatter)
-                    .fmt_fields(tracing_subscriber::fmt::format::DefaultFields::new())
-                    .with_ansi(false)
-                    .with_writer(writer)
-                    .with_filter(level_filter(&logging.channels.error_file.level))
-                    .boxed(),
-            );
-        }
-
         let elk_guard = if logging.channels.elk.enabled {
             let forwarder = ElkForwarder::start(&logging.channels.elk);
             layers.push(
@@ -153,19 +138,16 @@ impl TracingRuntime {
             root_filter = %root_filter(logging),
             console_level = %normalize_log_level(&logging.channels.console.level),
             file_level = %normalize_log_level(&logging.channels.file.level),
-            error_file_level = %normalize_log_level(&logging.channels.error_file.level),
             elk_level = %normalize_log_level(&logging.channels.elk.level),
             "tikeo logging filters configured"
         );
         trace!(
             file_raw_path = %logging.channels.file.path,
-            error_file_raw_path = %logging.channels.error_file.path,
             elk_servers = %logging.channels.elk.servers,
             "tikeo logging sink raw configuration loaded"
         );
         if !logging.channels.console.enabled
             && !logging.channels.file.enabled
-            && !logging.channels.error_file.enabled
             && !logging.channels.elk.enabled
         {
             warn!(
@@ -180,9 +162,6 @@ impl TracingRuntime {
             file_enabled = logging.channels.file.enabled,
             file_level = %normalize_log_level(&logging.channels.file.level),
             file_path = %logging.channels.file.path,
-            error_file_enabled = logging.channels.error_file.enabled,
-            error_file_level = %normalize_log_level(&logging.channels.error_file.level),
-            error_file_path = %logging.channels.error_file.path,
             elk_enabled = logging.channels.elk.enabled,
             elk_topic = %logging.channels.elk.topic,
             otlp_endpoint_configured = provider.is_some(),

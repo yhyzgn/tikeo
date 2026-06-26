@@ -62,7 +62,7 @@ journalctl -u tikeo -n 80 --no-pager
 | `server.listen_addr` | `0.0.0.0:9090` | 放在代理或防火墙后；直连暴露时启用 HTTP TLS。 |
 | `server.worker_tunnel_addr` | `0.0.0.0:9998` | 只发布 Server tunnel endpoint；Worker 仍主动出站连接。 |
 | `storage.database.*` | SQLite | 共享环境用 PostgreSQL/MySQL/CockroachDB。 |
-| `observability.logging.root.level` | `info` | 保持 `info`，VM 部署启用 `file`/`error-file`。 |
+| `observability.logging.root.level` | `info` | 保持 `info`，VM 部署启用 `file`。 |
 | `transport_security.worker_tunnel` | 开发态关闭 | 跨信任边界前启用 TLS/mTLS。 |
 
 ## 回滚

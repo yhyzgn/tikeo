@@ -687,7 +687,6 @@
         assert_eq!(json["data"]["logging"]["console"]["enabled"], true);
         assert_eq!(json["data"]["logging"]["console"]["target"], "stdout");
         assert_eq!(json["data"]["logging"]["file"]["enabled"], false);
-        assert_eq!(json["data"]["logging"]["error_file"]["enabled"], false);
         assert_eq!(json["data"]["logging"]["elk"]["enabled"], false);
         assert_eq!(json["data"]["tracing"]["enabled"], false);
         assert_eq!(json["data"]["tracing"]["exporter"], "none");

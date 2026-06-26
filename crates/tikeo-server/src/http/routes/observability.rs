@@ -59,11 +59,6 @@ pub async fn observability_status(
                 level: logging.channels.file.level.clone(),
                 target: Some(logging.channels.file.path.clone()),
             },
-            error_file: LogSinkStatus {
-                enabled: logging.channels.error_file.enabled,
-                level: logging.channels.error_file.level.clone(),
-                target: Some(logging.channels.error_file.path.clone()),
-            },
             elk: LogSinkStatus {
                 enabled: logging.channels.elk.enabled,
                 level: logging.channels.elk.level.clone(),

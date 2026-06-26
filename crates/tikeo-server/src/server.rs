@@ -48,7 +48,6 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
         database_type = %config.storage.database.kind,
         log_console_enabled = observability.logging.channels.console.enabled,
         log_file_enabled = observability.logging.channels.file.enabled,
-        log_error_file_enabled = observability.logging.channels.error_file.enabled,
         log_elk_enabled = observability.logging.channels.elk.enabled,
         sql_logging_enabled = observability.logging.sql.enabled,
         sql_log_level = %observability.logging.sql.level,
