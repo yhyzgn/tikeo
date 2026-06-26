@@ -70,26 +70,49 @@ auth:
 
 observability:
   logging:
+    # Root filter is the default application log level when RUST_LOG is not set.
+    # It applies to Tikeo application targets; sink-specific levels below can be stricter.
     root:
       level: INFO
+
+    # HTTP access/detail logging policy.
+    # - Summary logs are always emitted by outcome: INFO for success, WARN for 4xx, ERROR for 5xx.
+    # - level controls only detailed HTTP exchange logs under target tikeo_server::http::detail.
+    # - Full headers/bodies are disabled by default to avoid sensitive data exposure and body buffering cost.
+    # - Bodies are still skipped for streaming, binary, multipart, gRPC, and SSE/event-stream responses.
+    # - max_body_bytes caps captured request/response body bytes when include_body is true.
     http:
       level: INFO
       include_headers: false
       include_body: false
       max_body_bytes: 65536
+
+    # SQL execution logging policy.
+    # - Disabled by default because high-volume SQL logs can be expensive and noisy.
+    # - level controls SQL driver/ORM event level when enabled.
+    # - include_values may expose bound parameters and business data; enable only for short debugging windows.
+    # - slow_threshold_ms controls WARN slow-statement reporting threshold.
     sql:
       enabled: false
       level: DEBUG
       include_values: false
       slow_threshold_ms: 250
+
+    # Output channels. Disabled channels are not constructed: no writer, formatter, or remote forwarder is loaded.
     channels:
+      # Console/stdout sink. Use this as the default container/Kubernetes logging path.
       console:
         enabled: true
         level: INFO
+
+      # JSON file sink writing tikeo.log under path. Disabled by default; enable only when a durable log volume exists.
       file:
         enabled: false
         level: INFO
         path: "${TIKEO_LOG_PATH:/logs}"
+
+      # Remote ELK/log-collector sink. Disabled by default; when enabled it uses non-blocking forwarding.
+      # servers is a comma-separated host:port list; sasl fields are optional collector metadata.
       elk:
         enabled: ${ELK_ENABLED:false}
         servers: "${ELK_SERVERS:elk-server:8094}"
