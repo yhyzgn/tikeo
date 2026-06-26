@@ -74,6 +74,7 @@ impl ManagementClient {
             schedule_expr: request.schedule_expr.as_deref(),
             processor_name: request.processor_name.as_deref(),
             processor_type: request.processor_type.as_deref(),
+            worker_pool: request.worker_pool.as_deref(),
             script_id: request.script_id.as_deref(),
             enabled: request.enabled,
             retry_policy: request.retry_policy.as_ref(),
@@ -187,6 +188,8 @@ pub struct JobDefinition {
     pub processor_name: Option<String>,
     /// Optional structured plugin processor type.
     pub processor_type: Option<String>,
+    /// Optional worker pool binding.
+    pub worker_pool: Option<String>,
     /// Optional script binding.
     pub script_id: Option<String>,
     /// Whether this job is enabled.
@@ -228,6 +231,8 @@ pub struct CreateJobRequest {
     pub processor_name: Option<String>,
     /// Optional structured plugin processor type.
     pub processor_type: Option<String>,
+    /// Optional worker pool binding.
+    pub worker_pool: Option<String>,
     /// Optional script binding.
     pub script_id: Option<String>,
     /// Optional enabled flag.
@@ -308,6 +313,7 @@ impl CreateJobRequest {
             schedule_expr: None,
             processor_name: Some(processor_name.into()),
             processor_type: None,
+            worker_pool: None,
             script_id: None,
             enabled: Some(true),
             retry_policy: Some(JobRetryPolicy::default()),
@@ -328,6 +334,7 @@ impl CreateJobRequest {
             schedule_expr: None,
             processor_name: Some(processor_name.into()),
             processor_type: Some(processor_type.into()),
+            worker_pool: None,
             script_id: None,
             enabled: Some(true),
             retry_policy: Some(JobRetryPolicy::default()),
@@ -344,10 +351,21 @@ impl CreateJobRequest {
             schedule_expr: None,
             processor_name: None,
             processor_type: None,
+            worker_pool: None,
             script_id: Some(script_id.into()),
             enabled: Some(true),
             retry_policy: Some(JobRetryPolicy::default()),
         }
+    }
+
+    /// Return this request bound to one worker pool.
+    #[must_use]
+    pub fn with_worker_pool(mut self, worker_pool: impl Into<String>) -> Self {
+        let worker_pool = worker_pool.into();
+        if !worker_pool.trim().is_empty() {
+            self.worker_pool = Some(worker_pool);
+        }
+        self
     }
 }
 
@@ -378,6 +396,8 @@ struct ScopedCreateJobRequest<'a> {
     processor_name: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     processor_type: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    worker_pool: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     script_id: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]

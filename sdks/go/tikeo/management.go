@@ -80,6 +80,7 @@ type CreateJobRequest struct {
 	ScheduleExpr  *string
 	ProcessorName *string
 	ProcessorType *string
+	WorkerPool    *string
 	ScriptID      *string
 	Enabled       *bool
 	RetryPolicy   *JobRetryPolicy
@@ -133,6 +134,13 @@ func ScriptAPIJob(name, scriptID string) CreateJobRequest {
 	}
 }
 
+func (r CreateJobRequest) WithWorkerPool(workerPool string) CreateJobRequest {
+	if strings.TrimSpace(workerPool) != "" {
+		r.WorkerPool = stringPtr(workerPool)
+	}
+	return r
+}
+
 func (c *ManagementClient) ListJobs(ctx context.Context) ([]JobDefinition, error) {
 	var page struct {
 		Items []JobDefinition `json:"items"`
@@ -158,6 +166,7 @@ func (c *ManagementClient) CreateJob(ctx context.Context, request CreateJobReque
 		ScheduleExpr  *string         `json:"scheduleExpr,omitempty"`
 		ProcessorName *string         `json:"processorName,omitempty"`
 		ProcessorType *string         `json:"processorType,omitempty"`
+		WorkerPool    *string         `json:"workerPool,omitempty"`
 		ScriptID      *string         `json:"scriptId,omitempty"`
 		Enabled       *bool           `json:"enabled,omitempty"`
 		RetryPolicy   *JobRetryPolicy `json:"retryPolicy,omitempty"`
@@ -169,6 +178,7 @@ func (c *ManagementClient) CreateJob(ctx context.Context, request CreateJobReque
 		ScheduleExpr:  request.ScheduleExpr,
 		ProcessorName: request.ProcessorName,
 		ProcessorType: request.ProcessorType,
+		WorkerPool:    request.WorkerPool,
 		ScriptID:      request.ScriptID,
 		Enabled:       request.Enabled,
 		RetryPolicy:   request.RetryPolicy,

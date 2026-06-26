@@ -21,6 +21,7 @@ export interface JobDefinition {
   scheduleExpr?: string | null;
   processorName?: string | null;
   processorType?: string | null;
+  workerPool?: string | null;
   scriptId?: string | null;
   enabled: boolean;
   retryPolicy?: JobRetryPolicy | null;
@@ -42,6 +43,7 @@ export interface CreateJobRequest {
   scheduleExpr?: string | null;
   processorName?: string | null;
   processorType?: string | null;
+  workerPool?: string | null;
   scriptId?: string | null;
   enabled?: boolean;
   retryPolicy?: JobRetryPolicy | null;
@@ -68,16 +70,16 @@ export function broadcastApiTrigger(selector?: BroadcastSelectorRequest): Trigge
   return { triggerType: "api", executionMode: "broadcast", broadcastSelector: selector };
 }
 
-export function apiJob(name: string, processorName: string): CreateJobRequest {
-  return { name, scheduleType: "api", processorName, enabled: true, retryPolicy: defaultJobRetryPolicy() };
+export function apiJob(name: string, processorName: string, workerPool?: string): CreateJobRequest {
+  return { name, scheduleType: "api", processorName, workerPool, enabled: true, retryPolicy: defaultJobRetryPolicy() };
 }
 
-export function pluginApiJob(name: string, processorType: string, processorName: string): CreateJobRequest {
-  return { name, scheduleType: "api", processorType, processorName, enabled: true, retryPolicy: defaultJobRetryPolicy() };
+export function pluginApiJob(name: string, processorType: string, processorName: string, workerPool?: string): CreateJobRequest {
+  return { name, scheduleType: "api", processorType, processorName, workerPool, enabled: true, retryPolicy: defaultJobRetryPolicy() };
 }
 
-export function scriptApiJob(name: string, scriptId: string): CreateJobRequest {
-  return { name, scheduleType: "api", scriptId, enabled: true, retryPolicy: defaultJobRetryPolicy() };
+export function scriptApiJob(name: string, scriptId: string, workerPool?: string): CreateJobRequest {
+  return { name, scheduleType: "api", scriptId, workerPool, enabled: true, retryPolicy: defaultJobRetryPolicy() };
 }
 
 export class ManagementClient {
@@ -103,6 +105,7 @@ export class ManagementClient {
       scheduleExpr: request.scheduleExpr,
       processorName: request.processorName,
       processorType: request.processorType,
+      workerPool: request.workerPool,
       scriptId: request.scriptId,
       enabled: request.enabled,
       retryPolicy: request.retryPolicy,

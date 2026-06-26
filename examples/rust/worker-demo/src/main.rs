@@ -207,9 +207,12 @@ async fn create_management_examples(config: &WorkerConfig) -> Result<(), WorkerS
         config.namespace.clone(),
         config.app.clone(),
     );
+    let worker_pool = config.labels.get("worker_pool").cloned().unwrap_or_default();
     for job in [
-        ManagementCreateJobRequest::api("rust-echo-api", "demo.echo"),
-        ManagementCreateJobRequest::plugin_api("rust-sql-sync-api", "sql", "billing.sql-sync"),
+        ManagementCreateJobRequest::api("rust-echo-api", "demo.echo")
+            .with_worker_pool(worker_pool.clone()),
+        ManagementCreateJobRequest::plugin_api("rust-sql-sync-api", "sql", "billing.sql-sync")
+            .with_worker_pool(worker_pool.clone()),
     ] {
         match management.create_job(job).await {
             Ok(created) => {

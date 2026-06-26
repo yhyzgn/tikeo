@@ -314,6 +314,7 @@ const endpoint = process.env.TIKEO_HTTP_URL ?? "";
 const apiKey = process.env.TIKEO_API_KEY ?? "";
 const namespace = process.env.TIKEO_NAMESPACE ?? "default";
 const app = process.env.TIKEO_APP ?? "default";
+const workerPool = process.env.TIKEO_WORKER_POOL ?? "";
 const runId = process.env.TIKEO_RUN_ID ?? "management-trigger-e2e";
 
 if (!endpoint || !apiKey) {
@@ -324,6 +325,7 @@ const client = new ManagementClient(endpoint, apiKey, namespace, app);
 const job = await client.createJob(apiJob(
   `${runId}-nodejs-echo-api`,
   "demo.echo",
+  workerPool,
 ));
 const instance = await client.triggerJob(job.id, apiTrigger());
 console.log(JSON.stringify({ job, instance }, null, 2));
@@ -344,16 +346,18 @@ create_and_trigger_with_sdk() {
   TIKEO_API_KEY="$api_key" \
   TIKEO_NAMESPACE="$NAMESPACE" \
   TIKEO_APP="$APP" \
+  TIKEO_WORKER_POOL="$WORKER_POOL" \
   TIKEO_RUN_ID="$RUN_ID" \
     bun "$CLIENT_SCRIPT" > "$output"
-  python3 - "$output" "$NAMESPACE" "$APP" <<'PY'
+  python3 - "$output" "$NAMESPACE" "$APP" "$WORKER_POOL" <<'PY'
 import json, sys
-path, namespace, app = sys.argv[1:4]
+path, namespace, app, worker_pool = sys.argv[1:5]
 payload = json.load(open(path, encoding="utf-8"))
 job = payload["job"]
 instance = payload["instance"]
 assert job["namespace"] == namespace, job
 assert job["app"] == app, job
+assert job["workerPool"] == worker_pool, job
 assert job["name"].endswith("-nodejs-echo-api"), job
 assert job["processorName"] == "demo.echo", job
 assert instance["jobId"] == job["id"], instance

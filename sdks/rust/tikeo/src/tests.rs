@@ -131,6 +131,7 @@ async fn management_client_creates_and_triggers_api_job() {
             } else {
                 assert!(request.contains("POST /api/v1/jobs "));
                 assert!(request.contains(r#""processorType":"sql""#));
+                assert!(request.contains(r#""workerPool":"rust-blue""#));
                 (
                     r#"{"code":0,"message":"ok","data":{"id":"job-1","namespace":"dev-alpha","app":"orders","name":"rust-sql","scheduleType":"api","processorName":"billing.sql-sync","processorType":"sql","enabled":true,"retryPolicy":{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}}}"#,
                     "200 OK",
@@ -149,11 +150,10 @@ async fn management_client_creates_and_triggers_api_job() {
 
     let client = ManagementClient::new(format!("http://{address}"), "key-1", "dev-alpha", "orders");
     let job = client
-        .create_job(ManagementCreateJobRequest::plugin_api(
-            "rust-sql",
-            "sql",
-            "billing.sql-sync",
-        ))
+        .create_job(
+            ManagementCreateJobRequest::plugin_api("rust-sql", "sql", "billing.sql-sync")
+                .with_worker_pool("rust-blue"),
+        )
         .await
         .unwrap_or_else(|error| panic!("create management job: {error}"));
     let instance = client

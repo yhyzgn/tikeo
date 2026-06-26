@@ -376,10 +376,10 @@ func TestManagementClientCreatesStructuredPluginAndScriptJobs(t *testing.T) {
 	defer server.Close()
 
 	client := NewManagementClient(server.URL, "key-1", "dev-alpha", "orders")
-	if _, err := client.CreateJob(context.Background(), PluginAPIJob("go-sql", "sql", "billing.sql-sync")); err != nil {
+	if _, err := client.CreateJob(context.Background(), PluginAPIJob("go-sql", "sql", "billing.sql-sync").WithWorkerPool("go-blue")); err != nil {
 		t.Fatalf("CreateJob(plugin) error = %v", err)
 	}
-	if _, err := client.CreateJob(context.Background(), ScriptAPIJob("go-script", "script_manual_shell_echo")); err != nil {
+	if _, err := client.CreateJob(context.Background(), ScriptAPIJob("go-script", "script_manual_shell_echo").WithWorkerPool("go-blue")); err != nil {
 		t.Fatalf("CreateJob(script) error = %v", err)
 	}
 	instance, err := client.TriggerJob(context.Background(), "job-1", APITrigger())
@@ -390,8 +390,14 @@ func TestManagementClientCreatesStructuredPluginAndScriptJobs(t *testing.T) {
 	if got := bodies[0]["processorType"]; got != "sql" {
 		t.Fatalf("processorType = %v, want sql", got)
 	}
+	if got := bodies[0]["workerPool"]; got != "go-blue" {
+		t.Fatalf("workerPool = %v", got)
+	}
 	if got := bodies[1]["scriptId"]; got != "script_manual_shell_echo" {
 		t.Fatalf("scriptId = %v", got)
+	}
+	if got := bodies[1]["workerPool"]; got != "go-blue" {
+		t.Fatalf("script workerPool = %v", got)
 	}
 	if got := paths[2]; got != "/api/v1/jobs/job-1:trigger" {
 		t.Fatalf("trigger path = %q", got)

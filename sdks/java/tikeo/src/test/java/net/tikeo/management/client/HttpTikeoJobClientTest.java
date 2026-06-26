@@ -53,7 +53,7 @@ class HttpTikeoJobClientTest {
         Assertions.assertEquals(1, jobs.size());
         Assertions.assertEquals("demo.echo", jobs.get(0).processorName());
 
-        var created = client.createJob(CreateJobRequest.api("echo", "demo.echo"));
+        var created = client.createJob(CreateJobRequest.api("echo", "demo.echo").withWorkerPool("java-blue"));
         Assertions.assertEquals("api", created.scheduleType());
 
         RecordedRequest create = requests.stream()
@@ -64,6 +64,7 @@ class HttpTikeoJobClientTest {
         Assertions.assertEquals(true, create.body().contains("\"namespace\":\"default\""));
         Assertions.assertEquals(true, create.body().contains("\"app\":\"demo-app\""));
         Assertions.assertEquals(true, create.body().contains("\"scheduleType\":\"api\""));
+        Assertions.assertEquals(true, create.body().contains("\"workerPool\":\"java-blue\""));
     }
 
     @Test
@@ -111,7 +112,7 @@ class HttpTikeoJobClientTest {
         var created = client.createJob(CreateJobRequest.apiPlugin(
                 "sql sync",
                 "sql",
-                "billing.sql-sync"));
+                "billing.sql-sync").withWorkerPool("java-blue"));
         log.info(() -> "[java-sdk-plugin-test] create response id=%s processorType=%s processorName=%s"
                 .formatted(created.id(), created.processorType(), created.processorName()));
         Assertions.assertEquals("sql", created.processorType());
@@ -132,6 +133,7 @@ class HttpTikeoJobClientTest {
                 .orElseThrow();
         log.info(() -> "[java-sdk-plugin-test] create request body=" + create.body());
         Assertions.assertTrue(create.body().contains("\"processorType\":\"sql\""));
+        Assertions.assertTrue(create.body().contains("\"workerPool\":\"java-blue\""));
         Assertions.assertTrue(create.body().contains("\"processorName\":\"billing.sql-sync\""));
         Assertions.assertTrue(create.body().contains("\"namespace\":\"default\""));
         Assertions.assertTrue(create.body().contains("\"app\":\"demo-app\""));

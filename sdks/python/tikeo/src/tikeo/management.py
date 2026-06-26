@@ -45,6 +45,7 @@ class JobDefinition:
     schedule_expr: str | None = None
     processor_name: str | None = None
     processor_type: str | None = None
+    worker_pool: str | None = None
     script_id: str | None = None
     enabled: bool = True
     retry_policy: JobRetryPolicy | None = None
@@ -68,6 +69,7 @@ class CreateJobRequest:
     schedule_expr: str | None = None
     processor_name: str | None = None
     processor_type: str | None = None
+    worker_pool: str | None = None
     script_id: str | None = None
     enabled: bool = True
     retry_policy: JobRetryPolicy | None = None
@@ -114,16 +116,16 @@ def broadcast_api_trigger(selector: BroadcastSelectorRequest | None = None) -> T
     return TriggerJobRequest(execution_mode="broadcast", broadcast_selector=selector)
 
 
-def api_job(name: str, processor_name: str) -> CreateJobRequest:
-    return CreateJobRequest(name=name, processor_name=processor_name, retry_policy=default_job_retry_policy())
+def api_job(name: str, processor_name: str, worker_pool: str | None = None) -> CreateJobRequest:
+    return CreateJobRequest(name=name, processor_name=processor_name, worker_pool=worker_pool, retry_policy=default_job_retry_policy())
 
 
-def plugin_api_job(name: str, processor_type: str, processor_name: str) -> CreateJobRequest:
-    return CreateJobRequest(name=name, processor_type=processor_type, processor_name=processor_name, retry_policy=default_job_retry_policy())
+def plugin_api_job(name: str, processor_type: str, processor_name: str, worker_pool: str | None = None) -> CreateJobRequest:
+    return CreateJobRequest(name=name, processor_type=processor_type, processor_name=processor_name, worker_pool=worker_pool, retry_policy=default_job_retry_policy())
 
 
-def script_api_job(name: str, script_id: str) -> CreateJobRequest:
-    return CreateJobRequest(name=name, script_id=script_id, retry_policy=default_job_retry_policy())
+def script_api_job(name: str, script_id: str, worker_pool: str | None = None) -> CreateJobRequest:
+    return CreateJobRequest(name=name, script_id=script_id, worker_pool=worker_pool, retry_policy=default_job_retry_policy())
 
 
 class ManagementClient:
@@ -149,6 +151,7 @@ class ManagementClient:
             "scheduleExpr": request.schedule_expr,
             "processorName": request.processor_name,
             "processorType": request.processor_type,
+            "workerPool": request.worker_pool,
             "scriptId": request.script_id,
             "enabled": request.enabled,
             "retryPolicy": request.retry_policy.to_json() if request.retry_policy else None,
@@ -184,6 +187,7 @@ class ManagementClient:
             schedule_expr=data.get("scheduleExpr"),
             processor_name=data.get("processorName"),
             processor_type=data.get("processorType"),
+            worker_pool=data.get("workerPool"),
             script_id=data.get("scriptId"),
             enabled=bool(data.get("enabled", True)),
             retry_policy=JobRetryPolicy(

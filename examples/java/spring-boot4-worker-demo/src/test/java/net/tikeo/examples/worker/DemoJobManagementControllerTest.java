@@ -104,7 +104,7 @@ class DemoJobManagementControllerTest {
                 Assertions.assertThat(request.scriptId()).isEqualTo("script-demo");
             }
             return new JobDefinition("job-created", "default", "default", request.name(), "api", null,
-                    request.processorType(), request.processorName(), request.scriptId(), true, JobRetryPolicy.defaults());
+                    request.processorType(), request.processorName(), request.workerPool(), request.scriptId(), true, JobRetryPolicy.defaults());
         }
 
         @Override
@@ -122,7 +122,7 @@ class DemoJobManagementControllerTest {
         }
 
         private static JobDefinition job(String id, String name, String processorName, boolean enabled) {
-            return new JobDefinition(id, "default", "default", name, "api", null, null, processorName, null, enabled, JobRetryPolicy.defaults());
+            return new JobDefinition(id, "default", "default", name, "api", null, null, processorName, null, null, enabled, JobRetryPolicy.defaults());
         }
     }
 }

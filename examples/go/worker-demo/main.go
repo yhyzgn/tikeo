@@ -102,8 +102,8 @@ func main() {
 	if enabled("TIKEO_MANAGEMENT_CREATE_EXAMPLES") {
 		mgmt := tikeo.NewManagementClient(envOr("TIKEO_HTTP_URL", "http://127.0.0.1:9090"), os.Getenv("TIKEO_API_KEY"), config.Namespace, config.App)
 		for _, job := range []tikeo.CreateJobRequest{
-			tikeo.APIJob("go-echo-api", "demo.echo"),
-			tikeo.PluginAPIJob("go-sql-sync-api", "sql", "billing.sql-sync"),
+			tikeo.APIJob("go-echo-api", "demo.echo").WithWorkerPool(config.Labels["worker_pool"]),
+			tikeo.PluginAPIJob("go-sql-sync-api", "sql", "billing.sql-sync").WithWorkerPool(config.Labels["worker_pool"]),
 		} {
 			created, err := mgmt.CreateJob(context.Background(), job)
 			if err != nil {

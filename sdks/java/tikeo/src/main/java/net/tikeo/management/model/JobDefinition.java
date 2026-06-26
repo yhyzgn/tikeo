@@ -15,6 +15,7 @@ public record JobDefinition(
         String scheduleExpr,
         String processorType,
         String processorName,
+        String workerPool,
         String scriptId,
         boolean enabled,
         JobRetryPolicy retryPolicy) {}

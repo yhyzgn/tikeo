@@ -18,6 +18,7 @@ import {
   grpcTarget,
   localConfig,
   pluginApiJob,
+  apiJob,
   processDispatchTask,
   installConsoleTaskLogBridge,
   printTaskLogLocally,
@@ -112,15 +113,18 @@ describe("node sdk parity", () => {
     });
     try {
       const client = new ManagementClient(`http://127.0.0.1:${server.port}`, "key-1", "dev-alpha", "orders");
-      await client.createJob(pluginApiJob("node-sql", "sql", "billing.sql-sync"));
-      await client.createJob(scriptApiJob("node-script", "script_manual_shell_echo"));
+      await client.createJob(pluginApiJob("node-sql", "sql", "billing.sql-sync", "nodejs-blue"));
+      await client.createJob(scriptApiJob("node-script", "script_manual_shell_echo", "nodejs-blue"));
       const instance = await client.triggerJob("job-1");
       expect(instance.triggerType).toBe("api");
       expect(instance.jobId).toBe("job-1");
     } finally { server.stop(true); }
     expect(bodies[0].processorType).toBe("sql");
     expect(bodies[0].retryPolicy.maxAttempts).toBe(3);
+    expect(bodies[0].workerPool).toBe("nodejs-blue");
     expect(bodies[1].scriptId).toBe("script_manual_shell_echo");
+    expect(bodies[1].workerPool).toBe("nodejs-blue");
+    expect(apiJob("node-echo", "demo.echo", "nodejs-blue").workerPool).toBe("nodejs-blue");
     expect(paths[2]).toBe("/api/v1/jobs/job-1:trigger");
     expect(bodies[2].triggerType).toBe("api");
     expect(bodies[2].executionMode).toBe("single");

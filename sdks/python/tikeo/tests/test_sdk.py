@@ -127,14 +127,16 @@ def test_management_client_creates_structured_plugin_and_script_jobs():
     thread.start()
     try:
         client = tikeo.ManagementClient(f"http://127.0.0.1:{server.server_port}", "key-1", "dev-alpha", "orders")
-        client.create_job(tikeo.plugin_api_job("python-sql", "sql", "billing.sql-sync"))
-        client.create_job(tikeo.script_api_job("python-script", "script_manual_shell_echo"))
+        client.create_job(tikeo.plugin_api_job("python-sql", "sql", "billing.sql-sync", "python-blue"))
+        client.create_job(tikeo.script_api_job("python-script", "script_manual_shell_echo", "python-blue"))
         instance = client.trigger_job("job-1")
     finally:
         server.shutdown()
     assert bodies[0]["processorType"] == "sql"
     assert bodies[0]["retryPolicy"]["maxAttempts"] == 3
+    assert bodies[0]["workerPool"] == "python-blue"
     assert bodies[1]["scriptId"] == "script_manual_shell_echo"
+    assert bodies[1]["workerPool"] == "python-blue"
     assert paths[2] == "/api/v1/jobs/job-1:trigger"
     assert bodies[2]["triggerType"] == "api"
     assert bodies[2]["executionMode"] == "single"

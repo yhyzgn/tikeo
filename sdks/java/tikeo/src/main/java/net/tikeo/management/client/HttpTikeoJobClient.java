@@ -83,7 +83,7 @@ public final class HttpTikeoJobClient implements TikeoJobClient {
 
     private CreateJobPayload scopedCreate(CreateJobRequest request) {
         Objects.requireNonNull(request, "request");
-        return new CreateJobPayload(namespace, app, request.name(), request.scheduleType(), request.scheduleExpr(), request.processorType(), request.processorName(), request.scriptId(), request.enabled(), request.retryPolicy());
+        return new CreateJobPayload(namespace, app, request.name(), request.scheduleType(), request.scheduleExpr(), request.processorType(), request.processorName(), request.workerPool(), request.scriptId(), request.enabled(), request.retryPolicy());
     }
 
     private <T> T send(String method, String path, Object body, TypeReference<T> type) {
@@ -131,5 +131,5 @@ public final class HttpTikeoJobClient implements TikeoJobClient {
         return trimmed;
     }
 
-    private record CreateJobPayload(String namespace, String app, String name, String scheduleType, String scheduleExpr, String processorType, String processorName, String scriptId, Boolean enabled, JobRetryPolicy retryPolicy) {}
+    private record CreateJobPayload(String namespace, String app, String name, String scheduleType, String scheduleExpr, String processorType, String processorName, String workerPool, String scriptId, Boolean enabled, JobRetryPolicy retryPolicy) {}
 }
