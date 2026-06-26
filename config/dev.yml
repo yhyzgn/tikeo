@@ -55,7 +55,7 @@ observability:
       # Console/stdout sink. Use this as the default container/Kubernetes logging path.
       console:
         enabled: true
-        level: DEBUG
+        level: INFO
 
       # JSON file sink writing tikeo.log under path. Disabled by default; enable only when a durable log volume exists.
       file:
