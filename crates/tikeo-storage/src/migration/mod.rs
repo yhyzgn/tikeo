@@ -12,6 +12,7 @@ mod shard_map_policy;
 mod shard_ownership;
 mod sqlite_compat;
 mod worker_gateway;
+mod worker_pool_job_scope;
 
 use sea_orm::{DatabaseBackend, Statement};
 use sea_orm_migration::prelude::*;
@@ -60,6 +61,7 @@ impl MigratorTrait for Migrator {
             Box::new(ShardMapPolicyMigration),
             Box::new(SecurityPolicyCenterMigration),
             Box::new(CanaryPolicyMigration),
+            Box::new(WorkerPoolJobScopeMigration),
         ]
     }
 }
@@ -75,6 +77,7 @@ use security_policy_center::SecurityPolicyCenterMigration;
 use shard_map_policy::ShardMapPolicyMigration;
 use shard_ownership::ShardOwnershipMigration;
 use worker_gateway::WorkerGatewayMigration;
+use worker_pool_job_scope::WorkerPoolJobScopeMigration;
 
 #[derive(DeriveMigrationName)]
 struct CreateMetadataTables;
@@ -1067,13 +1070,13 @@ const DEFAULT_PERMISSIONS: &[(&str, &str, &str, &str)] = &[
         "perm-tenants-read",
         "tenants",
         "read",
-        "Read tenants, apps, and worker pools",
+        "Read scopes, apps, and worker pools",
     ),
     (
         "perm-tenants-manage",
         "tenants",
         "manage",
-        "Manage tenants, apps, and worker pools",
+        "Manage scopes, apps, and worker pools",
     ),
     ("perm-jobs-read", "jobs", "read", "Read jobs"),
     ("perm-jobs-write", "jobs", "write", "Create and update jobs"),
@@ -1364,6 +1367,7 @@ async fn create_jobs(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .col(text_null(Jobs::ScheduleCalendarJson))
                 .col(string_null(Jobs::ProcessorName))
                 .col(string_null(Jobs::ProcessorType))
+                .col(string_null(Jobs::WorkerPool))
                 .col(string_null(Jobs::ScriptId))
                 .col(boolean_col(Jobs::Enabled))
                 .col(string_null(Jobs::CanaryJobId))
@@ -1395,6 +1399,7 @@ async fn create_job_versions(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .col(text_null(JobVersions::ScheduleCalendarJson))
                 .col(string_null(JobVersions::ProcessorName))
                 .col(string_null(JobVersions::ProcessorType))
+                .col(string_null(JobVersions::WorkerPool))
                 .col(string_null(JobVersions::ScriptId))
                 .col(boolean_col(JobVersions::Enabled))
                 .col(text_col(JobVersions::RetryPolicyJson))

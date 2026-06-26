@@ -149,10 +149,12 @@ pub(super) fn persisted_worker_matches(
     worker: &PersistedOnlineWorkerSummary,
     namespace: &str,
     app: &str,
+    worker_pool: Option<&str>,
     requirement: Option<&WorkerRequirement>,
 ) -> bool {
     is_match(&worker.namespace_name, namespace)
         && is_match(&worker.app_name, app)
+        && worker_pool.is_none_or(|pool| persisted_worker_pool_matches(worker, pool))
         && requirement.is_none_or(|requirement| persisted_worker_satisfies(worker, requirement))
 }
 
@@ -161,9 +163,13 @@ pub(super) fn persisted_broadcast_worker_matches(
     worker: &PersistedOnlineWorkerSummary,
     namespace: &str,
     app: &str,
+    worker_pool: Option<&str>,
     selector: &BroadcastSelector,
 ) -> bool {
     if !is_match(&worker.namespace_name, namespace) || !is_match(&worker.app_name, app) {
+        return false;
+    }
+    if worker_pool.is_some_and(|pool| !persisted_worker_pool_matches(worker, pool)) {
         return false;
     }
     if selector
@@ -209,4 +215,20 @@ pub(super) fn persisted_worker_satisfies(
         &parse_persisted_capabilities(&worker.structured_capabilities_json),
         requirement,
     )
+}
+
+pub(super) fn registered_worker_pool_matches(worker: &RegisteredWorker, worker_pool: &str) -> bool {
+    worker
+        .labels
+        .get("worker_pool")
+        .or_else(|| worker.labels.get("worker-pool"))
+        .is_some_and(|actual| is_match(actual, worker_pool))
+}
+
+fn persisted_worker_pool_matches(worker: &PersistedOnlineWorkerSummary, worker_pool: &str) -> bool {
+    let labels = parse_persisted_labels(&worker.labels_json);
+    labels
+        .get("worker_pool")
+        .or_else(|| labels.get("worker-pool"))
+        .is_some_and(|actual| is_match(actual, worker_pool))
 }

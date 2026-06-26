@@ -157,7 +157,7 @@ impl JobInstanceRepository {
                 worker_selector: Set(None),
                 namespace: Set(scope.as_ref().map(|scope| scope.0.clone())),
                 app: Set(scope.as_ref().map(|scope| scope.1.clone())),
-                worker_pool: Set(scope.as_ref().map(|scope| scope.2.clone())),
+                worker_pool: Set(scope.as_ref().and_then(|scope| scope.2.clone())),
                 created_at: Set(now.clone()),
                 updated_at: Set(now),
             }
@@ -421,7 +421,7 @@ impl JobInstanceRepository {
 pub(super) async fn job_scope(
     db: &DatabaseConnection,
     parent: &job::Model,
-) -> Result<Option<(String, String, String)>, sea_orm::DbErr> {
+) -> Result<Option<(String, String, Option<String>)>, sea_orm::DbErr> {
     let Some(ns) = namespace::Entity::find_by_id(parent.namespace_id.clone())
         .one(db)
         .await?
@@ -434,7 +434,7 @@ pub(super) async fn job_scope(
     else {
         return Ok(None);
     };
-    Ok(Some((ns.name, app.name, "default".to_owned())))
+    Ok(Some((ns.name, app.name, parent.worker_pool.clone())))
 }
 
 fn duration_history_from_rows(rows: Vec<job_instance::Model>) -> JobDurationHistory {

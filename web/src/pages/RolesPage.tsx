@@ -195,10 +195,10 @@ export function RolesPage() {
         </Typography.Paragraph>
         <Form form={form} layout="vertical" initialValues={{ enabled: true, permissionIds: [], menuKeys: [], uiActionKeys: [] }} onFinish={handleFinish}>
           <Form.Item name="name" label={t('角色标识')} rules={[{ required: !editingRole, message: t('请输入角色标识') }]}>
-            <Input disabled={Boolean(editingRole)} placeholder="tenant-admin" />
+            <Input disabled={Boolean(editingRole)} placeholder="scope-admin" />
           </Form.Item>
           <Form.Item name="displayName" label={t('显示名称')} rules={[{ required: true, message: t('请输入显示名称') }]}>
-            <Input placeholder={t('租户管理员')} />
+            <Input placeholder={t('作用域管理员')} />
           </Form.Item>
           <Form.Item name="description" label={t('描述')}>
             <Input.TextArea rows={2} />

@@ -43,6 +43,7 @@ function WorkerNode({ worker, isEnglish }: { worker: WorkerSummary; isEnglish: b
   const scriptRunners = worker.structuredCapabilities?.scriptRunners ?? [];
   const pluginProcessors = worker.structuredCapabilities?.pluginProcessors ?? [];
   const isMaster = worker.master?.isMaster === true;
+  const workerPool = worker.workerPool?.trim();
 
   return (
     <List.Item className={`worker-node ${isMaster ? 'worker-node--master' : 'worker-node--follower'}`}>
@@ -60,6 +61,7 @@ function WorkerNode({ worker, isEnglish }: { worker: WorkerSummary; isEnglish: b
           <Tag color="geekblue">{isEnglish ? 'Generation' : '代际'} <span data-runtime-text>{worker.generation}</span></Tag>
           {worker.master?.domain ? <Tag color="blue">{isEnglish ? 'Election domain' : '选举域'} <span data-runtime-text>{worker.master.domain}</span></Tag> : <Tag>{isEnglish ? 'Election disabled' : '未启用选举'}</Tag>}
           {worker.master?.term ? <Tag color="purple">{isEnglish ? 'Term' : '任期'} <span data-runtime-text>{worker.master.term}</span></Tag> : null}
+          {workerPool ? <Tag color="geekblue">{isEnglish ? 'Execution pool' : '执行池'} <span data-runtime-text>{workerPool}</span></Tag> : <Tag>{isEnglish ? 'Any pool' : '不限执行池'}</Tag>}
           {!isMaster && worker.master?.masterWorkerId ? <Tooltip title={worker.master.masterWorkerId}><Tag className="worker-role-tag worker-role-tag--master">{isEnglish ? 'Known master' : '主节点已知'}</Tag></Tooltip> : null}
         </div>
         <div className="worker-node__capabilities">
@@ -79,29 +81,32 @@ export function WorkerTable({ workers, loading }: WorkerTableProps) {
   const isEnglish = locale === 'en-US';
   const [query, setQuery] = useState('');
   const [namespace, setNamespace] = useState('');
+  const [workerPool, setWorkerPool] = useState('');
   const [capability, setCapability] = useState('');
 
   const namespaces = useMemo(() => uniqueSorted(workers.items.map((worker) => worker.namespace)), [workers.items]);
+  const workerPools = useMemo(() => uniqueSorted(workers.items.map((worker) => worker.workerPool ?? '')), [workers.items]);
   const capabilities = useMemo(
     () => uniqueSorted(workers.items.flatMap(capabilityFilterValues)),
     [workers.items],
   );
   const filteredWorkers = useMemo(
-    () => filterWorkers(workers.items, { query, namespace, capability }),
-    [workers.items, query, namespace, capability],
+    () => filterWorkers(workers.items, { query, namespace, workerPool, capability }),
+    [workers.items, query, namespace, workerPool, capability],
   );
   const scopeGroups = useMemo(() => groupWorkersByNamespaceApp(filteredWorkers), [filteredWorkers]);
 
   return (
     <Card
       className="worker-ops-card worker-topology-card"
-      title={<Space direction="vertical" size={0}><span>{isEnglish ? 'App cluster nodes' : '应用集群节点'}</span><Typography.Text type="secondary">{isEnglish ? 'Grouped by namespace and app first, then expanded by clusters, masters, and followers.' : '先按命名空间 / 应用分组，再展开查看集群、主节点和从节点'}</Typography.Text></Space>}
+      title={<Space direction="vertical" size={0}><span>{isEnglish ? 'App cluster nodes' : '应用集群节点'}</span><Typography.Text type="secondary">{isEnglish ? 'Grouped by namespace/app, with optional execution-pool filtering.' : '先按命名空间 / 应用分组，可按执行池定位对应 Worker'}</Typography.Text></Space>}
       extra={<Tag color="blue">{filteredWorkers.length}/{workers.items.length}</Tag>}
       loading={loading}
     >
       <div className="worker-toolbar">
         <Input prefix={<SearchOutlined />} allowClear placeholder={isEnglish ? 'Search workers / apps / regions / capabilities / processors' : '搜索 Worker / 应用 / 区域 / 能力 / 处理器'} value={query} onChange={(event) => setQuery(event.target.value)} />
         <Select allowClear placeholder={isEnglish ? 'Namespace' : '命名空间'} value={namespace || undefined} onChange={(value) => setNamespace(value ?? '')} options={namespaces.map((value) => ({ label: value, value }))} />
+        <Select allowClear placeholder={isEnglish ? 'Execution pool' : '执行池'} value={workerPool || undefined} onChange={(value) => setWorkerPool(value ?? '')} options={workerPools.map((value) => ({ label: value, value }))} />
         <Select allowClear placeholder={isEnglish ? 'Capability' : '能力'} value={capability || undefined} onChange={(value) => setCapability(value ?? '')} options={capabilities.map((value) => ({ label: value, value }))} />
       </div>
       {scopeGroups.length === 0 ? <Empty description={isEnglish ? 'No matching online Workers' : '没有匹配的在线 Worker'} /> : null}

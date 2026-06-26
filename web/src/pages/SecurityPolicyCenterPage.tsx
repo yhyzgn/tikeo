@@ -111,7 +111,7 @@ export function SecurityPolicyCenterPage() {
           </Col>
           <Col xs={24} md={12} xl={6}>
             <Card size="small" title="API 凭据">
-              <Typography.Paragraph type="secondary">治理 API-Key、租户应用访问边界和调用凭据。</Typography.Paragraph>
+              <Typography.Paragraph type="secondary">治理 API-Key、作用域访问边界和调用凭据。</Typography.Paragraph>
               <Button><Link to={ROUTE_META.apiKeys.path}>进入 API-Key</Link></Button>
             </Card>
           </Col>

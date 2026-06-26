@@ -195,6 +195,8 @@ pub struct CreateJob {
     pub processor_name: Option<String>,
     /// Optional custom plugin processor type.
     pub processor_type: Option<String>,
+    /// Optional execution pool under the app. Empty means the default pool.
+    pub worker_pool: Option<String>,
     /// Optional managed script binding. Mutually exclusive with `processor_name`.
     pub script_id: Option<String>,
     /// Whether the job is enabled.
@@ -236,6 +238,8 @@ pub struct UpdateJob {
     pub processor_name: Option<Option<String>>,
     /// Optional custom plugin processor type.
     pub processor_type: Option<Option<String>>,
+    /// Optional execution-pool update. Outer `None` leaves unchanged; inner `None` clears it.
+    pub worker_pool: Option<Option<String>>,
     /// Optional managed script binding. Outer `None` leaves unchanged; inner `None` clears it.
     pub script_id: Option<Option<String>>,
     /// Optional enabled flag.
@@ -279,6 +283,8 @@ pub struct JobSummary {
     pub processor_name: Option<String>,
     /// Optional custom plugin processor type.
     pub processor_type: Option<String>,
+    /// Optional execution pool under the app. Empty means the default pool.
+    pub worker_pool: Option<String>,
     /// Optional managed script binding.
     pub script_id: Option<String>,
     /// Enabled flag.

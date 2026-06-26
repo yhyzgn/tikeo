@@ -1,9 +1,9 @@
 import { DeleteOutlined, EditOutlined, KeyOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { Alert, Button, Card, DatePicker, Form, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd';
 import dayjs, { type Dayjs } from 'dayjs';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
-import { createSdkApiKey, createServiceAccount, deleteSdkApiKey, disableServiceAccount, listAppScopes, listNamespaces, listSdkApiKeys, listServiceAccounts, updateSdkApiKey, updateServiceAccount, type AppScopeSummary, type NamespaceSummary, type SdkApiKeySummary, type ServiceAccountSummary } from '../api/client';
+import { createSdkApiKey, createServiceAccount, deleteSdkApiKey, disableServiceAccount, listAppScopes, listNamespaces, listSdkApiKeys, listServiceAccounts, listWorkerPools, updateSdkApiKey, updateServiceAccount, type AppScopeSummary, type NamespaceSummary, type SdkApiKeySummary, type ServiceAccountSummary, type WorkerPoolSummary } from '../api/client';
 import { useRouteActive } from '../hooks/useRouteActivation';
 import { ROUTE_META } from '../routes';
 
@@ -38,6 +38,7 @@ export function ApiKeysPage() {
   const [serviceAccountOpen, setServiceAccountOpen] = useState(false);
   const [namespaces, setNamespaces] = useState<NamespaceSummary[]>([]);
   const [apps, setApps] = useState<AppScopeSummary[]>([]);
+  const [workerPools, setWorkerPools] = useState<WorkerPoolSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [editingKey, setEditingKey] = useState<SdkApiKeySummary | null>(null);
@@ -45,16 +46,19 @@ export function ApiKeysPage() {
   const [form] = Form.useForm<ApiKeyFormValues>();
   const [editForm] = Form.useForm<EditFormValues>();
   const [serviceAccountForm] = Form.useForm<{ name: string; description?: string; namespace: string; app: string; workerPool?: string; status?: string }>();
+  const serviceAccountNamespace = Form.useWatch('namespace', serviceAccountForm);
+  const serviceAccountApp = Form.useWatch('app', serviceAccountForm);
   const active = useRouteActive(ROUTE_META.apiKeys.path);
 
   const reload = async () => {
     setLoading(true);
     try {
-      const [nextKeys, nextServiceAccounts, nextNamespaces, nextApps] = await Promise.all([listSdkApiKeys(), listServiceAccounts(), listNamespaces(), listAppScopes()]);
+      const [nextKeys, nextServiceAccounts, nextNamespaces, nextApps, nextWorkerPools] = await Promise.all([listSdkApiKeys(), listServiceAccounts(), listNamespaces(), listAppScopes(), listWorkerPools()]);
       setKeys(nextKeys);
       setServiceAccounts(nextServiceAccounts);
       setNamespaces(nextNamespaces);
       setApps(nextApps);
+      setWorkerPools(nextWorkerPools);
     } finally {
       setLoading(false);
     }
@@ -163,6 +167,15 @@ export function ApiKeysPage() {
     message.success('完整 API-Key 已复制');
   };
 
+  const appOptionsForServiceAccount = useMemo(() => apps
+    .filter((item) => !serviceAccountNamespace || item.namespace === serviceAccountNamespace)
+    .map((item) => ({ value: item.name, label: item.name }))
+    .sort((left, right) => left.label.localeCompare(right.label)), [apps, serviceAccountNamespace]);
+  const workerPoolOptionsForServiceAccount = useMemo(() => workerPools
+    .filter((item) => item.namespace === serviceAccountNamespace && item.app === serviceAccountApp)
+    .map((item) => ({ value: item.name, label: `${item.name} · 并发 ${item.maxConcurrency > 0 ? item.maxConcurrency : '不限'} / 队列 ${item.maxQueueDepth > 0 ? item.maxQueueDepth : '不限'}` }))
+    .sort((left, right) => left.value.localeCompare(right.value)), [serviceAccountApp, serviceAccountNamespace, workerPools]);
+
   return (
     <Space direction="vertical" size={20} style={{ width: '100%' }}>
       <Card
@@ -180,7 +193,7 @@ export function ApiKeysPage() {
           <Card
             size="small"
             className="api-key-section-card"
-            title={<SectionTitle title="Service Accounts（机器身份）" desc="定义 namespace/app/worker pool 作用域；禁用后会吊销关联 API-Key。" />}
+            title={<SectionTitle title="Service Accounts（机器身份）" desc="定义 namespace/app 与可选执行池作用域；禁用后会吊销关联 API-Key。" />}
             extra={<Button icon={<PlusOutlined />} onClick={openCreateServiceAccount}>新建 Service Account</Button>}
           >
             <Table<ServiceAccountSummary>
@@ -192,8 +205,8 @@ export function ApiKeysPage() {
               scroll={{ x: 980 }}
               columns={[
                 { title: 'Service Account', width: 260, render: (_, item) => <Space direction="vertical" size={0}><Typography.Text strong>{item.name}</Typography.Text><Typography.Text type="secondary">{item.id}</Typography.Text></Space> },
-                { title: '范围', width: 180, render: (_, item) => `${item.namespace}/${item.app}` },
-                { title: 'Worker Pool', dataIndex: 'workerPool', width: 140, render: (value) => value ?? '*' },
+                { title: '作用域', width: 180, render: (_, item) => `${item.namespace}/${item.app}` },
+                { title: '执行池', dataIndex: 'workerPool', width: 140, render: (value) => value ?? '不限' },
                 { title: '状态', dataIndex: 'status', width: 100, render: (status) => <Tag color={status === 'active' ? 'green' : 'default'}>{status}</Tag> },
                 { title: '描述', dataIndex: 'description', width: 180, render: (value) => value ?? '-' },
                 {
@@ -262,12 +275,14 @@ export function ApiKeysPage() {
           <Form.Item name="name" label="名称" rules={[{ required: true, message: '请输入 Service Account 名称' }]}><Input placeholder="java-demo-service-account" /></Form.Item>
           <Form.Item name="description" label="描述"><Input.TextArea rows={2} placeholder="用途说明，例如 Java demo 管理接口调用" /></Form.Item>
           <Form.Item name="namespace" label="Namespace" rules={[{ required: true }]}>
-            <Select options={namespaces.map((item) => ({ value: item.name, label: item.name }))} showSearch />
+            <Select options={namespaces.map((item) => ({ value: item.name, label: item.name }))} showSearch onChange={() => serviceAccountForm.setFieldsValue({ app: undefined, workerPool: undefined })} />
           </Form.Item>
           <Form.Item name="app" label="App" rules={[{ required: true }]}>
-            <Select options={apps.map((item) => ({ value: item.name, label: `${item.namespace}/${item.name}` }))} showSearch />
+            <Select options={appOptionsForServiceAccount} showSearch disabled={!serviceAccountNamespace} onChange={() => serviceAccountForm.setFieldsValue({ workerPool: undefined })} />
           </Form.Item>
-          <Form.Item name="workerPool" label="Worker Pool"><Input placeholder="可选，留空代表不限 Worker Pool" /></Form.Item>
+          <Form.Item name="workerPool" label="执行池（可选）" extra="留空表示不限执行池；选择后该机器身份和关联 API-Key 只能操作同一执行池内的资源。">
+            <Select allowClear showSearch options={workerPoolOptionsForServiceAccount} disabled={!serviceAccountNamespace || !serviceAccountApp} placeholder={serviceAccountNamespace && serviceAccountApp ? '选择执行池，留空表示不限执行池' : '先选择 Namespace 和 App'} />
+          </Form.Item>
           {editingServiceAccount ? <Form.Item name="status" label="状态" rules={[{ required: true }]}><Select options={[{ value: 'active', label: 'active' }, { value: 'disabled', label: 'disabled' }]} /></Form.Item> : null}
         </Form>
       </Modal>

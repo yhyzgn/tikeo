@@ -50,7 +50,7 @@ python3 .github/tests/demo_seed_topology_contract_test.py
 cargo test -p tikeo-server notification --all-features
 ```
 
-`notification-provider-e2e-smoke.sh` 会启动本地 Server 和 mock HTTP provider，发送一条成功测试通知和一条强制 provider 失败通知，然后验证 provider 收包、`notification_messages`、delivery attempts、queue 聚合、dead-letter 状态和目标脱敏。它是本地协议级证据，不替代具体租户中的 Slack/飞书/钉钉/企微/PagerDuty/SMTP 生产签核。
+`notification-provider-e2e-smoke.sh` 会启动本地 Server 和 mock HTTP provider，发送一条成功测试通知和一条强制 provider 失败通知，然后验证 provider 收包、`notification_messages`、delivery attempts、queue 聚合、dead-letter 状态和目标脱敏。它是本地协议级证据，不替代具体作用域中的 Slack/飞书/钉钉/企微/PagerDuty/SMTP 生产签核。
 
 如果当前环境不能访问真实 provider，执行 `scripts/notification-real-provider-acceptance.sh` 归档明确的 `deferred_real_provider_inputs_missing` 边界，只能把 provider 投递门槛标记为 deferred；渲染、校验、脱敏和队列证据仍然必须保留。没有真实 outbound 结果时，不要声称该 provider 已生产就绪。
 
@@ -132,7 +132,7 @@ Kind 可以验证本地 Kubernetes 语义，但不能替代云环境中的多可
 ## 剩余风险与下一步
 
 - 真实云环境 HA 仍需要按环境验证 ingress class、LB/WAF 行为、TLS/mTLS、NetworkPolicy 和托管数据库 HA。
-- Provider 投递行为可能受租户策略影响；每个部署环境都应保留真实 Slack/DingTalk/Feishu/WeCom/PagerDuty/email 证据。
+- Provider 投递行为可能受作用域策略影响；每个部署环境都应保留真实 Slack/DingTalk/Feishu/WeCom/PagerDuty/email 证据。
 - 旧调度器语义等价性与业务域相关。路由、阻塞、并发、脚本语义应该保持 review-required，而不是静默自动转换。
 - Release asset 可用性应在 pipeline 上传完成后，从真实 GitHub Release 页面核对。
 

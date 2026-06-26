@@ -5,7 +5,7 @@ use tikeo_proto::worker::v1::DispatchTask;
 use tikeo_storage::{WorkerDispatchOutboxRepository, WorkerDispatchOutboxSummary};
 use tokio::time::{self, Duration};
 use tonic_prost::prost::Message as _;
-use tracing::warn;
+use tracing::{debug, info, warn};
 
 use super::WorkerRegistry;
 
@@ -29,6 +29,7 @@ pub async fn run(
     gateway_node_id: String,
 ) {
     let mut ticker = time::interval(OUTBOX_DELIVERY_INTERVAL);
+    info!(gateway_node_id = %gateway_node_id, interval_ms = OUTBOX_DELIVERY_INTERVAL.as_millis(), "starting worker dispatch outbox delivery loop");
     loop {
         ticker.tick().await;
         if let Err(error) = outbox
@@ -76,6 +77,7 @@ pub async fn reroute_stale_logical_rows(
                 .await?
                 .is_some()
         {
+            debug!(outbox_id = %row.id, worker_id = %current.worker_id, gateway_node_id = %current.gateway_node_id, "rerouted worker dispatch outbox row to current worker session");
             moved = moved.saturating_add(1);
         }
     }
@@ -108,6 +110,7 @@ pub async fn deliver_once(
         .dispatch_relayed_task_to_local_worker(&row.worker_id, task)
         .await
     {
+        debug!(outbox_id = %row.id, worker_id = %row.worker_id, gateway_node_id = %gateway_node_id, "delivered worker dispatch outbox row to local worker");
         return outbox
             .mark_delivered(&row.id, OUTBOX_DELIVERY_VISIBILITY_SECONDS)
             .await;

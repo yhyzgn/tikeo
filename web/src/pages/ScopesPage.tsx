@@ -105,6 +105,8 @@ export function ScopesPage() {
   const [secretForm] = Form.useForm<CreateSecretFormValues>();
   const [oidcForm] = Form.useForm<UpsertOidcIdentityRequest>();
   const secretReferenceKind = Form.useWatch('referenceKind', secretForm) ?? 'env';
+  const oidcNamespace = Form.useWatch('namespace', oidcForm);
+  const oidcApp = Form.useWatch('app', oidcForm);
   const [drawer, setDrawer] = useState<'namespace' | 'app' | 'pool' | 'secret' | 'oidc' | null>(null);
   const [quotaForm] = Form.useForm<UpdateWorkerPoolQuotaRequest>();
   const [quotaPool, setQuotaPool] = useState<WorkerPoolSummary | null>(null);
@@ -126,7 +128,7 @@ export function ScopesPage() {
       setSecrets(secretData);
       setOidcIdentities(oidcData);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '加载租户范围失败');
+      message.error(error instanceof Error ? error.message : '加载作用域失败');
     } finally {
       setLoading(false);
     }
@@ -136,10 +138,12 @@ export function ScopesPage() {
 
   const namespaceOptions = useMemo(() => namespaces.map((item) => ({ value: item.name, label: item.name })), [namespaces]);
   const appOptions = useMemo(() => apps.map((item) => ({ value: item.name, label: `${item.namespace}/${item.name}` })), [apps]);
-  const workerPoolOptions = useMemo(() => workerPools.map((item) => ({ value: item.name, label: `${item.namespace}/${item.app}/${item.name}` })), [workerPools]);
+  const workerPoolOptions = useMemo(() => workerPools
+    .filter((item) => (!oidcNamespace || item.namespace === oidcNamespace) && (!oidcApp || item.app === oidcApp))
+    .map((item) => ({ value: item.name, label: `${item.namespace}/${item.app}/${item.name}` })), [oidcApp, oidcNamespace, workerPools]);
 
   const handleNamespaceCreate = async (values: CreateNamespaceRequest) => {
-    if (!canManageScopes) { message.error('当前账号无权限管理租户范围'); return; }
+    if (!canManageScopes) { message.error('当前账号无权限管理作用域'); return; }
     await createNamespace(values);
     namespaceForm.resetFields();
     setDrawer(null);
@@ -148,7 +152,7 @@ export function ScopesPage() {
   };
 
   const handleAppCreate = async (values: CreateAppScopeRequest) => {
-    if (!canManageScopes) { message.error('当前账号无权限管理租户范围'); return; }
+    if (!canManageScopes) { message.error('当前账号无权限管理作用域'); return; }
     await createAppScope(values);
     appForm.resetFields();
     setDrawer(null);
@@ -157,11 +161,11 @@ export function ScopesPage() {
   };
 
   const handleWorkerPoolCreate = async (values: CreateWorkerPoolRequest) => {
-    if (!canManageScopes) { message.error('当前账号无权限管理租户范围'); return; }
+    if (!canManageScopes) { message.error('当前账号无权限管理作用域'); return; }
     await createWorkerPool(values);
     poolForm.resetFields();
     setDrawer(null);
-    message.success('Worker Pool 已创建');
+    message.success('执行池已创建');
     await refresh();
   };
 
@@ -197,7 +201,7 @@ export function ScopesPage() {
 
   const handleWorkerPoolDelete = async (id: string) => {
     await deleteWorkerPool(id);
-    message.success('Worker Pool 已删除');
+    message.success('执行池已删除');
     await refresh();
   };
 
@@ -217,7 +221,7 @@ export function ScopesPage() {
     await updateWorkerPoolQuota(quotaPool.id, values);
     setQuotaPool(null);
     quotaForm.resetFields();
-    message.success('Worker Pool 配额已更新');
+    message.success('执行池配额已更新');
     await refresh();
   };
 
@@ -225,14 +229,14 @@ export function ScopesPage() {
     { title: '命名空间', dataIndex: 'name', render: (name: string) => <strong>{name}</strong> },
     { title: '创建时间', dataIndex: 'createdAt' },
     { title: '更新时间', dataIndex: 'updatedAt' },
-    { title: '操作', width: 120, render: (_, record) => <GuardedButton resource="tenants" action="manage" type="link" size="small" danger confirmTitle="删除命名空间" confirmDescription="仅空命名空间可删除；含应用、Worker Pool 或任务时后端会拒绝。" onConfirm={() => void handleNamespaceDelete(record.id)}>删除</GuardedButton> },
+    { title: '操作', width: 120, render: (_, record) => <GuardedButton resource="tenants" action="manage" type="link" size="small" danger confirmTitle="删除命名空间" confirmDescription="仅空命名空间可删除；含应用、执行池或任务时后端会拒绝。" onConfirm={() => void handleNamespaceDelete(record.id)}>删除</GuardedButton> },
   ];
 
   const appColumns: ColumnsType<AppScopeSummary> = [
     { title: '命名空间', dataIndex: 'namespace', render: (value: string) => <Tag color="blue">{value}</Tag> },
     { title: '应用', dataIndex: 'name', render: (name: string) => <strong>{name}</strong> },
     { title: '更新时间', dataIndex: 'updatedAt' },
-    { title: '操作', width: 120, render: (_, record) => <GuardedButton resource="tenants" action="manage" type="link" size="small" danger confirmTitle="删除应用" confirmDescription="仅空应用可删除；含 Worker Pool 或任务时后端会拒绝。" onConfirm={() => void handleAppDelete(record.id)}>删除</GuardedButton> },
+    { title: '操作', width: 120, render: (_, record) => <GuardedButton resource="tenants" action="manage" type="link" size="small" danger confirmTitle="删除应用" confirmDescription="仅空应用可删除；含执行池或任务时后端会拒绝。" onConfirm={() => void handleAppDelete(record.id)}>删除</GuardedButton> },
   ];
 
   const secretColumns: ColumnsType<SecretSummary> = [
@@ -246,11 +250,11 @@ export function ScopesPage() {
   const poolColumns: ColumnsType<WorkerPoolSummary> = [
     { title: '命名空间', dataIndex: 'namespace', render: (value: string) => <Tag color="blue">{value}</Tag> },
     { title: '应用', dataIndex: 'app', render: (value: string) => <Tag color="purple">{value}</Tag> },
-    { title: 'Worker Pool', dataIndex: 'name', render: (name: string) => <strong>{name}</strong> },
+    { title: '执行池', dataIndex: 'name', render: (name: string) => <strong>{name}</strong> },
     { title: '队列上限', dataIndex: 'maxQueueDepth', render: (value: number) => value > 0 ? value : '不限' },
     { title: '并发上限', dataIndex: 'maxConcurrency', render: (value: number) => value > 0 ? value : '不限' },
     { title: '更新时间', dataIndex: 'updatedAt' },
-    { title: '操作', width: 180, render: (_, record) => <Space size={4}><Button type="link" size="small" onClick={() => openQuotaDrawer(record)}>配额</Button><GuardedButton resource="tenants" action="manage" type="link" size="small" danger confirmTitle="删除 Worker Pool" confirmDescription="删除后不会影响在线 Worker，会移除该持久化元数据。" onConfirm={() => void handleWorkerPoolDelete(record.id)}>删除</GuardedButton></Space> },
+    { title: '操作', width: 180, render: (_, record) => <Space size={4}><Button type="link" size="small" onClick={() => openQuotaDrawer(record)}>配额</Button><GuardedButton resource="tenants" action="manage" type="link" size="small" danger confirmTitle="删除执行池" confirmDescription="删除后不会影响在线 Worker，会移除该执行池元数据；已按该池标记的 Worker 需要调整标签或重新注册。" onConfirm={() => void handleWorkerPoolDelete(record.id)}>删除</GuardedButton></Space> },
   ];
 
   const oidcColumns: ColumnsType<OidcIdentitySummary> = [
@@ -273,19 +277,26 @@ export function ScopesPage() {
       <section className="hero-panel scope-management-hero">
         <div className="hero-panel__content">
           <div className="hero-panel__header">
-            <Tag className="soft-tag" color="blue">Tenant Scope</Tag>
-            <Typography.Title level={3}>租户范围</Typography.Title>
+            <Tag className="soft-tag" color="blue">Scope Management</Tag>
+            <Typography.Title level={3}>作用域管理</Typography.Title>
           </div>
-          <Typography.Text className="hero-panel__desc scope-management-hero__desc" ellipsis title="管理 namespace、app、Worker Pool 与 OIDC subject 映射；未映射的外部身份无法换取本地 session，已映射身份按 scope binding 收窄权限。">管理 namespace、app、Worker Pool 与 OIDC subject 映射；未映射的外部身份无法换取本地 session，已映射身份按 scope binding 收窄权限。</Typography.Text>
+          <Typography.Text className="hero-panel__desc scope-management-hero__desc" ellipsis title="管理 namespace、app、执行池与 OIDC subject 映射；未映射的外部身份无法换取本地 session，已映射身份按 scope binding 收窄权限。">管理 namespace、app、执行池与 OIDC subject 映射；未映射的外部身份无法换取本地 session，已映射身份按 scope binding 收窄权限。</Typography.Text>
         </div>
         <div className="hero-panel__actions">
           <Button onClick={() => void refresh()} loading={loading}>刷新</Button>
         </div>
       </section>
 
-      <Card className="clean-card" title="租户资源" extra={<PermissionGate resource="tenants" action="manage"><Space wrap className="card-toolbar"><Button type="primary" onClick={() => setDrawer('namespace')}>新建命名空间</Button><Button onClick={() => setDrawer('app')}>新建应用</Button><Button onClick={() => setDrawer('pool')}>新建 Worker Pool</Button><Button onClick={() => setDrawer('secret')}>新建 Secret</Button><Button onClick={() => setDrawer('oidc')}>新建 OIDC 映射</Button></Space></PermissionGate>}>
-        <Typography.Text type="secondary">所有新建/绑定操作通过右侧抽屉完成，列表区域只负责检索、查看和删除。</Typography.Text>
+      <Card className="clean-card" title="作用域资源" extra={<PermissionGate resource="tenants" action="manage"><Space wrap className="card-toolbar"><Button type="primary" onClick={() => setDrawer('namespace')}>新建命名空间</Button><Button onClick={() => setDrawer('app')}>新建应用</Button><Button onClick={() => setDrawer('pool')}>新建执行池</Button><Button onClick={() => setDrawer('secret')}>新建 Secret</Button><Button onClick={() => setDrawer('oidc')}>新建 OIDC 映射</Button></Space></PermissionGate>}>
+        <Typography.Text type="secondary">作用域层级为 Namespace → App → 执行池。Namespace 表示环境、团队或业务边界；App 表示应用边界；执行池是 App 下的可选执行资源分组。</Typography.Text>
       </Card>
+
+      <Alert
+        type="info"
+        showIcon
+        message="执行池语义"
+        description="执行池可对应一个 Worker 服务、一类运行时、一组机器资源或一个隔离队列；用于并发/队列配额、权限收窄、通知作用域、任务路由和运维定位。小规模部署可以留空，不配置执行池时仍按 Namespace/App 匹配。"
+      />
 
       <Drawer title="创建命名空间" open={drawer === 'namespace'} onClose={() => { setDrawer(null); namespaceForm.resetFields(); }} width={760} destroyOnClose>
         <Form form={namespaceForm} layout="vertical" onFinish={(values) => void handleNamespaceCreate(values)}>
@@ -300,13 +311,13 @@ export function ScopesPage() {
           <PermissionGate resource="tenants" action="manage"><Button type="primary" htmlType="submit" block>创建应用</Button></PermissionGate>
         </Form>
       </Drawer>
-      <Drawer title="创建 Worker Pool" open={drawer === 'pool'} onClose={() => { setDrawer(null); poolForm.resetFields(); }} width={760} destroyOnClose>
+      <Drawer title="创建执行池" open={drawer === 'pool'} onClose={() => { setDrawer(null); poolForm.resetFields(); }} width={760} destroyOnClose>
         <Form form={poolForm} layout="vertical" onFinish={(values) => void handleWorkerPoolCreate(values)}>
           <Form.Item name="namespace" label="命名空间" rules={[{ required: true, message: '请选择命名空间' }]}><Select options={namespaceOptions} placeholder="选择 namespace" /></Form.Item>
           <Form.Item name="app" label="应用" rules={[{ required: true, message: '请选择应用' }]}><Select options={appOptions} placeholder="选择 app" /></Form.Item>
-          <Form.Item name="name" label="Worker Pool" rules={[{ required: true, message: '请输入 Worker Pool' }]}><Input placeholder="critical / batch" /></Form.Item>
-          <Typography.Paragraph type="secondary">创建后可在列表操作中配置队列上限与并发上限；0 表示不限。</Typography.Paragraph>
-          <PermissionGate resource="tenants" action="manage"><Button type="primary" htmlType="submit" block>创建 Worker Pool</Button></PermissionGate>
+          <Form.Item name="name" label="执行池" rules={[{ required: true, message: '请输入执行池' }]}><Input placeholder="critical / batch" /></Form.Item>
+          <Typography.Paragraph type="secondary">执行池是 App 下的可选执行资源分组，可对应一个 Worker 服务、一类运行时、一组机器资源或一个隔离队列；创建后可配置队列上限与并发上限，0 表示不限。</Typography.Paragraph>
+          <PermissionGate resource="tenants" action="manage"><Button type="primary" htmlType="submit" block>创建执行池</Button></PermissionGate>
         </Form>
       </Drawer>
 
@@ -324,7 +335,7 @@ export function ScopesPage() {
         </Form>
       </Drawer>
 
-      <Drawer title={quotaPool ? `Worker Pool 配额 - ${quotaPool.name}` : 'Worker Pool 配额'} open={quotaPool !== null} onClose={() => { setQuotaPool(null); quotaForm.resetFields(); }} width={760} destroyOnClose>
+      <Drawer title={quotaPool ? `执行池配额 - ${quotaPool.name}` : '执行池配额'} open={quotaPool !== null} onClose={() => { setQuotaPool(null); quotaForm.resetFields(); }} width={760} destroyOnClose>
         <Form form={quotaForm} layout="vertical" onFinish={(values) => void handleQuotaUpdate(values)}>
           <Form.Item name="maxQueueDepth" label="队列上限" extra="pending + running 总数上限；0 表示不限" rules={[{ required: true }]}><InputNumber min={0} precision={0} style={{ width: '100%' }} /></Form.Item>
           <Form.Item name="maxConcurrency" label="并发上限" extra="running 上限；0 表示不限" rules={[{ required: true }]}><InputNumber min={0} precision={0} style={{ width: '100%' }} /></Form.Item>
@@ -335,7 +346,7 @@ export function ScopesPage() {
       <Row gutter={[16, 16]}>
         <Col xs={24} xl={8}><Card className="clean-card" title="命名空间"><Table rowKey="id" loading={loading} columns={namespaceColumns} dataSource={namespaces} pagination={persistentPagination(pageSize, setPageSize)} size="small" /></Card></Col>
         <Col xs={24} xl={8}><Card className="clean-card" title="应用"><Table rowKey="id" loading={loading} columns={appColumns} dataSource={apps} pagination={persistentPagination(pageSize, setPageSize)} size="small" /></Card></Col>
-        <Col xs={24} xl={8}><Card className="clean-card" title="Worker Pool"><Table rowKey="id" loading={loading} columns={poolColumns} dataSource={workerPools} pagination={persistentPagination(pageSize, setPageSize)} size="small" /></Card></Col>
+        <Col xs={24} xl={8}><Card className="clean-card" title="执行池"><Table rowKey="id" loading={loading} columns={poolColumns} dataSource={workerPools} pagination={persistentPagination(pageSize, setPageSize)} size="small" /></Card></Col>
       </Row>
 
       <Card className="clean-card" title="Secret 引用" style={{ marginTop: 16 }} extra={<PermissionGate resource="tenants" action="manage"><Button onClick={() => setDrawer('secret')}>新建 Secret</Button></PermissionGate>}>
@@ -344,23 +355,23 @@ export function ScopesPage() {
       </Card>
 
       <Drawer title="保存 OIDC 映射" open={drawer === 'oidc'} onClose={() => { setDrawer(null); oidcForm.resetFields(); }} width={980} destroyOnClose>
-        <Alert type="info" showIcon style={{ marginBottom: 16 }} message="Fail-closed OIDC 映射" description="只有显式配置 issuer + subject 到本地用户的映射后，OIDC callback 才会签发本地 tikeo session；namespace/app/Worker Pool 会进入 scope binding。" />
+        <Alert type="info" showIcon style={{ marginBottom: 16 }} message="Fail-closed OIDC 映射" description="只有显式配置 issuer + subject 到本地用户的映射后，OIDC callback 才会签发本地 tikeo session；namespace/app/执行池会进入 scope binding。" />
         <Form form={oidcForm} layout="vertical" onFinish={(values) => void handleOidcIdentityUpsert(values)}>
           <Row gutter={[12, 0]}>
             <Col xs={24} lg={12}><Form.Item name="issuer" label="Issuer" rules={[{ required: true, message: '请输入 issuer' }]}><Input placeholder="https://idp.example.com/realms/tikeo" /></Form.Item></Col>
             <Col xs={24} lg={12}><Form.Item name="subject" label="Subject" rules={[{ required: true, message: '请输入 subject' }]}><Input placeholder="OIDC sub claim" /></Form.Item></Col>
             <Col xs={24} lg={12}><Form.Item name="username" label="本地用户" rules={[{ required: true, message: '请输入本地用户名' }]}><Input placeholder="oidc.alice" /></Form.Item></Col>
-            <Col xs={24} lg={12}><Form.Item name="namespace" label="Namespace scope"><Select allowClear options={namespaceOptions} placeholder="不选表示任意 namespace" /></Form.Item></Col>
-            <Col xs={24} lg={12}><Form.Item name="app" label="App scope"><Select allowClear options={appOptions} placeholder="不选表示任意 app" /></Form.Item></Col>
-            <Col xs={24} lg={12}><Form.Item name="worker_pool" label="Worker Pool scope"><Select allowClear options={workerPoolOptions} placeholder="不选表示任意 worker pool" /></Form.Item></Col>
+            <Col xs={24} lg={12}><Form.Item name="namespace" label="Namespace scope"><Select allowClear options={namespaceOptions} placeholder="不选表示任意 namespace" onChange={() => oidcForm.setFieldsValue({ app: undefined, worker_pool: undefined })} /></Form.Item></Col>
+            <Col xs={24} lg={12}><Form.Item name="app" label="App scope"><Select allowClear options={appOptions} placeholder="不选表示任意 app" onChange={() => oidcForm.setFieldsValue({ worker_pool: undefined })} /></Form.Item></Col>
+            <Col xs={24} lg={12}><Form.Item name="worker_pool" label="执行池 scope"><Select allowClear options={workerPoolOptions} placeholder="不选表示任意执行池" /></Form.Item></Col>
           </Row>
           <PermissionGate resource="tenants" action="manage"><Button type="primary" htmlType="submit" block>保存 OIDC 映射</Button></PermissionGate>
         </Form>
       </Drawer>
 
-      <Card className="clean-card" title="OIDC tenant/app/role 绑定" extra={<PermissionGate resource="tenants" action="manage"><Space className="card-toolbar"><Button onClick={() => setDrawer('oidc')}>新建映射</Button></Space></PermissionGate>}>
+      <Card className="clean-card" title="OIDC 作用域/应用/角色绑定" extra={<PermissionGate resource="tenants" action="manage"><Space className="card-toolbar"><Button onClick={() => setDrawer('oidc')}>新建映射</Button></Space></PermissionGate>}>
         <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-          <Alert type="info" showIcon message="Fail-closed OIDC 映射" description="外部身份必须显式映射后才可换取本地 session；scope binding 会限制 namespace/app/Worker Pool。" />
+          <Alert type="info" showIcon message="Fail-closed OIDC 映射" description="外部身份必须显式映射后才可换取本地 session；scope binding 会限制 namespace/app/执行池。" />
           <Table rowKey="id" loading={loading} columns={oidcColumns} dataSource={oidcIdentities} pagination={persistentPagination(pageSize, setPageSize)} size="small" />
         </Space>
       </Card>

@@ -64,7 +64,7 @@ journalctl -u tikeo -n 80 --no-pager
 | `server.listen_addr` | `0.0.0.0:9090` | Bind behind a proxy or firewall; enable HTTP TLS if exposed directly. |
 | `server.worker_tunnel_addr` | `0.0.0.0:9998` | Publish only the Server tunnel endpoint; workers still connect outbound. |
 | `storage.database.*` | SQLite file URL | Use PostgreSQL/MySQL/CockroachDB for shared environments. |
-| `observability.logging.level` | `info` | Keep `info`; add `log_dir` for durable VM logs. |
+| `observability.logging.root.level` | `info` | Keep `info`; enable `file`/`error-file` for durable VM logs. |
 | `transport_security.worker_tunnel` | TLS off in dev | Enable TLS/mTLS before crossing trust boundaries. |
 
 ## Rollback

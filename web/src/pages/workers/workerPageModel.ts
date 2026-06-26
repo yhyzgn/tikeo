@@ -5,6 +5,7 @@ export type QueueStatusFilter = 'all' | 'pending' | 'running' | 'done' | 'failed
 export interface WorkerFilters {
   query: string;
   namespace: string;
+  workerPool: string;
   capability: string;
 }
 
@@ -14,6 +15,7 @@ export function workerSearchText(worker: WorkerSummary): string {
     worker.workerId,
     worker.namespace,
     worker.app,
+    worker.workerPool ?? '',
     worker.cluster,
     worker.region,
     worker.logicalInstanceId,
@@ -32,6 +34,7 @@ export function filterWorkers(workers: WorkerSummary[], filters: WorkerFilters):
   return workers.filter((worker) => {
     const matchesQuery = !query || workerSearchText(worker).includes(query);
     const matchesNamespace = !filters.namespace || worker.namespace === filters.namespace;
+    const matchesWorkerPool = !filters.workerPool || worker.workerPool === filters.workerPool;
     const workerFilterValues = [
       ...(worker.structuredCapabilities?.tags ?? []),
       ...(worker.structuredCapabilities?.normalProcessors?.map((processor) => `Normal:${processor.name}`) ?? []),
@@ -41,7 +44,7 @@ export function filterWorkers(workers: WorkerSummary[], filters: WorkerFilters):
       ) ?? []),
     ];
     const matchesCapability = !filters.capability || workerFilterValues.includes(filters.capability);
-    return matchesQuery && matchesNamespace && matchesCapability;
+    return matchesQuery && matchesNamespace && matchesWorkerPool && matchesCapability;
   });
 }
 

@@ -100,7 +100,7 @@ describe('notification center console page', () => {
     expect(channelDrawerSource).toContain('不适用');
   });
 
-  test('links channel scope, tenant resources, and secret reference choices', () => {
+  test('links channel scope, scope resources, and secret reference choices', () => {
     for (const token of ['listNamespaces', 'listAppScopes', 'listWorkerPools', 'listSecrets']) {
       expect(channelDrawerSource).toContain(token);
     }

@@ -1,4 +1,4 @@
-//! Tenant/application/worker-pool access-scope helpers.
+//! Scope/application/worker-pool access-scope helpers.
 
 use super::{dto::AccessScopeBinding, error::ApiError};
 
@@ -122,7 +122,10 @@ fn binding_allows(
 ) -> bool {
     optional_matches(binding.namespace.as_deref(), namespace)
         && optional_matches(binding.app.as_deref(), app)
-        && worker_pool.is_none_or(|actual| optional_matches(binding.worker_pool.as_deref(), actual))
+        && worker_pool.map_or_else(
+            || binding.worker_pool.is_none(),
+            |actual| optional_matches(binding.worker_pool.as_deref(), actual),
+        )
 }
 
 fn optional_contains(parent: Option<&str>, child: Option<&str>) -> bool {

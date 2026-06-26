@@ -58,7 +58,7 @@ cd docs && bun run docs:typecheck && bun run docs:build
 1. 更新 `crates/tikeo-server/src/http/routes/*` 中的 DTO 和 handler。
 2. 需要时更新 `crates/tikeo-server/src/http/router.rs`。
 3. 更新 `crates/tikeo-server/src/http/openapi.rs`。
-4. 增加成功、认证失败、校验失败、租户/范围保护测试。
+4. 增加成功、认证失败、校验失败、作用域保护测试。
 5. Web 要使用时更新 `web/src/api`。
 6. 更新 reference 和 user guide。
 7. 只有当 contract token 能保护真实回归时才添加。

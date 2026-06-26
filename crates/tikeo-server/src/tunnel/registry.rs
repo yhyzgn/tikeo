@@ -12,7 +12,7 @@ use registry_election::{
 use registry_routing::{
     broadcast_selector_matches, is_match, persisted_broadcast_worker_matches,
     persisted_lasso_dispatch_score, persisted_worker_matches, persisted_worker_satisfies,
-    registered_lasso_dispatch_score, worker_satisfies,
+    registered_lasso_dispatch_score, registered_worker_pool_matches, worker_satisfies,
 };
 use session_identity::{
     empty_to_none, logical_instance_id, next_generation, replace_previous_generations,
@@ -442,6 +442,7 @@ impl WorkerRegistry {
         &self,
         namespace: &str,
         app: &str,
+        worker_pool: Option<&str>,
         selector: Option<&BroadcastSelector>,
     ) -> Vec<String> {
         let selector = selector.cloned().unwrap_or_default();
@@ -453,6 +454,7 @@ impl WorkerRegistry {
                 worker.is_schedulable()
                     && is_match(&worker.namespace, namespace)
                     && is_match(&worker.app, app)
+                    && worker_pool.is_none_or(|pool| registered_worker_pool_matches(worker, pool))
                     && broadcast_selector_matches(worker, &selector)
             })
             .map(|worker| worker.worker_id.clone())
@@ -517,6 +519,7 @@ impl WorkerRegistry {
         &self,
         namespace: &str,
         app: &str,
+        worker_pool: Option<&str>,
         requirement: Option<&WorkerRequirement>,
         dispatch_key: &str,
     ) -> Vec<String> {
@@ -529,6 +532,7 @@ impl WorkerRegistry {
                 worker.is_schedulable()
                     && is_match(&worker.namespace, namespace)
                     && is_match(&worker.app, app)
+                    && worker_pool.is_none_or(|pool| registered_worker_pool_matches(worker, pool))
                     && requirement.is_none_or(|requirement| worker_satisfies(worker, requirement))
             })
             .cloned()
@@ -575,7 +579,7 @@ impl WorkerRegistry {
         app: &str,
         requirement: Option<&WorkerRequirement>,
     ) -> Vec<String> {
-        self.find_lasso_persisted_dispatch_workers(namespace, app, requirement, "")
+        self.find_lasso_persisted_dispatch_workers(namespace, app, None, requirement, "")
             .await
     }
 
@@ -588,18 +592,21 @@ impl WorkerRegistry {
         &self,
         namespace: &str,
         app: &str,
+        worker_pool: Option<&str>,
         requirement: Option<&WorkerRequirement>,
         dispatch_key: &str,
     ) -> Vec<String> {
         let Some(lifecycle) = self.lifecycle.as_ref() else {
             return self
-                .find_lasso_dispatch_workers(namespace, app, requirement, dispatch_key)
+                .find_lasso_dispatch_workers(namespace, app, worker_pool, requirement, dispatch_key)
                 .await;
         };
         let Ok(mut workers) = lifecycle.list_online_workers(500).await else {
             return Vec::new();
         };
-        workers.retain(|worker| persisted_worker_matches(worker, namespace, app, requirement));
+        workers.retain(|worker| {
+            persisted_worker_matches(worker, namespace, app, worker_pool, requirement)
+        });
         workers.sort_by(|left, right| {
             persisted_lasso_dispatch_score(left, &self.gateway_node_id, dispatch_key).cmp(
                 &persisted_lasso_dispatch_score(right, &self.gateway_node_id, dispatch_key),
@@ -616,11 +623,17 @@ impl WorkerRegistry {
         &self,
         namespace: &str,
         app: &str,
+        worker_pool: Option<&str>,
         selector: Option<&BroadcastSelector>,
     ) -> Vec<String> {
         let Some(lifecycle) = self.lifecycle.as_ref() else {
             return self
-                .find_eligible_workers_with_broadcast_selector(namespace, app, selector)
+                .find_eligible_workers_with_broadcast_selector(
+                    namespace,
+                    app,
+                    worker_pool,
+                    selector,
+                )
                 .await;
         };
         let selector = selector.cloned().unwrap_or_default();
@@ -629,7 +642,9 @@ impl WorkerRegistry {
         };
         workers
             .into_iter()
-            .filter(|worker| persisted_broadcast_worker_matches(worker, namespace, app, &selector))
+            .filter(|worker| {
+                persisted_broadcast_worker_matches(worker, namespace, app, worker_pool, &selector)
+            })
             .map(|worker| worker.worker_id)
             .collect()
     }

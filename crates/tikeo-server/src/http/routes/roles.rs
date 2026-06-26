@@ -411,7 +411,7 @@ const MENU_PERMISSION_CATALOG: &[MenuCatalogEntry] = &[
     ),
     (
         "/scopes",
-        "租户范围",
+        "作用域管理",
         "governance",
         "/scopes",
         Some(("tenants", "read")),

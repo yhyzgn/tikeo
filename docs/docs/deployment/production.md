@@ -58,8 +58,19 @@ storage:
 
 observability:
   logging:
-    level: info
-    log_dir: /logs
+    root:
+      level: INFO
+    console:
+      enabled: true
+      level: INFO
+    file:
+      enabled: true
+      level: INFO
+      path: /logs
+    error-file:
+      enabled: true
+      level: ERROR
+      path: /logs
 ```
 
 See [Configuration reference](../reference/configuration) for the complete Server and Worker tables.
@@ -68,8 +79,8 @@ See [Configuration reference](../reference/configuration) for the complete Serve
 
 | Deployment surface | Config path | Data/db path | Log path | Mount guidance |
 | --- | --- | --- | --- | --- |
-| Docker image default | `/config/tikeo.yml` | `/data/tikeo.db` for SQLite | stdout unless `log_dir` is set | Fine for quick evaluation; mount `/data` if SQLite is not disposable. |
-| Docker with external config | `/config/tikeo.yml` | `/data/tikeo.db` for SQLite | `/logs/tikeo.log` when `log_dir=/logs` | Bind-mount config read-only, mount `/config/tls`, `/data`, and `/logs`. |
+| Docker image default | `/config/tikeo.yml` | `/data/tikeo.db` for SQLite | stdout unless file logging is enabled | Fine for quick evaluation; mount `/data` if SQLite is not disposable. |
+| Docker with external config | `/config/tikeo.yml` | `/data/tikeo.db` for SQLite | `/logs/tikeo.log` when `file.path=/logs` | Bind-mount config read-only, mount `/config/tls`, `/data`, and `/logs`. |
 | Docker Compose SQLite | `/config/tikeo.yml` | `tikeo-data:/data` | `tikeo-logs:/logs` | Compose mounts config, TLS, data, and logs explicitly. |
 | Docker Compose PostgreSQL | `/config/tikeo.yml` | `tikeo-postgres-data:/var/lib/postgresql/data` on DB service | `tikeo-logs:/logs` | Server `/data` is only a uniform runtime mount; DB state is in the DB service. |
 | Docker Compose MySQL | `/config/tikeo.yml` | `tikeo-mysql-data:/var/lib/mysql` on DB service | `tikeo-logs:/logs` | Back up the MySQL volume or managed DB. |

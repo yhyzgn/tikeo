@@ -5,7 +5,8 @@ use axum::{Json, extract::State, http::HeaderMap};
 use crate::http::{
     AppState, auth,
     dto::{
-        ApiResponse, ObservabilityStatusApiResponse, ObservabilityStatusResponse, TracingStatus,
+        ApiResponse, LogSinkStatus, LoggingStatus, ObservabilityStatusApiResponse,
+        ObservabilityStatusResponse, TracingStatus,
     },
     error::ApiError,
 };
@@ -21,6 +22,7 @@ pub async fn observability_status(
     headers: HeaderMap,
 ) -> Result<Json<ObservabilityStatusApiResponse>, ApiError> {
     auth::require_permission(&headers, &state, "system", "read").await?;
+    let logging = &state.observability.logging;
     let tracing = &state.observability.tracing;
     let mut issues = Vec::new();
     let endpoint_configured = tracing
@@ -34,6 +36,29 @@ pub async fn observability_status(
         );
     }
     Ok(Json(ApiResponse::success(ObservabilityStatusResponse {
+        logging: LoggingStatus {
+            root_level: logging.root.level.clone(),
+            console: LogSinkStatus {
+                enabled: logging.console.enabled,
+                level: logging.console.level.clone(),
+                target: Some("stdout".to_owned()),
+            },
+            file: LogSinkStatus {
+                enabled: logging.file.enabled,
+                level: logging.file.level.clone(),
+                target: Some(logging.file.path.clone()),
+            },
+            error_file: LogSinkStatus {
+                enabled: logging.error_file.enabled,
+                level: logging.error_file.level.clone(),
+                target: Some(logging.error_file.path.clone()),
+            },
+            elk: LogSinkStatus {
+                enabled: logging.elk.enabled,
+                level: logging.elk.level.clone(),
+                target: Some(logging.elk.servers.clone()),
+            },
+        },
         tracing: TracingStatus {
             enabled: tracing.enabled,
             exporter: if tracing.enabled { "otlp" } else { "none" }.to_owned(),

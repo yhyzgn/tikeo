@@ -106,7 +106,7 @@ pub async fn list_jobs(
                     &principal.scope_bindings,
                     &job.namespace,
                     &job.app,
-                    None,
+                    job.worker_pool.as_deref(),
                 )
             })
         })
@@ -147,10 +147,10 @@ pub async fn create_job(
         &principal.scope_bindings,
         &namespace,
         &app,
-        None,
+        request.worker_pool.as_deref(),
     ) {
         return Err(ApiError::forbidden(
-            "api token scope binding does not allow this namespace/app",
+            "api token scope binding does not allow this namespace/app/worker pool",
         ));
     }
     let schedule_type = parse_schedule_type(request.schedule_type.as_deref().unwrap_or("api"))?;
@@ -167,6 +167,7 @@ pub async fn create_job(
             "processorName and scriptId are mutually exclusive",
         ));
     }
+    validate_worker_pool_scope(&state, &namespace, &app, request.worker_pool.as_deref()).await?;
     validate_canary_target_scope(&state, request.canary_job_id.as_deref(), &namespace, &app)
         .await?;
     let created = state
@@ -186,6 +187,7 @@ pub async fn create_job(
             schedule_calendar_json: serialize_schedule_calendar(request.schedule_calendar.as_ref()),
             processor_name: request.processor_name.clone(),
             processor_type: request.processor_type.clone(),
+            worker_pool: request.worker_pool.clone(),
             script_id: request.script_id.clone(),
             enabled: request.enabled.unwrap_or(true),
             canary_job_id: request.canary_job_id.clone(),
@@ -248,10 +250,10 @@ pub async fn trigger_job(
         &principal.scope_bindings,
         &job_summary.namespace,
         &job_summary.app,
-        None,
+        job_summary.worker_pool.as_deref(),
     ) {
         return Err(ApiError::forbidden(
-            "api token scope binding does not allow this namespace/app",
+            "api token scope binding does not allow this namespace/app/worker pool",
         ));
     }
 
@@ -319,6 +321,7 @@ pub async fn trigger_job(
             .find_persisted_broadcast_workers(
                 &target_summary.namespace,
                 &target_summary.app,
+                target_summary.worker_pool.as_deref(),
                 broadcast_selector.as_ref(),
             )
             .await;
@@ -402,23 +405,27 @@ pub async fn update_job(
         &principal.scope_bindings,
         &current.namespace,
         &current.app,
-        None,
+        current.worker_pool.as_deref(),
     ) {
         return Err(ApiError::forbidden(
-            "api token scope binding does not allow this namespace/app",
+            "api token scope binding does not allow this namespace/app/worker pool",
         ));
     }
     let target_namespace =
         update_scope_or_current(request.namespace.as_deref(), &current.namespace);
     let target_app = update_scope_or_current(request.app.as_deref(), &current.app);
+    let target_worker_pool = request
+        .worker_pool
+        .clone()
+        .unwrap_or_else(|| current.worker_pool.clone());
     if !crate::http::access_scope::allows_resource(
         &principal.scope_bindings,
         &target_namespace,
         &target_app,
-        None,
+        target_worker_pool.as_deref(),
     ) {
         return Err(ApiError::forbidden(
-            "api token scope binding does not allow target namespace/app",
+            "api token scope binding does not allow target namespace/app/worker pool",
         ));
     }
     let schedule_type = request
@@ -466,6 +473,13 @@ pub async fn update_job(
         .canary_job_id
         .clone()
         .unwrap_or_else(|| current.canary_job_id.clone());
+    validate_worker_pool_scope(
+        &state,
+        &target_namespace,
+        &target_app,
+        target_worker_pool.as_deref(),
+    )
+    .await?;
     validate_canary_target_scope(
         &state,
         final_canary_job_id.as_deref(),
@@ -492,6 +506,7 @@ pub async fn update_job(
                     .map(|value| serialize_schedule_calendar(value.as_ref())),
                 processor_name: request.processor_name.clone(),
                 processor_type: request.processor_type.clone(),
+                worker_pool: request.worker_pool.clone(),
                 script_id: request.script_id.clone(),
                 enabled: request.enabled,
                 canary_job_id: request.canary_job_id.clone(),
@@ -548,10 +563,10 @@ pub async fn list_job_versions(
         &principal.scope_bindings,
         &current.namespace,
         &current.app,
-        None,
+        current.worker_pool.as_deref(),
     ) {
         return Err(ApiError::forbidden(
-            "api token scope binding does not allow this namespace/app",
+            "api token scope binding does not allow this namespace/app/worker pool",
         ));
     }
     let items = state
@@ -600,10 +615,10 @@ pub async fn rollback_job(
         &principal.scope_bindings,
         &current.namespace,
         &current.app,
-        None,
+        current.worker_pool.as_deref(),
     ) {
         return Err(ApiError::forbidden(
-            "api token scope binding does not allow this namespace/app",
+            "api token scope binding does not allow this namespace/app/worker pool",
         ));
     }
     let updated = state
@@ -666,10 +681,10 @@ pub async fn delete_job(
         &principal.scope_bindings,
         &current.namespace,
         &current.app,
-        None,
+        current.worker_pool.as_deref(),
     ) {
         return Err(ApiError::forbidden(
-            "api token scope binding does not allow this namespace/app",
+            "api token scope binding does not allow this namespace/app/worker pool",
         ));
     }
     let deleted = state
@@ -871,6 +886,31 @@ async fn validate_canary_target_scope(
     if canary.namespace != namespace || canary.app != app {
         return Err(ApiError::bad_request(
             "canary job must belong to the target namespace/app",
+        ));
+    }
+    Ok(())
+}
+
+async fn validate_worker_pool_scope(
+    state: &AppState,
+    namespace: &str,
+    app: &str,
+    worker_pool: Option<&str>,
+) -> Result<(), ApiError> {
+    let Some(worker_pool) = worker_pool.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(());
+    };
+    let exists = state
+        .jobs
+        .scopes()
+        .list_worker_pools(Some(namespace), Some(app))
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .into_iter()
+        .any(|pool| pool.name == worker_pool);
+    if !exists {
+        return Err(ApiError::bad_request(
+            "workerPool must belong to the target namespace/app",
         ));
     }
     Ok(())
@@ -1332,6 +1372,7 @@ impl From<tikeo_storage::JobSummary> for JobSummary {
                 .and_then(|value| serde_json::from_str(value).ok()),
             processor_name: value.processor_name,
             processor_type: value.processor_type,
+            worker_pool: value.worker_pool,
             script_id: value.script_id,
             version_number: value.version_number,
             enabled: value.enabled,
@@ -1358,7 +1399,7 @@ async fn instance_list_stream_snapshot(
                 &principal.scope_bindings,
                 &job.namespace,
                 &job.app,
-                None,
+                job.worker_pool.as_deref(),
             )
         })
         .map(JobSummary::from)

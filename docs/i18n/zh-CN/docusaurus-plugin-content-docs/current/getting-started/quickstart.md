@@ -209,7 +209,7 @@ TIKEO_MANAGEMENT_TRIGGER_REBUILD_SERVER=0 scripts/management-trigger-e2e-smoke.s
 
 Tikeo 的价值不在于 Server 单独能启动，而在于 Server、scope、SDK 凭证、Worker Tunnel、processor capability、实例证据之间形成闭环。很多传统调度器的问题都出现在“调度中心以为任务已经派发，但执行侧不可达或不可解释”。因此快速开始必须同时验证控制面和执行面：如果只创建 job，没有 Worker，就只能证明管理 API；如果只启动 Worker，没有 SDK create+trigger，就不能证明应用接入；如果只看 Web 页面，没有实例日志，就不能证明执行证据。
 
-每个 scope 字段都应当被当作调度条件。`namespace` 表示租户/环境边界，`app` 表示应用边界，`worker_pool` 用作运营标签和容量分组，`processorName` 对应 SDK 代码中真实注册的处理器。排障时不要凭感觉说“Worker 已经在线所以应该执行”，而是检查这些字段是否在 job、Worker、API Key 和 trigger 中一致。
+每个 scope 字段都应当被当作调度条件。`namespace` 表示团队、环境或业务域边界，`app` 表示应用边界，`worker_pool` 用作运营标签和容量分组，`processorName` 对应 SDK 代码中真实注册的处理器。排障时不要凭感觉说“Worker 已经在线所以应该执行”，而是检查这些字段是否在 job、Worker、API Key 和 trigger 中一致。
 
 ## 何时进入下一阶段
 

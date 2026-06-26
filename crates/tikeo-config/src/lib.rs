@@ -4,7 +4,7 @@
 
 use std::{collections::BTreeMap, fmt::Write as _, net::SocketAddr, path::Path};
 
-use config::{Config, Environment, File};
+use config::{Config, Environment, File, FileFormat};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -481,42 +481,162 @@ impl Default for NotificationDeliveryConfig {
 /// Observability export configuration.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ObservabilityConfig {
-    /// Local process logging settings for console and optional file output.
+    /// Local and remote runtime logging sinks.
     #[serde(default)]
-    /// Logging value.
     pub logging: LoggingConfig,
     /// Distributed tracing export settings.
     #[serde(default)]
-    /// Tracing value.
     pub tracing: TracingConfig,
 }
 
-/// Local process logging configuration.
-///
-/// The server always writes operator diagnostics to the console. Set `log_dir` to also
-/// persist the same structured events to `tikeo.log` under a durable directory. Keep the
-/// default `info` level in production and temporarily raise to `debug` only while
-/// diagnosing scheduling, worker tunnel, or storage issues because debug logs may be noisy.
+/// Runtime logging configuration.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LoggingConfig {
-    /// Minimum log level used when `RUST_LOG` is not provided. Supported values are
-    /// `debug`, `info`, `warn`, and `error`.
-    #[serde(default = "default_log_level")]
-    /// Level value.
-    pub level: String,
-    /// Optional directory where the server writes `tikeo.log` in addition to console output.
+    /// Deprecated flat minimum log level accepted for backward compatibility.
     #[serde(default)]
-    /// Log dir value.
+    pub level: Option<String>,
+    /// Deprecated flat log directory accepted for backward compatibility.
+    #[serde(default)]
     pub log_dir: Option<String>,
+    /// Root log filter.
+    #[serde(default)]
+    pub root: LogLevelConfig,
+    /// Console sink.
+    #[serde(default)]
+    pub console: LogSinkConfig,
+    /// Main file sink.
+    #[serde(default)]
+    pub file: FileLogSinkConfig,
+    /// Error-only file sink.
+    #[serde(default, rename = "error-file", alias = "error_file")]
+    pub error_file: FileLogSinkConfig,
+    /// ELK/log collector sink.
+    #[serde(default)]
+    pub elk: ElkLogConfig,
 }
 
 impl Default for LoggingConfig {
     fn default() -> Self {
         Self {
-            level: default_log_level(),
+            level: None,
             log_dir: None,
+            root: LogLevelConfig::default(),
+            console: LogSinkConfig::default(),
+            file: FileLogSinkConfig::default(),
+            error_file: FileLogSinkConfig {
+                enabled: false,
+                level: "error".to_owned(),
+                path: default_app_log_path(),
+            },
+            elk: ElkLogConfig::default(),
         }
     }
+}
+
+/// Single log level block.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LogLevelConfig {
+    /// Minimum level.
+    #[serde(default = "default_log_level")]
+    pub level: String,
+}
+
+impl Default for LogLevelConfig {
+    fn default() -> Self {
+        Self {
+            level: default_log_level(),
+        }
+    }
+}
+
+/// Console-like log sink.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LogSinkConfig {
+    /// Enable this sink.
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Minimum level for this sink.
+    #[serde(default = "default_log_level")]
+    pub level: String,
+}
+
+impl Default for LogSinkConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            level: default_log_level(),
+        }
+    }
+}
+
+/// File log sink.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FileLogSinkConfig {
+    /// Enable this sink.
+    #[serde(default)]
+    pub enabled: bool,
+    /// Minimum level for this sink.
+    #[serde(default = "default_log_level")]
+    pub level: String,
+    /// Log directory path.
+    #[serde(default = "default_app_log_path")]
+    pub path: String,
+}
+
+impl Default for FileLogSinkConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            level: default_log_level(),
+            path: default_app_log_path(),
+        }
+    }
+}
+
+/// ELK/log collector sink.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ElkLogConfig {
+    /// Enable this sink.
+    #[serde(default)]
+    pub enabled: bool,
+    /// Comma-separated collector endpoints in `host:port` form.
+    #[serde(default = "default_elk_servers")]
+    pub servers: String,
+    /// Collector topic or logical index.
+    #[serde(default = "default_elk_topic")]
+    pub topic: String,
+    /// Minimum level for this sink.
+    #[serde(default = "default_log_level")]
+    pub level: String,
+    /// Optional SASL metadata for compatible collectors.
+    #[serde(default)]
+    pub sasl: ElkSaslConfig,
+}
+
+impl Default for ElkLogConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            servers: default_elk_servers(),
+            topic: default_elk_topic(),
+            level: default_log_level(),
+            sasl: ElkSaslConfig::default(),
+        }
+    }
+}
+
+/// ELK/log collector SASL metadata.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ElkSaslConfig {
+    /// Enable SASL metadata on collector connections.
+    #[serde(default)]
+    pub enabled: bool,
+    /// SASL username.
+    #[serde(default)]
+    pub username: String,
+    /// SASL password.
+    #[serde(default)]
+    pub password: String,
 }
 
 /// OpenTelemetry tracing exporter configuration.
@@ -650,6 +770,18 @@ fn default_oidc_scopes() -> Vec<String> {
     ]
 }
 
+fn default_app_log_path() -> String {
+    "/logs".to_owned()
+}
+
+fn default_elk_servers() -> String {
+    "203.83.233.63:8094,36.111.150.189:8094,106.63.7.44:8094".to_owned()
+}
+
+fn default_elk_topic() -> String {
+    "ivs-dev".to_owned()
+}
+
 /// Errors raised while loading tikeo configuration.
 #[derive(Debug, Error)]
 pub enum ConfigError {
@@ -711,7 +843,25 @@ pub fn load_config(path: Option<&Path>) -> Result<TikeoConfig, ConfigError> {
         .set_default("transport_security.http.mtls_required", false)?
         .set_default("transport_security.worker_tunnel.tls_enabled", false)?
         .set_default("transport_security.worker_tunnel.mtls_required", false)?
-        .set_default("observability.logging.level", default_log_level())?
+        .set_default("observability.logging.root.level", default_log_level())?
+        .set_default("observability.logging.console.enabled", true)?
+        .set_default("observability.logging.console.level", default_log_level())?
+        .set_default("observability.logging.file.enabled", false)?
+        .set_default("observability.logging.file.level", default_log_level())?
+        .set_default("observability.logging.file.path", default_app_log_path())?
+        .set_default("observability.logging.error-file.enabled", false)?
+        .set_default("observability.logging.error-file.level", "error")?
+        .set_default(
+            "observability.logging.error-file.path",
+            default_app_log_path(),
+        )?
+        .set_default("observability.logging.elk.enabled", false)?
+        .set_default("observability.logging.elk.servers", default_elk_servers())?
+        .set_default("observability.logging.elk.topic", default_elk_topic())?
+        .set_default("observability.logging.elk.level", default_log_level())?
+        .set_default("observability.logging.elk.sasl.enabled", false)?
+        .set_default("observability.logging.elk.sasl.username", "")?
+        .set_default("observability.logging.elk.sasl.password", "")?
         .set_default("observability.tracing.enabled", false)?
         .set_default("observability.tracing.headers", Vec::<String>::new())?
         .set_default("alert_secrets.allow_env_refs", true)?
@@ -735,14 +885,70 @@ pub fn load_config(path: Option<&Path>) -> Result<TikeoConfig, ConfigError> {
         .set_default("notification_delivery.backoff_seconds", 300)?;
 
     if let Some(path) = path {
-        builder = builder.add_source(File::from(path).required(true));
+        let content = std::fs::read_to_string(path).map_err(|error| {
+            config::ConfigError::Message(format!(
+                "failed to read config file {}: {error}",
+                path.display()
+            ))
+        })?;
+        let expanded = expand_config_placeholders(&content);
+        builder = builder.add_source(File::from_str(&expanded, FileFormat::Yaml));
     }
 
     let config = builder
         .add_source(Environment::with_prefix("TIKEO").separator("__"))
         .build()?;
 
-    Ok(config.try_deserialize()?)
+    let mut config: TikeoConfig = config.try_deserialize()?;
+    apply_legacy_logging_compat(&mut config.observability.logging);
+    Ok(config)
+}
+
+fn apply_legacy_logging_compat(logging: &mut LoggingConfig) {
+    if let Some(level) = logging
+        .level
+        .as_ref()
+        .filter(|value| !value.trim().is_empty())
+    {
+        logging.root.level.clone_from(level);
+        logging.console.level.clone_from(level);
+        if logging.file.level == default_log_level() {
+            logging.file.level.clone_from(level);
+        }
+    }
+    if let Some(path) = logging
+        .log_dir
+        .as_ref()
+        .filter(|value| !value.trim().is_empty())
+    {
+        logging.file.enabled = true;
+        logging.file.path.clone_from(path);
+    }
+}
+
+fn expand_config_placeholders(input: &str) -> String {
+    let mut output = String::with_capacity(input.len());
+    let mut rest = input;
+    while let Some(start) = rest.find("${") {
+        output.push_str(&rest[..start]);
+        let after = &rest[start + 2..];
+        let Some(end) = after.find('}') else {
+            output.push_str(&rest[start..]);
+            return output;
+        };
+        let expression = &after[..end];
+        output.push_str(&resolve_config_placeholder(expression));
+        rest = &after[end + 1..];
+    }
+    output.push_str(rest);
+    output
+}
+
+fn resolve_config_placeholder(expression: &str) -> String {
+    let (key, fallback) = expression
+        .split_once(':')
+        .map_or((expression, ""), |(key, fallback)| (key, fallback));
+    std::env::var(key).unwrap_or_else(|_| fallback.to_owned())
 }
 
 #[cfg(test)]
@@ -885,11 +1091,138 @@ mod tests {
         let config =
             load_config(None).unwrap_or_else(|error| panic!("default config should load: {error}"));
 
-        assert_eq!(config.observability.logging.level, "info");
-        assert!(config.observability.logging.log_dir.is_none());
+        assert_eq!(config.observability.logging.root.level, "info");
+        assert!(config.observability.logging.console.enabled);
+        assert_eq!(config.observability.logging.console.level, "info");
+        assert!(!config.observability.logging.file.enabled);
+        assert_eq!(config.observability.logging.file.path, "/logs");
+        assert!(!config.observability.logging.error_file.enabled);
+        assert_eq!(config.observability.logging.error_file.level, "error");
+        assert_eq!(config.observability.logging.error_file.path, "/logs");
+        assert!(!config.observability.logging.elk.enabled);
+        assert_eq!(
+            config.observability.logging.elk.servers,
+            "203.83.233.63:8094,36.111.150.189:8094,106.63.7.44:8094"
+        );
+        assert_eq!(config.observability.logging.elk.topic, "ivs-dev");
         assert!(!config.observability.tracing.enabled);
         assert!(config.observability.tracing.otlp_endpoint.is_none());
         assert!(config.observability.tracing.headers.is_empty());
+    }
+
+    #[test]
+    fn nested_logging_config_resolves_env_default_log_path_and_elk_defaults() {
+        let path = std::env::temp_dir().join(format!(
+            "tikeo-nested-logging-config-{}.yml",
+            std::process::id()
+        ));
+        std::fs::write(
+            &path,
+            r#"observability:
+  logging:
+    root:
+      level: WARN
+    console:
+      enabled: false
+      level: ERROR
+    file:
+      enabled: true
+      level: INFO
+      path: "${TIKEO_LOG_PATH:./var/tikeo/logs}"
+    error-file:
+      enabled: true
+      level: ERROR
+      path: "${TIKEO_LOG_PATH:./var/tikeo/logs}"
+    elk:
+      enabled: ${ELK_ENABLED:false}
+      servers: "${ELK_SERVERS:203.83.233.63:8094,36.111.150.189:8094,106.63.7.44:8094}"
+      topic: "${ELK_TOPIC:ivs-dev}"
+      level: INFO
+      sasl:
+        enabled: ${ELK_SASL_ENABLED:false}
+        username: "${ELK_USERNAME:}"
+        password: "${ELK_PASSWORD:}"
+"#,
+        )
+        .unwrap_or_else(|error| panic!("temp config should write: {error}"));
+        let config = load_config(Some(&path))
+            .unwrap_or_else(|error| panic!("temp config should load: {error}"));
+        std::fs::remove_file(&path)
+            .unwrap_or_else(|error| panic!("temp config should delete: {error}"));
+
+        assert_eq!(config.observability.logging.root.level, "WARN");
+        assert!(!config.observability.logging.console.enabled);
+        assert_eq!(config.observability.logging.console.level, "ERROR");
+        assert!(config.observability.logging.file.enabled);
+        assert_eq!(config.observability.logging.file.path, "./var/tikeo/logs");
+        assert!(config.observability.logging.error_file.enabled);
+        assert_eq!(
+            config.observability.logging.error_file.path,
+            "./var/tikeo/logs"
+        );
+        assert!(!config.observability.logging.elk.enabled);
+        assert_eq!(config.observability.logging.elk.topic, "ivs-dev");
+        assert_eq!(config.observability.logging.elk.sasl.username, "");
+        assert_eq!(config.observability.logging.elk.sasl.password, "");
+    }
+
+    #[test]
+    fn legacy_flat_logging_config_maps_to_nested_runtime_sinks() {
+        let path = std::env::temp_dir().join(format!(
+            "tikeo-legacy-logging-config-{}.yml",
+            std::process::id()
+        ));
+        std::fs::write(
+            &path,
+            r#"observability:
+  logging:
+    level: debug
+    log_dir: "./legacy-logs"
+"#,
+        )
+        .unwrap_or_else(|error| panic!("temp config should write: {error}"));
+        let config = load_config(Some(&path))
+            .unwrap_or_else(|error| panic!("temp config should load: {error}"));
+        std::fs::remove_file(&path)
+            .unwrap_or_else(|error| panic!("temp config should delete: {error}"));
+
+        assert_eq!(config.observability.logging.level.as_deref(), Some("debug"));
+        assert_eq!(
+            config.observability.logging.log_dir.as_deref(),
+            Some("./legacy-logs")
+        );
+        assert_eq!(config.observability.logging.root.level, "debug");
+        assert_eq!(config.observability.logging.console.level, "debug");
+        assert!(config.observability.logging.file.enabled);
+        assert_eq!(config.observability.logging.file.level, "debug");
+        assert_eq!(config.observability.logging.file.path, "./legacy-logs");
+    }
+
+    #[test]
+    fn checked_in_configs_use_nested_logging_shape() {
+        for name in ["dev.yml", "tikeo.yml"] {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../config")
+                .join(name);
+            let config = load_config(Some(&path))
+                .unwrap_or_else(|error| panic!("{name} should load: {error}"));
+
+            assert_eq!(config.observability.logging.root.level, "INFO");
+            assert!(config.observability.logging.console.enabled);
+            assert!(config.observability.logging.file.enabled);
+            assert!(config.observability.logging.error_file.enabled);
+            assert!(!config.observability.logging.elk.enabled);
+            let expected_log_path = if name == "dev.yml" {
+                ".dev/logs"
+            } else {
+                "/logs"
+            };
+            assert_eq!(config.observability.logging.file.path, expected_log_path);
+            assert_eq!(
+                config.observability.logging.error_file.path,
+                expected_log_path
+            );
+        }
     }
 
     #[test]

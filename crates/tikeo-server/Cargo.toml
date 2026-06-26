@@ -56,7 +56,7 @@ tracing-appender = "0.2"
 opentelemetry = "0.30"
 opentelemetry_sdk = "0.30"
 opentelemetry-otlp = { version = "0.30", default-features = false, features = ["http-proto", "reqwest-blocking-client"] }
-tracing-subscriber = { version = "0", features = ["env-filter", "fmt", "registry"] }
+tracing-subscriber = { version = "0", features = ["env-filter", "fmt", "json", "registry"] }
 utoipa = { version = "5", features = ["axum_extras"] }
 
 [dev-dependencies]

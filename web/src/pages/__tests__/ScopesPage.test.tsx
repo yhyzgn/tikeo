@@ -6,8 +6,8 @@ const routesSource = readFileSync(new URL('../../routes.tsx', import.meta.url), 
 const pageSource = readFileSync(new URL('../ScopesPage.tsx', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('../../styles.css', import.meta.url), 'utf8');
 
-describe('tenant scope management page', () => {
-  test('exposes a governed route and menu entry for tenant scopes', () => {
+describe('scope management page', () => {
+  test('exposes a governed route and menu entry for scopes', () => {
     expect(routesSource).toContain('scopes');
     expect(routesSource).toContain('/scopes');
     expect(routesSource).toContain("resource: 'tenants'");
@@ -37,13 +37,13 @@ describe('tenant scope management page', () => {
     expect(pageSource).toContain("title: '引用'");
     expect(pageSource).not.toContain('Value Ref');
     expect(pageSource).not.toContain('env:/vault:/secret:');
-    expect(pageSource).toContain('OIDC tenant/app/role 绑定');
+    expect(pageSource).toContain('OIDC 作用域/应用/角色绑定');
     expect(pageSource).toContain('命名空间');
     expect(pageSource).toContain('应用');
-    expect(pageSource).toContain('Worker Pool');
+    expect(pageSource).toContain('执行池');
     expect(pageSource).toContain('confirmTitle="删除命名空间"');
     expect(pageSource).toContain('confirmTitle="删除应用"');
-    expect(pageSource).toContain('confirmTitle="删除 Worker Pool"');
+    expect(pageSource).toContain('confirmTitle="删除执行池"');
     expect(styles).toContain('.scope-management-page');
   });
 });

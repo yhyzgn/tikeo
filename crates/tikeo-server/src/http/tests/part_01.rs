@@ -678,6 +678,12 @@
         let json: Value = serde_json::from_slice(&body)
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
         assert_eq!(json["code"], 0);
+        assert_eq!(json["data"]["logging"]["root_level"], "info");
+        assert_eq!(json["data"]["logging"]["console"]["enabled"], true);
+        assert_eq!(json["data"]["logging"]["console"]["target"], "stdout");
+        assert_eq!(json["data"]["logging"]["file"]["enabled"], false);
+        assert_eq!(json["data"]["logging"]["error_file"]["enabled"], false);
+        assert_eq!(json["data"]["logging"]["elk"]["enabled"], false);
         assert_eq!(json["data"]["tracing"]["enabled"], false);
         assert_eq!(json["data"]["tracing"]["exporter"], "none");
         assert_eq!(json["data"]["ready"], true);
@@ -686,6 +692,11 @@
             .await
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
         let mut observability = tikeo_config::ObservabilityConfig::default();
+        observability.logging.root.level = "WARN".to_owned();
+        observability.logging.file.enabled = true;
+        observability.logging.file.path = "/tmp/tikeo-test-logs".to_owned();
+        observability.logging.elk.enabled = true;
+        observability.logging.elk.servers = "127.0.0.1:19094".to_owned();
         observability.tracing.enabled = true;
         observability.tracing.otlp_endpoint =
             Some("https://collector.example.com/v1/traces".to_owned());
@@ -716,6 +727,17 @@
         let json: Value = serde_json::from_slice(&body)
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
         assert_eq!(json["code"], 0);
+        assert_eq!(json["data"]["logging"]["root_level"], "WARN");
+        assert_eq!(json["data"]["logging"]["file"]["enabled"], true);
+        assert_eq!(
+            json["data"]["logging"]["file"]["target"],
+            "/tmp/tikeo-test-logs"
+        );
+        assert_eq!(json["data"]["logging"]["elk"]["enabled"], true);
+        assert_eq!(
+            json["data"]["logging"]["elk"]["target"],
+            "127.0.0.1:19094"
+        );
         assert_eq!(json["data"]["tracing"]["enabled"], true);
         assert_eq!(json["data"]["tracing"]["exporter"], "otlp");
         assert_eq!(json["data"]["tracing"]["endpoint_configured"], true);

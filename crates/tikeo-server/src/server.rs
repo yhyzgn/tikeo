@@ -40,6 +40,18 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
     let raft_transport_token = cluster_config.transport_token.clone();
     let offset = tikeo_storage::parse_timestamp_offset(&timestamp_offset)
         .with_context(|| format!("invalid storage.timestamp_offset: {timestamp_offset}"))?;
+    info!(
+        http_addr = %http_addr,
+        tunnel_addr = %tunnel_addr,
+        cluster_mode = ?cluster_config.mode,
+        node_id = %cluster_config.node_id,
+        database_type = %config.storage.database.kind,
+        log_console_enabled = observability.logging.console.enabled,
+        log_file_enabled = observability.logging.file.enabled,
+        log_error_file_enabled = observability.logging.error_file.enabled,
+        log_elk_enabled = observability.logging.elk.enabled,
+        "starting tikeo server runtime"
+    );
     tikeo_storage::set_timestamp_offset(offset);
     let shard_policy = tikeo_storage::set_scheduler_shard_policy(
         cluster_config.scheduler_shard_map_version,
@@ -51,13 +63,22 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
         shard_count = shard_policy.shard_count,
         "configured scheduler shard policy"
     );
+    info!(database_type = %config.storage.database.kind, "initializing storage and migrations");
     let db = connect_and_migrate(&connection_url)
         .await
         .with_context(|| format!("failed to initialize storage at {connection_url}"))?;
+    info!(database_type = %config.storage.database.kind, "storage initialized and migrations applied");
     let raft = RaftRepository::new(db.clone());
     let cluster = coordinator_from_config_with_storage(&cluster_config, &raft)
         .await
         .context("failed to initialize cluster coordinator")?;
+    let cluster_status = cluster.status().await;
+    info!(
+        node_id = %cluster_status.node_id,
+        role = cluster_status.role.as_str(),
+        can_schedule = cluster_status.can_schedule,
+        "cluster coordinator initialized"
+    );
     let instances = JobInstanceRepository::new(db.clone());
     let logs = JobInstanceLogRepository::new(db.clone());
     let attempts = JobInstanceAttemptRepository::new(db.clone());
@@ -261,6 +282,7 @@ fn build_http_router(parts: HttpRouterParts) -> axum::Router {
 }
 
 async fn run_worker_lease_scanner(lifecycle: WorkerLifecycleRepository) -> Result<()> {
+    info!(interval_seconds = 10, "starting worker lease scanner");
     tunnel::lifecycle::run_lease_scanner(lifecycle, std::time::Duration::from_secs(10)).await;
     Ok(())
 }
@@ -282,6 +304,12 @@ async fn run_alert_retry_worker(
     config: AlertRetryConfig,
 ) -> Result<()> {
     if config.enabled {
+        info!(
+            interval_seconds = config.interval_seconds.max(1),
+            batch_size = config.batch_size.min(500),
+            max_attempts = config.max_attempts.clamp(1, 20),
+            "starting alert retry worker"
+        );
         alert::run_retry_loop(
             alerts,
             cluster,
@@ -294,6 +322,7 @@ async fn run_alert_retry_worker(
         )
         .await;
     } else {
+        info!("alert retry worker disabled");
         std::future::pending::<()>().await;
     }
     Ok(())
@@ -308,6 +337,12 @@ async fn run_notification_delivery_worker(
     trigger: Option<crate::notification::NotificationDeliveryTrigger>,
 ) -> Result<()> {
     if config.enabled {
+        info!(
+            interval_seconds = config.interval_seconds.max(1),
+            batch_size = config.batch_size.min(500),
+            max_attempts = config.max_attempts.clamp(1, 20),
+            "starting notification delivery worker"
+        );
         let repositories = crate::notification::NotificationDeliveryRepositories::new(
             channels, messages, attempts,
         );
@@ -324,6 +359,7 @@ async fn run_notification_delivery_worker(
         );
         crate::notification::run_delivery_loop(context).await;
     } else {
+        info!("notification delivery worker disabled");
         std::future::pending::<()>().await;
     }
     Ok(())

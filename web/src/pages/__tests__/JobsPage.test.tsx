@@ -51,24 +51,25 @@ describe('job schedule form governance', () => {
     expect(source).toContain("{ value: 'script', label: '脚本（沙箱自动执行）' }");
     expect(source).toContain('normalizeExecutor');
     expect(source).toContain("if (values.executorKind === 'script') return { ...rest, processorName: null, processorType: null }");
-    expect(source).toContain('validatePluginExecutor(values.processorType, values.processorName, values.namespace, values.app)');
+    expect(source).toContain('validatePluginExecutor(values.processorType, values.processorName, values.namespace, values.app, values.workerPool)');
     expect(source).toContain('return { ...rest, scriptId: null, processorType: null }');
     expect(source).not.toContain('script:${script.id}');
   });
 
-  test('requires namespace and app to be selected from tenant scope management', () => {
+  test('requires namespace app and optional execution pool from scope management', () => {
     expect(source).toContain('listNamespaces');
     expect(source).toContain('listAppScopes');
     expect(source).toContain('namespaceOptions');
     expect(source).toContain('appOptionsForNamespace(createNamespace)');
+    expect(source).toContain('workerPoolOptionsForScope(createNamespace, createApp)');
     expect(source).toContain('applyNamespaceSelection(form, value)');
     expect(source).toContain('optionFilterProp="label"');
-    expect(source).toContain('placeholder="选择租户管理中的 Namespace"');
-    expect(source).toContain('placeholder="选择租户管理中的 App"');
-    expect(source).toContain('编辑任务基础信息、所属 namespace/app、调度配置');
+    expect(source).toContain('placeholder="选择作用域管理中的 Namespace"');
+    expect(source).toContain('placeholder="选择作用域管理中的 App"');
+    expect(source).toContain('编辑任务基础信息、所属 namespace/app/执行池、调度配置');
     expect(source).toContain('appOptionsForNamespace(editNamespace)');
     expect(source).toContain('applyNamespaceSelection(editForm, value)');
-    expect(source).not.toContain('namespace/app 来自租户管理且暂不支持变更');
+    expect(source).not.toContain('namespace/app 来自作用域管理且暂不支持变更');
     expect(source).not.toContain('<Select disabled value={editingJob?.namespace}');
     expect(source).not.toContain('<Select disabled value={editingJob?.app}');
     expect(source).toContain('form.setFieldsValue({ scheduleType:');

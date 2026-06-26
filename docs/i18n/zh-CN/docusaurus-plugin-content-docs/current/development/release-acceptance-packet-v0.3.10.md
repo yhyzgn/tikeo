@@ -123,7 +123,7 @@ soak gate 短跑本地证据：
 
 | 模块 | 脚本 | 证据产物 | 边界 |
 | --- | --- | --- | --- |
-| 通知中心 provider/e2e | `scripts/notification-provider-e2e-smoke.sh` 和 `scripts/notification-real-provider-acceptance.sh` | 本地 `REPORT.md`、`summary.json`、provider 收包 JSONL、渠道测试响应、message/attempt/queue 快照；真实 provider `summary.json`/`REPORT.md` 或明确的 `deferred_real_provider_inputs_missing` 边界 | 本地 smoke 使用协议级 HTTP mock provider；真实租户 provider 需要保存的 channel id 和可用外网链路。 |
+| 通知中心 provider/e2e | `scripts/notification-provider-e2e-smoke.sh` 和 `scripts/notification-real-provider-acceptance.sh` | 本地 `REPORT.md`、`summary.json`、provider 收包 JSONL、渠道测试响应、message/attempt/queue 快照；真实 provider `summary.json`/`REPORT.md` 或明确的 `deferred_real_provider_inputs_missing` 边界 | 本地 smoke 使用协议级 HTTP mock provider；真实作用域 provider 需要保存的 channel id 和可用外网链路。 |
 | 迁移 CLI 旧项目链路 | `scripts/migration-cli-full-chain-smoke.sh` | `REPORT.md`、生成的旧项目、原地迁移后的旧 Worker 项目、`.tikeo-migration/`、`code-apply-evidence.json`、已复核导入 payload | 本地证明 CLI 探测、bundle 生成、本地代码/配置 apply 和已复核导入 payload 准备；业务语义等价仍需要代表性旧项目验证。 |
 | 真实云 HA | `scripts/release-readiness-evidence.sh` 按需调用 `scripts/cloud-raft-ha-acceptance.sh` | 云环境 `REPORT.md`、`summary.json`，或明确的 `deferred_cloud_endpoint_missing` 边界报告 | 需要 `TIKEO_CLOUD_HA_SERVER_URL`；没有云目标时以 Kind 证据作为本地替代。 |
 
@@ -143,7 +143,7 @@ soak gate 短跑本地证据：
 
 ## 通知中心证据边界
 
-通知中心在目标环境中每个启用 provider family 都有 test-send 证据后，才可宣称该环境生产就绪。当前实现和文档已经覆盖 channel 行级密钥、provider-specific template、列表/抽屉测试动作、retry/DLQ 证据和脱敏。`scripts/notification-provider-e2e-smoke.sh` 可用本地 loopback provider 证明一条 delivered 和一条 forced dead-letter 的完整状态机。`scripts/notification-real-provider-acceptance.sh` 是预发/生产保存渠道行的真实 provider 验收入口：没有 `TIKEO_NOTIFICATION_REAL_SERVER_URL` 与 `TIKEO_NOTIFICATION_REAL_CHANNEL_IDS` 时会归档明确延期边界，而不是假装已测试 provider。是否生产就绪仍取决于目标租户/环境里的真实 provider 调用。
+通知中心在目标环境中每个启用 provider family 都有 test-send 证据后，才可宣称该环境生产就绪。当前实现和文档已经覆盖 channel 行级密钥、provider-specific template、列表/抽屉测试动作、retry/DLQ 证据和脱敏。`scripts/notification-provider-e2e-smoke.sh` 可用本地 loopback provider 证明一条 delivered 和一条 forced dead-letter 的完整状态机。`scripts/notification-real-provider-acceptance.sh` 是预发/生产保存渠道行的真实 provider 验收入口：没有 `TIKEO_NOTIFICATION_REAL_SERVER_URL` 与 `TIKEO_NOTIFICATION_REAL_CHANNEL_IDS` 时会归档明确延期边界，而不是假装已测试 provider。是否生产就绪仍取决于目标作用域/环境里的真实 provider 调用。
 
 相关文档：[通知用户指南](../user-guide/notifications)、[通知中心参考](../reference/notification-center)、[产品就绪验收清单](./product-readiness-acceptance)。
 

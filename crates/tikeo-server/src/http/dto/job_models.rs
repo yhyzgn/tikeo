@@ -43,6 +43,8 @@ pub struct JobSummary {
     pub processor_name: Option<String>,
     /// Processor type value.
     pub processor_type: Option<String>,
+    /// Worker pool value.
+    pub worker_pool: Option<String>,
     /// Script id value.
     pub script_id: Option<String>,
     /// Boolean state flag.
@@ -311,6 +313,8 @@ pub struct CreateJobRequest {
     pub processor_name: Option<String>,
     /// Processor type value.
     pub processor_type: Option<String>,
+    /// Worker pool value.
+    pub worker_pool: Option<String>,
     /// Script id value.
     pub script_id: Option<String>,
     /// Boolean state flag.
@@ -357,6 +361,9 @@ pub struct UpdateJobRequest {
     #[serde(default, deserialize_with = "deserialize_nullable_update")]
     /// Processor type value.
     pub processor_type: NullableUpdate<String>,
+    #[serde(default, deserialize_with = "deserialize_nullable_update")]
+    /// Worker pool value.
+    pub worker_pool: NullableUpdate<String>,
     #[serde(default, deserialize_with = "deserialize_nullable_update")]
     /// Script id value.
     pub script_id: NullableUpdate<String>,

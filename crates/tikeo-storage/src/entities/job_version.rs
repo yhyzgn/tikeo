@@ -32,6 +32,8 @@ pub struct Model {
     pub processor_name: Option<String>,
     /// Optional custom plugin processor type for capability resolution.
     pub processor_type: Option<String>,
+    /// Snapshot of optional execution pool under the app.
+    pub worker_pool: Option<String>,
     /// Snapshot of optional managed script binding.
     pub script_id: Option<String>,
     /// Snapshot of enabled flag.

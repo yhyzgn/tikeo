@@ -221,6 +221,7 @@ async fn registry_matches_broadcast_selector_region_tags_cluster_and_labels() {
         .find_eligible_workers_with_broadcast_selector(
             "finance",
             "billing",
+            None,
             Some(&BroadcastSelector {
                 tags: vec!["java".to_owned(), "blue".to_owned()],
                 region: Some("cn".to_owned()),
@@ -533,7 +534,7 @@ async fn registry_lasso_prefers_local_gateway_before_remote_master() {
         .unwrap_or_else(|error| panic!("local worker should persist: {error}"));
 
     let candidates = registry
-        .find_lasso_persisted_dispatch_workers("finance", "billing", None, "inst-locality")
+        .find_lasso_persisted_dispatch_workers("finance", "billing", None, None, "inst-locality")
         .await;
 
     assert_eq!(
@@ -563,13 +564,13 @@ async fn registry_lasso_spreads_with_stable_dispatch_key_within_same_locality_bu
     }
 
     let first_key = registry
-        .find_lasso_persisted_dispatch_workers("finance", "billing", None, "dispatch-key-a")
+        .find_lasso_persisted_dispatch_workers("finance", "billing", None, None, "dispatch-key-a")
         .await;
     let mut alternate_key = None;
     for index in 0..256 {
         let key = format!("dispatch-key-{index}");
         let candidates = registry
-            .find_lasso_persisted_dispatch_workers("finance", "billing", None, &key)
+            .find_lasso_persisted_dispatch_workers("finance", "billing", None, None, &key)
             .await;
         if candidates.first() != first_key.first() {
             alternate_key = Some((key, candidates));
@@ -590,10 +591,99 @@ async fn registry_lasso_spreads_with_stable_dispatch_key_within_same_locality_bu
     assert_eq!(
         alternate,
         registry
-            .find_lasso_persisted_dispatch_workers("finance", "billing", None, &key)
+            .find_lasso_persisted_dispatch_workers("finance", "billing", None, None, &key)
             .await,
         "same dispatch key must produce stable worker ordering"
     );
+}
+
+#[tokio::test]
+async fn registry_broadcast_filters_by_execution_pool_label() {
+    let registry = WorkerRegistry::default();
+    let mut invoice = register_worker("pod-invoice");
+    invoice
+        .labels
+        .insert("worker_pool".to_owned(), "invoice-service".to_owned());
+    registry.register(invoice, mpsc::channel(1).0).await;
+    let mut payment = register_worker("pod-payment");
+    payment
+        .labels
+        .insert("worker-pool".to_owned(), "payment-service".to_owned());
+    registry.register(payment, mpsc::channel(1).0).await;
+
+    let invoice_workers = registry
+        .find_eligible_workers_with_broadcast_selector(
+            "finance",
+            "billing",
+            Some("invoice-service"),
+            None,
+        )
+        .await;
+    let payment_workers = registry
+        .find_eligible_workers_with_broadcast_selector(
+            "finance",
+            "billing",
+            Some("payment-service"),
+            None,
+        )
+        .await;
+
+    assert_eq!(invoice_workers.len(), 1);
+    assert_eq!(payment_workers.len(), 1);
+    assert_ne!(invoice_workers, payment_workers);
+}
+
+#[tokio::test]
+async fn registry_lasso_filters_by_execution_pool_label() {
+    let db = tikeo_storage::connect_and_migrate("sqlite::memory:")
+        .await
+        .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+    let lifecycle = WorkerLifecycleRepository::new(db);
+    let registry = WorkerRegistry::with_lifecycle(lifecycle.clone()).with_gateway_node_id("node-a");
+    let mut invoice = lifecycle_worker_session(
+        "wrk-invoice",
+        "invoice",
+        "node-a",
+        r#"{"isMaster":false,"domain":"finance/billing/prod/cn"}"#,
+    );
+    invoice.labels_json = r#"{"worker_pool":"invoice-service"}"#.to_owned();
+    lifecycle
+        .register_session(invoice)
+        .await
+        .unwrap_or_else(|error| panic!("invoice worker should persist: {error}"));
+    let mut payment = lifecycle_worker_session(
+        "wrk-payment",
+        "payment",
+        "node-a",
+        r#"{"isMaster":false,"domain":"finance/billing/prod/cn"}"#,
+    );
+    payment.labels_json = r#"{"worker-pool":"payment-service"}"#.to_owned();
+    lifecycle
+        .register_session(payment)
+        .await
+        .unwrap_or_else(|error| panic!("payment worker should persist: {error}"));
+
+    let invoice_candidates = registry
+        .find_lasso_persisted_dispatch_workers(
+            "finance",
+            "billing",
+            Some("invoice-service"),
+            None,
+            "dispatch-key",
+        )
+        .await;
+    let payment_candidates = registry
+        .find_lasso_persisted_dispatch_workers(
+            "finance",
+            "billing",
+            Some("payment-service"),
+            None,
+            "dispatch-key",
+        )
+        .await;
+
+    assert_eq!(invoice_candidates, vec!["wrk-invoice".to_owned()]);
+    assert_eq!(payment_candidates, vec!["wrk-payment".to_owned()]);
 }
 
 fn lifecycle_worker_session(

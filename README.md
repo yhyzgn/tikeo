@@ -184,8 +184,8 @@ That wrapper runs `scripts/notification-provider-e2e-smoke.sh`, records a real-p
 ### 1. It covers more of the real platform problem
 
 Legacy schedulers often stop at “trigger a job on an executor.” Tikeo covers the surrounding parts
-that production teams eventually need anyway: RBAC, owner bootstrap, app-scoped API keys, tenant
-scopes, plugin processors, script sandboxes, topology, replay-ready logs, GitOps drift review,
+that production teams eventually need anyway: RBAC, owner bootstrap, app-scoped API keys, scope
+bindings, plugin processors, script sandboxes, topology, replay-ready logs, GitOps drift review,
 Terraform, Kubernetes CRDs, Helm, Docker images, and SDK publishing.
 
 ### 2. It avoids the hidden cost of convention-based routing
@@ -254,7 +254,7 @@ DB-lock leadership, Java-first runtime assumptions, weak script isolation, and s
 | **Script execution** | ✅ **Governed versions + digest checks + SRT/Deno/WASM/V8/container** strategy. | Script execution exists but is not a full sandbox governance product. | Processor-focused; sandbox governance is not the center. |
 | **Workflow UX** | ✅ **Workflow canvas + topology + impact analysis + replay-ready execution data.** | Basic scheduling-centric views. | Workflow support, less focused on typed sandbox + SDK parity. |
 | **Security posture center** | ✅ **Security Policy Center** exposes evidence-based posture for script default-deny policy, release signing, notification redaction, transport TLS/mTLS, Raft transport-token readiness, and recent policy denials. See [Security Policy Center](https://docs.tikeo.net/docs/user-guide/security-policy-center). | Typically spread across admin settings, logs, and deployment docs. | Typically spread across admin settings, logs, and deployment docs. |
-| **Security model** | ✅ **Owner bootstrap, RBAC matrix, opaque sessions, API keys, tenant scopes, audit trails, TLS/mTLS readiness.** | Admin/user model. | Admin/user model. |
+| **Security model** | ✅ **Owner bootstrap, RBAC matrix, opaque sessions, API keys, scope bindings, audit trails, TLS/mTLS readiness.** | Admin/user model. | Admin/user model. |
 | **Observability** | ✅ **OpenTelemetry, metrics, task logs, file logs, audit logs, worker grouping, replay bundles.** | Traditional operations/logs. | Traditional operations/logs. |
 | **Best fit** | Teams building an internal orchestration platform, not just a cron replacement. | Java teams wanting a familiar scheduler. | Java teams wanting distributed job execution. |
 
@@ -354,7 +354,7 @@ executed only by workers that expose compatible sandbox runners.
 | **Worker registration** | A worker dials the tunnel, sends structured capabilities, receives authoritative `worker_id`, and renews its lease. |
 | **Dispatch** | The server matches namespace/app, worker state, master election, and typed capabilities before assigning work. |
 | **Execution evidence** | Workers emit task-scoped logs and result payloads; broadcast mode stores per-worker attempts and outcomes. |
-| **Governance** | RBAC, API keys, tenant scopes, script approvals, audit logs, and GitOps diff keep changes reviewable. |
+| **Governance** | RBAC, API keys, scope bindings, script approvals, audit logs, and GitOps diff keep changes reviewable. |
 
 ## Quick start
 
@@ -468,8 +468,28 @@ notification_delivery:
 
 observability:
   logging:
-    level: info
-    log_dir: ./logs
+    root:
+      level: INFO
+    console:
+      enabled: true
+      level: INFO
+    file:
+      enabled: true
+      level: INFO
+      path: ./logs
+    error-file:
+      enabled: true
+      level: ERROR
+      path: ./logs
+    elk:
+      enabled: false
+      servers: "203.83.233.63:8094,36.111.150.189:8094,106.63.7.44:8094"
+      topic: "ivs-dev"
+      level: INFO
+      sasl:
+        enabled: false
+        username: ""
+        password: ""
   tracing:
     enabled: true
     otlp_endpoint: "http://otel-collector:4318/v1/traces"
@@ -845,7 +865,7 @@ Worker services use SDK-level configuration, separate from Server configuration.
 | `heartbeatEvery` / `heartbeat-interval-millis` | `TIKEO_WORKER_HEARTBEAT_INTERVAL_MILLIS` | No | `10000` ms / `10s` | Worker lease renewal cadence; must be positive. |
 | `clientInstanceId` / `client-instance-id` | `TIKEO_WORKER_CLIENT_INSTANCE_ID` | Core SDKs: yes; Boot: no | Boot generates/persists when blank | Stable client-side hint. Server still assigns authoritative `worker_id`. |
 | `state-dir` | `TIKEO_WORKER_STATE_DIR` | No | `~/.tikeo/workers` in Boot identity helper | Directory for generated client instance ids and local sandbox tool cache. |
-| `namespace` | `TIKEO_WORKER_NAMESPACE` | No | `default` | Tenant/environment namespace for dispatch and management scoping. |
+| `namespace` | `TIKEO_WORKER_NAMESPACE` | No | `default` | Scope/environment namespace for dispatch and management scoping. |
 | `app` | `TIKEO_WORKER_APP` | No | `default` | Application scope for routing and management operations. |
 | `cluster` | `TIKEO_WORKER_CLUSTER` | No | Java Boot `default`; other helpers `local` | Worker cluster or environment shard. |
 | `region` | `TIKEO_WORKER_REGION` | No | Java Boot `default`; other helpers `local` | Worker region/zone. |
@@ -1126,11 +1146,14 @@ Server configuration is loaded from defaults, then a config file, then `TIKEO__.
 | `auth.oidc.scopes` | `TIKEO__AUTH__OIDC__SCOPES` | No | `openid,profile,email` | Prefer config file for list shape. |
 | `transport_security.http.*` | `TIKEO__TRANSPORT_SECURITY__HTTP__*` | Only when enabled | TLS/mTLS disabled | HTTP listener TLS/mTLS and cert/key/client CA paths. |
 | `transport_security.worker_tunnel.*` | `TIKEO__TRANSPORT_SECURITY__WORKER_TUNNEL__*` | Only when enabled | TLS/mTLS disabled | Worker Tunnel TLS/mTLS and cert/key/client CA paths. |
-| `observability.logging.level` | `TIKEO__OBSERVABILITY__LOGGING__LEVEL` | No | `info` | Default log level when `RUST_LOG` is not set. |
-| `observability.logging.log_dir` | `TIKEO__OBSERVABILITY__LOGGING__LOG_DIR` | No | unset; production template `/logs` | Writes `tikeo.log` in addition to stdout. Mount `/logs` if enabled in containers. |
+| `observability.logging.root.level` | `TIKEO__OBSERVABILITY__LOGGING__ROOT__LEVEL` | No | `info` | Root log filter used when `RUST_LOG` is not set. |
+| `observability.logging.console.*` | `TIKEO__OBSERVABILITY__LOGGING__CONSOLE__*` | No | enabled, `info` | Console/stdout sink. |
+| `observability.logging.file.*` | `TIKEO__OBSERVABILITY__LOGGING__FILE__*` or `TIKEO_LOG_PATH` in templates | No | disabled, `info`, `/logs` | Non-blocking JSON file sink writing `tikeo.log`. Mount `/logs` if enabled in containers. |
+| `observability.logging.error-file.*` | `TIKEO__OBSERVABILITY__LOGGING__ERROR_FILE__*` or `TIKEO_LOG_PATH` in templates | No | disabled, `error`, `/logs` | Non-blocking JSON error-file sink writing `tikeo-error.log`. |
+| `observability.logging.elk.*` | `TIKEO__OBSERVABILITY__LOGGING__ELK__*` | No | disabled, topic `ivs-dev` | Non-blocking batched JSON-lines forwarding to configured log collectors. |
 | `observability.tracing.enabled` | `TIKEO__OBSERVABILITY__TRACING__ENABLED` | No | `false` | Enable OTLP trace export. |
 | `observability.tracing.otlp_endpoint` | `TIKEO__OBSERVABILITY__TRACING__OTLP_ENDPOINT` | If tracing enabled | unset | OTLP collector endpoint. |
-| `observability.tracing.headers` | `TIKEO__OBSERVABILITY__TRACING__HEADERS` | No | `[]` | Exporter auth/tenant header names; values live outside status APIs. |
+| `observability.tracing.headers` | `TIKEO__OBSERVABILITY__TRACING__HEADERS` | No | `[]` | Exporter auth/scope header names; values live outside status APIs. |
 | `alert_retry.*` | `TIKEO__ALERT_RETRY__*` | No | enabled, `60s`, batch `50`, attempts `3`, backoff `300s` | Alert delivery retry worker settings. |
 | `notification_delivery.*` | `TIKEO__NOTIFICATION_DELIVERY__*` | No | enabled, recovery scan `60s`, batch `50`, attempts `3`, backoff `300s` | Notification Center delivery worker settings. New messages wake the local delivery worker immediately; `interval_seconds` is the recovery scan fallback. Set `public_console_base_url` for card links. |
 | `alert_secrets.allow_env_refs` | `TIKEO__ALERT_SECRETS__ALLOW_ENV_REFS` | No | `true` | Allows `env:NAME` references in alert/channel secrets. |
@@ -1155,7 +1178,7 @@ notification secrets into images; mount and edit the appropriate config file ins
 | SQLite data/db | `/data/tikeo.db` from `sqlite:///data/tikeo.db?mode=rwc` | `/var/lib/tikeo/tikeo.db` or another local path | Persistent volume/PVC/bind mount for the whole `/data` or data directory. | Required only when using SQLite and data must survive restart/recreate. |
 | PostgreSQL data | Not stored in the Server container | Managed DB or database host volume | Persist the PostgreSQL service's `/var/lib/postgresql/data`, or use a managed database backup/snapshot. | Required when PostgreSQL is self-hosted. |
 | MySQL data | Not stored in the Server container | Managed DB or database host volume | Persist the MySQL service's `/var/lib/mysql`, or use a managed database backup/snapshot. | Required when MySQL is self-hosted. |
-| File logs | `/logs/tikeo.log` when `observability.logging.log_dir=/logs` | `/var/log/tikeo/tikeo.log` | Optional log volume. Console/stdout logging is always emitted and is the default container logging path. | Optional; enable when you need file retention beyond stdout collection. |
+| File logs | `/logs/tikeo.log` and `/logs/tikeo-error.log` when file sinks are enabled and target `/logs` | `/var/log/tikeo/tikeo.log` | Optional log volume. Console/stdout logging is always emitted and is the default container logging path. | Optional; enable when you need file retention beyond stdout collection. |
 | TLS certificates | `/config/tls`, `/etc/tikeo/tls`, or Helm TLS secret mount paths | `/etc/tikeo/tls` | Read-only cert/key/CA mounts referenced by `transport_security.*.*_path`. | Required only when process-level TLS/mTLS is enabled. |
 | Web and Docs images | none | none | Static nginx bundles; normally no persistent data. Mount custom nginx config only if you intentionally override the image behavior. | Not required. |
 
@@ -1200,8 +1223,8 @@ for PostgreSQL or `tikeo-mysql-data:/var/lib/mysql` for MySQL, and configure Ser
 For Kubernetes and Helm, Tikeo mounts the Server ConfigMap at `/config` and runs
 `serve --config /config/tikeo.yml`. SQLite mode mounts a PVC at `/data`; external database mode
 injects the database URL from a Secret and does not need a SQLite data PVC. Prefer stdout
-logs for cluster log collection; if you enable `observability.logging.log_dir`, add an explicit volume
-or PVC for that directory.
+logs for cluster log collection; if you enable `observability.logging.file.enabled` or `observability.logging.error-file.enabled`, add an explicit volume
+or PVC for the configured path.
 
 ### Realtime console streams and proxies
 
@@ -1317,7 +1340,7 @@ Production environments should prefer PostgreSQL or MySQL and durable log direct
 cargo build --release --bin tikeo
 install -d ./var/lib/tikeo ./logs
 cp config/tikeo.yml ./tikeo.yml
-# Edit ./tikeo.yml, for example set observability.logging.log_dir = "./logs".
+# Edit ./tikeo.yml, for example set observability.logging.file/error-file paths to "./logs".
 ./target/release/tikeo serve --config ./tikeo.yml
 curl -fsS http://127.0.0.1:9090/readyz
 ```

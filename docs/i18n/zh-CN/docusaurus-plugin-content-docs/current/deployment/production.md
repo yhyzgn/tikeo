@@ -58,8 +58,19 @@ storage:
 
 observability:
   logging:
-    level: info
-    log_dir: /logs
+    root:
+      level: INFO
+    console:
+      enabled: true
+      level: INFO
+    file:
+      enabled: true
+      level: INFO
+      path: /logs
+    error-file:
+      enabled: true
+      level: ERROR
+      path: /logs
 ```
 
 完整 Server/Worker 表格见 [配置参考](../reference/configuration)。
@@ -68,8 +79,8 @@ observability:
 
 | 部署面 | 配置路径 | Data/db 路径 | 日志路径 | 挂载建议 |
 | --- | --- | --- | --- | --- |
-| Docker 镜像默认 | `/config/tikeo.yml` | SQLite 用 `/data/tikeo.db` | 默认 stdout，除非设置 `log_dir` | 快速评估可用；SQLite 不可丢时挂 `/data`。 |
-| Docker 外部配置 | `/config/tikeo.yml` | SQLite 用 `/data/tikeo.db` | `log_dir=/logs` 时 `/logs/tikeo.log` | 只读挂载 config，并挂 `/config/tls`、`/data`、`/logs`。 |
+| Docker 镜像默认 | `/config/tikeo.yml` | SQLite 用 `/data/tikeo.db` | 默认 stdout，除非启用文件日志 | 快速评估可用；SQLite 不可丢时挂 `/data`。 |
+| Docker 外部配置 | `/config/tikeo.yml` | SQLite 用 `/data/tikeo.db` | `file.path=/logs` 时 `/logs/tikeo.log` | 只读挂载 config，并挂 `/config/tls`、`/data`、`/logs`。 |
 | Docker Compose SQLite | `/config/tikeo.yml` | `tikeo-data:/data` | `tikeo-logs:/logs` | Compose 已显式挂载 config、TLS、data、logs。 |
 | Docker Compose PostgreSQL | `/config/tikeo.yml` | DB 服务的 `tikeo-postgres-data:/var/lib/postgresql/data` | `tikeo-logs:/logs` | Server `/data` 只是统一运行时挂载；DB 状态在数据库服务。 |
 | Docker Compose MySQL | `/config/tikeo.yml` | DB 服务的 `tikeo-mysql-data:/var/lib/mysql` | `tikeo-logs:/logs` | 备份 MySQL volume 或托管数据库。 |

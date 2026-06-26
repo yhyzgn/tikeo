@@ -5,7 +5,7 @@ description: Human operator guide for the Tikeo settings console page.
 
 # Settings and governance guide
 
-Use Settings to manage platform-level governance: users, roles, API-Key access, RBAC, tenant scopes, platform public URL, and integration defaults used by notifications and external console links.
+Use Settings to manage platform-level governance: users, roles, API-Key access, RBAC, scope bindings, platform public URL, and integration defaults used by notifications and external console links.
 
 ![Settings and governance guide screenshot](pathname:///img/screenshots/settings.svg)
 
@@ -29,7 +29,7 @@ Use Settings to manage platform-level governance: users, roles, API-Key access, 
 | --- | --- |
 | Users and roles | Owner/admin/operator/viewer style responsibilities, invitation, disable, and audit. |
 | API-Key | App-scoped keys, expiration, rotation, and least privilege. |
-| Tenant scopes | Namespace/app hierarchy used by Jobs, Workers, Notifications, and Audit filters. |
+| Scope management | Namespace/app/execution-pool hierarchy used by Jobs, Workers, Notifications, API-Key scope bindings, and Audit filters. |
 | Platform URL | Public console base URL for delivery templates and no-login console pages. |
 
 ## Typical workflow
@@ -76,3 +76,10 @@ This guide intentionally keeps API details in the appendix. If you need to inspe
 - [ ] Evidence includes object id, time, operator, status, and related instance or delivery id.
 - [ ] Public links use the configured platform URL when they leave the console.
 - [ ] The team knows whether this page is describing execution, notification, alerting, or governance semantics.
+
+
+### Scope model and execution pools
+
+Tikeo uses `Namespace → App → Worker Pool` as its scope model. Namespace is the environment, team, or business boundary; App is the application boundary; Worker Pool is an optional execution-resource group under one App.
+
+A Worker Pool can represent a Worker service, runtime class, machine group, or isolated queue. Use it when you need capacity isolation, queue/concurrency quotas, narrower API-Key/OIDC permissions, notification scope, job routing, or operations lookup. Small deployments can leave Worker Pool empty and continue matching by Namespace/App. Workers join a pool by registering the `worker_pool` or `worker-pool` label.

@@ -70,7 +70,7 @@ export const ROUTE_META = {
   dispatchQueue: { path: '/workers/dispatch-queue', menuKey: '/workers/dispatch-queue', label: '调度队列', icon: <BarsOutlined />, permission: { resource: 'workers', action: 'read' }, menu: true, group: 'runtime' },
   scripts: { path: '/scripts', menuKey: '/scripts', label: '脚本管理', icon: <CodeOutlined />, permission: { resource: 'scripts', action: 'read' }, menu: true, group: 'runtime' },
   plugins: { path: '/plugins', menuKey: '/plugins', label: '插件系统', icon: <AppstoreAddOutlined />, permission: { resource: 'tenants', action: 'read' }, menu: true, group: 'runtime' },
-  scopes: { path: '/scopes', menuKey: '/scopes', label: '租户范围', icon: <PartitionOutlined />, permission: { resource: 'tenants', action: 'read' }, menu: true, group: 'governance' },
+  scopes: { path: '/scopes', menuKey: '/scopes', label: '作用域管理', icon: <PartitionOutlined />, permission: { resource: 'tenants', action: 'read' }, menu: true, group: 'governance' },
   users: { path: '/users', menuKey: '/users', label: '用户管理', icon: <UserOutlined />, permission: { resource: 'users', action: 'read' }, menu: true, group: 'governance' },
   roles: { path: '/roles', menuKey: '/roles', label: '角色管理', icon: <SafetyCertificateOutlined />, permission: { resource: 'roles', action: 'read' }, menu: true, group: 'governance' },
   calendars: { path: '/calendars', menuKey: '/calendars', label: '调度日历', icon: <ScheduleOutlined />, permission: { resource: 'tenants', action: 'read' }, menu: true, group: 'governance' },

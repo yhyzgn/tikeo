@@ -50,7 +50,7 @@ python3 .github/tests/demo_seed_topology_contract_test.py
 cargo test -p tikeo-server notification --all-features
 ```
 
-`notification-provider-e2e-smoke.sh` starts a local Server and mock HTTP provider, sends one successful test notification and one forced provider failure, then verifies provider receipt, `notification_messages`, delivery attempts, queue aggregates, dead-letter state, and target redaction. It is local protocol evidence, not a substitute for tenant-specific Slack/Feishu/DingTalk/WeCom/PagerDuty/SMTP sign-off.
+`notification-provider-e2e-smoke.sh` starts a local Server and mock HTTP provider, sends one successful test notification and one forced provider failure, then verifies provider receipt, `notification_messages`, delivery attempts, queue aggregates, dead-letter state, and target redaction. It is local protocol evidence, not a substitute for scope-specific Slack/Feishu/DingTalk/WeCom/PagerDuty/SMTP sign-off.
 
 If a real provider cannot be called from the environment, run `scripts/notification-real-provider-acceptance.sh` to archive the explicit `deferred_real_provider_inputs_missing` boundary, mark only the provider-delivery gate as deferred, and keep render, validation, redaction, and queue evidence. Do not claim production readiness for that provider until a real outbound call has been observed.
 
@@ -132,7 +132,7 @@ Before handing the work to another owner or publishing a release, collect one sh
 ## Remaining risks and next work
 
 - Real cloud HA still needs environment-specific proof for ingress class, LB/WAF behavior, TLS/mTLS, network policies, and managed database HA.
-- Provider delivery behavior can differ by tenant policy; keep real Slack/DingTalk/Feishu/WeCom/PagerDuty/email evidence per deployment environment.
+- Provider delivery behavior can differ by scope policy; keep real Slack/DingTalk/Feishu/WeCom/PagerDuty/email evidence per deployment environment.
 - Legacy migration semantic equivalence is domain-specific. Route/block/concurrency/script semantics should remain review-required instead of being auto-converted silently.
 - Release asset availability should be checked from the actual GitHub Release page after the pipeline uploads artifacts.
 

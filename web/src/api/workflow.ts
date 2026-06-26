@@ -128,6 +128,7 @@ export interface WorkerSummary {
   region: string;
   capabilities: string[];
   structuredCapabilities?: WorkerCapabilitiesSummary;
+  workerPool?: string | null;
   master?: WorkerMasterSummary;
   generation: number;
   status: string;

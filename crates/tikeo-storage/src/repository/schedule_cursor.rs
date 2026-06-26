@@ -121,7 +121,7 @@ impl ScheduleCursorRepository {
                 worker_selector: Set(None),
                 namespace: Set(scope.as_ref().map(|scope| scope.0.clone())),
                 app: Set(scope.as_ref().map(|scope| scope.1.clone())),
-                worker_pool: Set(scope.as_ref().map(|scope| scope.2.clone())),
+                worker_pool: Set(scope.as_ref().and_then(|scope| scope.2.clone())),
                 created_at: Set(now.clone()),
                 updated_at: Set(now),
             }

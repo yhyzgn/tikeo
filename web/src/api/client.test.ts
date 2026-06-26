@@ -342,7 +342,7 @@ describe('api client envelope handling', () => {
 
 
 
-  test('loads and creates tenant scope resources through management endpoints', async () => {
+  test('loads and creates scope resources through management endpoints', async () => {
     const calls: Array<{ url: string; body?: unknown }> = [];
     globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
       calls.push({ url: String(url), body: init?.body ? JSON.parse(String(init.body)) : undefined });

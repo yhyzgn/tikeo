@@ -59,7 +59,7 @@ When adding or changing an API route:
 1. Update DTOs and route handler in `crates/tikeo-server/src/http/routes/*`.
 2. Update router wiring in `crates/tikeo-server/src/http/router.rs` if needed.
 3. Update OpenAPI generation in `crates/tikeo-server/src/http/openapi.rs`.
-4. Add server tests for success, auth failure, validation failure, and tenant/scope guard.
+4. Add server tests for success, auth failure, validation failure, and scope guard.
 5. Update Web API client under `web/src/api` if the console uses it.
 6. Update docs reference and user guide pages.
 7. Add contract tokens only when they protect a real regression.

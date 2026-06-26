@@ -209,6 +209,7 @@ export interface JobSummary {
   id: string;
   namespace: string;
   app: string;
+  workerPool: string | null;
   name: string;
   scheduleType: string;
   scheduleExpr: string | null;
@@ -361,6 +362,7 @@ export interface JobImpactResponse {
 export interface CreateJobRequest {
   namespace?: string;
   app?: string;
+  workerPool?: string | null;
   name: string;
   scheduleType?: string;
   scheduleExpr?: string | null;
@@ -381,6 +383,7 @@ export interface CreateJobRequest {
 export interface UpdateJobRequest {
   namespace?: string;
   app?: string;
+  workerPool?: string | null;
   name?: string;
   scheduleType?: string;
   scheduleExpr?: string | null;

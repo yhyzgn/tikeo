@@ -68,7 +68,7 @@ service key 和 `container_name` 都是显式稳定名称：
 | `/config/tikeo.yml` | `./config/tikeo.yml:/config/tikeo.yml:ro` | 同左 | 同左 | Server 配置文件。 |
 | `/config/tls` | `./config/tls:/config/tls:ro` | 同左 | 同左 | 可选 HTTP 和 Worker Tunnel TLS/mTLS 文件。 |
 | `/data` | `tikeo-data:/data` | `tikeo-data:/data` | `tikeo-data:/data` | SQLite 数据库路径和统一运行时 data 挂载。 |
-| `/logs` | `tikeo-logs:/logs` | `tikeo-logs:/logs` | `tikeo-logs:/logs` | `observability.logging.log_dir` 为 `/logs` 时的文件日志。 |
+| `/logs` | `tikeo-logs:/logs` | `tikeo-logs:/logs` | `tikeo-logs:/logs` | `observability.logging.file.path` 为 `/logs` 时的文件日志。 |
 | DB 服务数据 | 不使用 | `tikeo-postgres-data:/var/lib/postgresql/data` | `tikeo-mysql-data:/var/lib/mysql` | 自建数据库持久化存储。 |
 
 备份时要备份真正拥有数据库的 volume。SQLite 模式是 `tikeo-data`；PostgreSQL 和 MySQL 模式分别是对应数据库服务 volume。
@@ -112,7 +112,7 @@ tikeo serve --config /config/tikeo.yml
 - `storage.database.*` 选择 SQLite、PostgreSQL、MySQL 或其他受支持数据库。
 - `notification_delivery.public_console_base_url` 应填写浏览器可访问的 Web 控制台地址，例如本地 Compose 部署的 `http://127.0.0.1:8080`。
 - 启用 HTTP 或 Worker Tunnel TLS/mTLS 时，`transport_security.*` 指向 `/config/tls` 下的文件。
-- 如果希望文件日志写入 `tikeo-logs` volume，`observability.logging.log_dir` 保持 `/logs`。
+- 如果希望文件日志写入 `tikeo-logs` volume，`observability.logging.file.path` 保持 `/logs`。
 
 数据库配置优先使用结构化字段而不是 URL 字符串。密码包含 `@`、`/`、`:` 或 `#` 时可以直接作为 YAML 值填写，Tikeo 会安全地编码内部数据库 URL。
 

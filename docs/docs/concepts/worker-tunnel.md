@@ -47,7 +47,7 @@ The Server assigns authoritative identity during registration. A human-readable 
 | --- | --- | --- | --- |
 | Server | Schedules instances, stores state, validates API requests, checks RBAC, issues dispatch, fences stale writes | Arbitrary user code execution inside the Server process | Jobs, Instances, Audit, Notification delivery attempts |
 | Worker Tunnel | Registration, heartbeat, dispatch stream, logs, checkpoints, results, cancellation | Business policy decisions that belong to Server | Worker session history, transport errors, lost reason |
-| Worker | normal processors, script runner, plugin processor, external service calls, stdout/stderr capture | Tenant-wide authorization or unreviewed Server mutations | Capability snapshot, task logs, result payload, runtime error stack |
+| Worker | normal processors, script runner, plugin processor, external service calls, stdout/stderr capture | Scope-wide authorization or unreviewed Server mutations | Capability snapshot, task logs, result payload, runtime error stack |
 | Storage | Durable definitions, instances, attempts, logs, sessions, audit | In-memory-only source of truth | Replayable incident trail after restarts |
 
 ## Identity, lease, and fencing

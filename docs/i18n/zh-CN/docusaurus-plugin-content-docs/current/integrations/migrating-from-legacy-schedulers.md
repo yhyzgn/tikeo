@@ -54,7 +54,7 @@ flowchart TD
 | 决策项 | 推荐值 / 来源 | 原因 |
 | --- | --- | --- |
 | 目标环境 | 先 staging Tikeo Server，再生产。 | 直接导入生产会让回滚和证据复核变复杂。 |
-| Namespace | 通常是团队、租户或业务域。 | 生成的草案需要稳定的归属和 RBAC 边界。 |
+| Namespace | 通常是团队、环境或业务域。 | 生成的草案需要稳定的归属和 RBAC 边界。 |
 | App | 优先使用旧 executor app name；没有时使用计划好的 Tikeo app name。 | Worker 和 Job 草案需要共享路由边界。 |
 | Processor 命名 | 优先保留稳定且有意义的旧 handler name。 | 降低导入 Job 和 Worker 代码不匹配的概率。 |
 | API key | 后续导入流程使用 staging 作用域、具备 Job 创建权限的 key。 | 本地 `apply` 命令不接收也不使用 API key。 |

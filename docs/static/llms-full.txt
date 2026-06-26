@@ -59,7 +59,7 @@ Generated from docs/docs and zh-CN docs. This curated snapshot lists implementat
 - Workflows user guide: /docs/user-guide/workflows explains web/src/pages/WorkflowsPage.tsx, /api/v1/workflows, DAG definitions, validation, dry-run, run, replay, shards, and recovery.
 - Scripts user guide: /docs/user-guide/scripts explains web/src/pages/ScriptsPage.tsx, /api/v1/scripts, version history, publish, rollback, and diff governance.
 - Audit user guide: /docs/user-guide/audit explains web/src/pages/AuditLogsPage.tsx, /api/v1/audit-logs, /api/v1/audit-logs:export, filters, before/after snapshots, and trace evidence.
-- Settings guide: /docs/user-guide/settings explains web/src/routes.tsx, API-Key management, RBAC, tenant scopes, users, roles, calendars, and GitOps/IaC route boundaries.
+- Settings guide: /docs/user-guide/settings explains web/src/routes.tsx, API-Key management, RBAC, scope bindings, users, roles, calendars, and GitOps/IaC route boundaries.
 
 ## 中文关键页面
 

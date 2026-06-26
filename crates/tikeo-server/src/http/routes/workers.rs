@@ -222,6 +222,7 @@ fn persisted_worker_summary(worker: tikeo_storage::PersistedOnlineWorkerSummary)
         region: worker.region,
         capabilities: parse_string_vec(&worker.capabilities_json),
         structured_capabilities: parse_capabilities_summary(&worker.structured_capabilities_json),
+        worker_pool: worker_pool_from_labels_json(&worker.labels_json),
         master,
         generation: u64::try_from(worker.generation).unwrap_or_default(),
         status: worker.status,

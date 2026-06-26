@@ -130,7 +130,7 @@ func main() {
 | 参数 | 默认值 | 生产建议 |
 | --- | --- | --- |
 | `endpoint` | 本地 Worker Tunnel 通常是 `http://127.0.0.1:9998` | 生产必须指向 Server 暴露的 Worker Tunnel 地址，并与 TLS/mTLS 配置一致。 |
-| `namespace` | `default` 或示例中的 `sdk-smoke` | 每个团队、租户或环境应使用清晰命名，不要把生产任务混进 default。 |
+| `namespace` | `default` 或示例中的 `sdk-smoke` | 每个团队、业务域或环境应使用清晰命名，不要把生产任务混进 default。 |
 | `app` | `default` 或示例中的 `management` | 与 Management API Key 的 app scope 保持一致。 |
 | `clientInstanceId` | 示例手工指定 | 生产中应唯一且稳定，便于 Worker 页面和审计定位。 |
 | `cluster` / `region` | `local` | 多机房部署必须真实填写，广播和选择器会使用这些信息。 |

@@ -39,6 +39,12 @@ impl JobRepository {
         self.db.clone()
     }
 
+    #[must_use]
+    /// Scopes.
+    pub fn scopes(&self) -> super::scope::ScopeRepository {
+        super::scope::ScopeRepository::new(self.db.clone())
+    }
+
     /// List jobs ordered by creation order.
     ///
     /// # Errors
@@ -121,6 +127,7 @@ impl JobRepository {
             schedule_calendar_json: Set(normalize_processor_name(input.schedule_calendar_json)),
             processor_name: Set(processor_name),
             processor_type: Set(processor_type),
+            worker_pool: Set(normalize_processor_name(input.worker_pool)),
             script_id: Set(script_id),
             enabled: Set(input.enabled),
             canary_job_id: Set(normalize_processor_name(input.canary_job_id)),
@@ -152,6 +159,7 @@ impl JobRepository {
             schedule_calendar_json: model.schedule_calendar_json,
             processor_name: model.processor_name,
             processor_type: model.processor_type,
+            worker_pool: model.worker_pool,
             script_id: model.script_id,
             enabled: model.enabled,
             canary_job_id: model.canary_job_id,
@@ -241,6 +249,9 @@ impl JobRepository {
         if let Some(processor_type) = input.processor_type {
             active.processor_type = Set(normalize_processor_name(processor_type));
         }
+        if let Some(worker_pool) = input.worker_pool {
+            active.worker_pool = Set(normalize_processor_name(worker_pool));
+        }
         if let Some(script_id) = input.script_id {
             active.script_id = Set(normalize_processor_name(script_id));
             if matches!(active.script_id, sea_orm::ActiveValue::Set(Some(_))) {
@@ -318,6 +329,7 @@ impl JobRepository {
         active.schedule_calendar_json = Set(version.schedule_calendar_json);
         active.processor_name = Set(version.processor_name);
         active.processor_type = Set(version.processor_type);
+        active.worker_pool = Set(version.worker_pool);
         active.script_id = Set(version.script_id);
         active.enabled = Set(version.enabled);
         active.retry_policy_json = Set(version.retry_policy.to_json());
@@ -381,6 +393,7 @@ impl JobRepository {
                 schedule_calendar_json: job.schedule_calendar_json,
                 processor_name: job.processor_name,
                 processor_type: job.processor_type,
+                worker_pool: job.worker_pool,
                 script_id: job.script_id,
                 enabled: job.enabled,
                 canary_job_id: job.canary_job_id,
@@ -466,6 +479,7 @@ fn job_changed(before: &job::Model, active: &job::ActiveModel) -> bool {
         || active.schedule_calendar_json.as_ref() != &before.schedule_calendar_json
         || active.processor_name.as_ref() != &before.processor_name
         || active.processor_type.as_ref() != &before.processor_type
+        || active.worker_pool.as_ref() != &before.worker_pool
         || active.script_id.as_ref() != &before.script_id
         || active.enabled.as_ref() != &before.enabled
         || active.canary_job_id.as_ref() != &before.canary_job_id

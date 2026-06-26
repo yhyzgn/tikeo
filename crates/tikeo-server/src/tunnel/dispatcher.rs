@@ -18,7 +18,7 @@ use tikeo_storage::{
 };
 use tokio::time;
 use tonic_prost::prost::Message as _;
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 use super::{WorkerRegistry, capability::WorkerRequirement, governance};
@@ -118,6 +118,11 @@ fn dispatch_queue_lease_owner(claim: &DispatchQueueClaim) -> &str {
 /// Run the minimal single-node dispatch loop forever.
 pub async fn run(context: DispatcherContext) {
     let mut ticker = time::interval(DISPATCH_INTERVAL);
+    info!(
+        interval_ms = DISPATCH_INTERVAL.as_millis(),
+        batch_size = DISPATCH_BATCH_SIZE,
+        "starting worker dispatcher loop"
+    );
     loop {
         ticker.tick().await;
         if let Err(error) = dispatch_once_if_owner(context.refs(), &context.cluster).await {
@@ -442,11 +447,22 @@ async fn dispatch_single_claim(
         .find_lasso_persisted_dispatch_workers(
             &job.namespace,
             &job.app,
+            job.worker_pool.as_deref(),
             requirement.as_ref(),
             &instance.id,
         )
         .await;
     if let Some(worker_id) = eligible_workers.first() {
+        info!(
+            instance_id = %instance.id,
+            job_id = %job.id,
+            job_name = %job.name,
+            namespace = %job.namespace,
+            app = %job.app,
+            worker_pool = ?job.worker_pool,
+            worker_id = %worker_id,
+            "dispatching single job instance to worker"
+        );
         dispatch_single_to_worker(
             context,
             ownership,
@@ -461,6 +477,15 @@ async fn dispatch_single_claim(
         )
         .await?;
     } else {
+        warn!(
+            instance_id = %instance.id,
+            job_id = %job.id,
+            namespace = %job.namespace,
+            app = %job.app,
+            worker_pool = ?job.worker_pool,
+            requirement = ?requirement.as_ref().map(WorkerRequirement::display_label),
+            "no eligible worker for single job instance"
+        );
         handle_no_single_worker(context, &claim, &instance, requirement.as_ref()).await?;
     }
     Ok(())

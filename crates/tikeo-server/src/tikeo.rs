@@ -16,7 +16,7 @@ use tikeo_storage::{
     CalendarRepository, CalendarSummary, CreateJobInstance, JobInstanceRepository, JobRepository,
     JobSummary, ScheduleCursorRepository,
 };
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 
 const TICK_INTERVAL: Duration = Duration::from_secs(1);
 const MISFIRE_GRACE: chrono::Duration = chrono::Duration::seconds(5);
@@ -34,6 +34,10 @@ pub async fn run_tick_loop(
 ) {
     let state = ScheduleState;
     let mut ticker = tokio::time::interval(TICK_INTERVAL);
+    info!(
+        interval_ms = TICK_INTERVAL.as_millis(),
+        "starting schedule tick loop"
+    );
 
     loop {
         ticker.tick().await;
@@ -77,6 +81,16 @@ async fn tick_once(
         };
 
         for trigger in decision.triggers {
+            info!(
+                job_id = %job.id,
+                job_name = %job.name,
+                namespace = %job.namespace,
+                app = %job.app,
+                worker_pool = ?job.worker_pool,
+                trigger_type = %trigger.trigger_type,
+                fire_at = %trigger.fire_at.to_rfc3339(),
+                "creating scheduled job instance"
+            );
             cursors
                 .create_pending_once(
                     CreateJobInstance {
@@ -743,6 +757,7 @@ mod tests {
                 schedule_calendar_json: None,
                 processor_name: None,
                 processor_type: None,
+                worker_pool: None,
                 script_id: None,
                 enabled: true,
                 canary_job_id: None,
@@ -791,6 +806,7 @@ mod tests {
                 schedule_calendar_json: None,
                 processor_name: None,
                 processor_type: None,
+                worker_pool: None,
                 script_id: None,
                 enabled: true,
                 canary_job_id: None,
@@ -855,6 +871,7 @@ mod tests {
                 schedule_calendar_json: Some(calendar.to_string()),
                 processor_name: None,
                 processor_type: None,
+                worker_pool: None,
                 script_id: None,
                 enabled: true,
                 canary_job_id: None,
@@ -912,6 +929,7 @@ mod tests {
                 ),
                 processor_name: None,
                 processor_type: None,
+                worker_pool: None,
                 script_id: None,
                 enabled: true,
                 canary_job_id: None,
@@ -968,6 +986,7 @@ mod tests {
                 schedule_calendar_json: None,
                 processor_name: None,
                 processor_type: None,
+                worker_pool: None,
                 script_id: None,
                 enabled: true,
                 canary_job_id: None,
@@ -1023,6 +1042,7 @@ mod tests {
                 schedule_calendar_json: None,
                 processor_name: None,
                 processor_type: None,
+                worker_pool: None,
                 script_id: None,
                 enabled: true,
                 canary_job_id: None,
@@ -1067,6 +1087,7 @@ mod tests {
                 schedule_calendar_json: None,
                 processor_name: None,
                 processor_type: None,
+                worker_pool: None,
                 script_id: None,
                 enabled: true,
                 canary_job_id: None,
@@ -1113,6 +1134,7 @@ mod tests {
                 schedule_calendar_json: None,
                 processor_name: None,
                 processor_type: None,
+                worker_pool: None,
                 script_id: None,
                 enabled: true,
                 canary_job_id: None,
@@ -1156,6 +1178,7 @@ mod tests {
                 schedule_calendar_json: None,
                 processor_name: None,
                 processor_type: None,
+                worker_pool: None,
                 script_id: None,
                 enabled: false,
                 canary_job_id: None,
@@ -1199,6 +1222,7 @@ mod tests {
                 schedule_calendar_json: None,
                 processor_name: None,
                 processor_type: None,
+                worker_pool: None,
                 script_id: None,
                 enabled: true,
                 canary_job_id: None,
@@ -1251,6 +1275,7 @@ mod tests {
                 schedule_calendar_json: None,
                 processor_name: None,
                 processor_type: None,
+                worker_pool: None,
                 script_id: None,
                 enabled: true,
                 canary_job_id: None,
@@ -1295,6 +1320,7 @@ mod tests {
                 schedule_calendar_json: None,
                 processor_name: None,
                 processor_type: None,
+                worker_pool: None,
                 script_id: None,
                 enabled: true,
                 canary_job_id: None,
@@ -1338,6 +1364,7 @@ mod tests {
                 schedule_calendar_json: None,
                 processor_name: None,
                 processor_type: None,
+                worker_pool: None,
                 script_id: None,
                 enabled: true,
                 canary_job_id: None,

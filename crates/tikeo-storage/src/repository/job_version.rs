@@ -41,6 +41,8 @@ pub struct JobVersionSummary {
     pub processor_name: Option<String>,
     /// Processor type value.
     pub processor_type: Option<String>,
+    /// Worker pool value.
+    pub worker_pool: Option<String>,
     /// Identifier value.
     pub script_id: Option<String>,
     /// Boolean state flag.
@@ -136,6 +138,7 @@ impl JobVersionRepository {
             schedule_calendar_json: Set(job.schedule_calendar_json.clone()),
             processor_name: Set(job.processor_name.clone()),
             processor_type: Set(job.processor_type.clone()),
+            worker_pool: Set(job.worker_pool.clone()),
             script_id: Set(job.script_id.clone()),
             enabled: Set(job.enabled),
             retry_policy_json: Set(job.retry_policy_json.clone()),
@@ -160,6 +163,7 @@ impl JobVersionRepository {
             schedule_calendar_json: job.schedule_calendar_json.clone(),
             processor_name: job.processor_name.clone(),
             processor_type: job.processor_type.clone(),
+            worker_pool: job.worker_pool.clone(),
             script_id: job.script_id.clone(),
             enabled: job.enabled,
             retry_policy: JobRetryPolicy::from_json(Some(&job.retry_policy_json)),
@@ -249,6 +253,7 @@ impl From<job_version::Model> for JobVersionSummary {
             schedule_calendar_json: value.schedule_calendar_json,
             processor_name: value.processor_name,
             processor_type: value.processor_type,
+            worker_pool: value.worker_pool,
             script_id: value.script_id,
             enabled: value.enabled,
             retry_policy: JobRetryPolicy::from_json(Some(&value.retry_policy_json)),

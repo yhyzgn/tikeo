@@ -22,8 +22,28 @@ auth:
 
 observability:
   logging:
-    level: info
-    # log_dir: "./logs"
+    root:
+      level: INFO
+    console:
+      enabled: true
+      level: DEBUG
+    file:
+      enabled: true
+      level: INFO
+      path: "${TIKEO_LOG_PATH:.dev/logs}"
+    error-file:
+      enabled: true
+      level: ERROR
+      path: "${TIKEO_LOG_PATH:.dev/logs}"
+    elk:
+      enabled: ${ELK_ENABLED:false}
+      servers: "${ELK_SERVERS:127.0.0.1:8094}"
+      topic: "${ELK_TOPIC:ivs-dev}"
+      level: INFO
+      sasl:
+        enabled: ${ELK_SASL_ENABLED:false}
+        username: "${ELK_USERNAME:}"
+        password: "${ELK_PASSWORD:}"
   tracing:
     enabled: false
     headers: []

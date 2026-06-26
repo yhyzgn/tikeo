@@ -109,7 +109,7 @@ describe('i18n message dictionaries', () => {
       'success',
       'broadcast',
       'fixed_rate',
-      '选择租户管理中的 Namespace',
+      '选择作用域管理中的 Namespace',
       '失败重试策略',
       '执行结果',
       '节点执行结果',

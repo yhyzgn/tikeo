@@ -54,19 +54,21 @@ pub async fn job_scheduling_advice(
         &principal.scope_bindings,
         &job_summary.namespace,
         &job_summary.app,
-        None,
+        job_summary.worker_pool.as_deref(),
     ) {
         return Err(ApiError::forbidden(
-            "api token scope binding does not allow this namespace/app",
+            "api token scope binding does not allow this namespace/app/worker pool",
         ));
     }
     let requirement = required_requirement_for_job(&job_summary);
     let eligible_workers = state
         .registry
-        .find_ordered_persisted_dispatch_workers(
+        .find_lasso_persisted_dispatch_workers(
             &job_summary.namespace,
             &job_summary.app,
+            job_summary.worker_pool.as_deref(),
             Some(&requirement),
+            "",
         )
         .await;
     let worker_capacity = worker_capacity(&state, &eligible_workers).await;

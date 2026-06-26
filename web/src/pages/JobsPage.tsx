@@ -4,7 +4,7 @@ import dayjs from 'dayjs';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { createJob, deleteJob, getJobSchedulingAdvice, listAppScopes, listCalendars, listJobs, listJobVersions, listNamespaces, listPlugins, listScripts, listWorkers, rollbackJob, triggerJob, updateJob, workerStreamUrl, type AppScopeSummary, type BroadcastSelectorRequest, type CalendarSummary, type CreateJobRequest, type JobCanaryPolicy, type JobSchedulingAdvice, type JobSummary, type JobRetryPolicy, type NamespaceSummary, type PluginSummary, type JobVersionSummary, type ScriptSummary, type UpdateJobRequest, type WorkerListResponse, type WorkerSummary } from '../api/client';
+import { createJob, deleteJob, getJobSchedulingAdvice, listAppScopes, listCalendars, listJobs, listJobVersions, listNamespaces, listPlugins, listScripts, listWorkerPools, listWorkers, rollbackJob, triggerJob, updateJob, workerStreamUrl, type AppScopeSummary, type BroadcastSelectorRequest, type CalendarSummary, type CreateJobRequest, type JobCanaryPolicy, type JobSchedulingAdvice, type JobSummary, type JobRetryPolicy, type NamespaceSummary, type PluginSummary, type WorkerPoolSummary, type JobVersionSummary, type ScriptSummary, type UpdateJobRequest, type WorkerListResponse, type WorkerSummary } from '../api/client';
 import { PermissionGate, useCan } from '../components/Permission';
 import { ROUTE_META } from '../routes';
 import { useRouteActive } from '../hooks/useRouteActivation';
@@ -68,6 +68,7 @@ export function JobsPage() {
   const [calendars, setCalendars] = useState<CalendarSummary[]>([]);
   const [namespaces, setNamespaces] = useState<NamespaceSummary[]>([]);
   const [apps, setApps] = useState<AppScopeSummary[]>([]);
+  const [workerPools, setWorkerPools] = useState<WorkerPoolSummary[]>([]);
   const [workers, setWorkers] = useState<WorkerSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm<JobFormValues>();
@@ -75,8 +76,10 @@ export function JobsPage() {
   const [broadcastForm] = Form.useForm<{ tags?: string[]; region?: string; cluster?: string; labelsText?: string }>();
   const createNamespace = Form.useWatch('namespace', form);
   const createApp = Form.useWatch('app', form);
+  const createWorkerPool = Form.useWatch('workerPool', form);
   const editNamespace = Form.useWatch('namespace', editForm);
   const editApp = Form.useWatch('app', editForm);
+  const editWorkerPool = Form.useWatch('workerPool', editForm);
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [editingJob, setEditingJob] = useState<JobSummary | null>(null);
   const [versionJob, setVersionJob] = useState<JobSummary | null>(null);
@@ -101,7 +104,7 @@ export function JobsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [page, scriptPage, workerPage, pluginItems, calendarItems, namespaceItems, appItems] = await Promise.all([
+      const [page, scriptPage, workerPage, pluginItems, calendarItems, namespaceItems, appItems, workerPoolItems] = await Promise.all([
         listJobs(),
         listScripts(),
         listWorkers().catch(() => ({ online: 0, items: [] })),
@@ -109,6 +112,7 @@ export function JobsPage() {
         listCalendars().catch(() => []),
         listNamespaces(),
         listAppScopes(),
+        listWorkerPools().catch(() => []),
       ]);
       setJobs(page.items);
       setScripts(scriptPage.items);
@@ -117,6 +121,7 @@ export function JobsPage() {
       setCalendars(calendarItems);
       setNamespaces(namespaceItems);
       setApps(appItems);
+      setWorkerPools(workerPoolItems);
     } catch (err) {
       message.error(err instanceof Error ? err.message : '加载失败');
     } finally {
@@ -157,27 +162,47 @@ export function JobsPage() {
       .filter((job) => job.id !== excludeJobId)
       .filter((job) => !normalizedNamespace || job.namespace === normalizedNamespace)
       .filter((job) => !normalizedApp || job.app === normalizedApp)
-      .map((job) => ({ value: job.id, label: `${job.namespace}/${job.app} · ${job.name} · ${job.id}` }))
+      .map((job) => ({ value: job.id, label: `${job.namespace}/${job.app}${job.workerPool ? `/${job.workerPool}` : ''} · ${job.name} · ${job.id}` }))
       .sort((left, right) => left.label.localeCompare(right.label));
   }, [jobs]);
   const applyNamespaceSelection = (targetForm: typeof form | typeof editForm, namespace?: string | null) => {
     const options = appOptionsForNamespace(namespace);
     const currentApp = String(targetForm.getFieldValue('app') ?? '').trim();
     if (currentApp && options.some((option) => option.value === currentApp)) {
-      targetForm.setFieldsValue({ canaryJobId: undefined, processorName: undefined, processorType: undefined });
+      targetForm.setFieldsValue({ workerPool: undefined, canaryJobId: undefined, processorName: undefined, processorType: undefined });
       return;
     }
-    targetForm.setFieldsValue({ app: undefined, canaryJobId: undefined, processorName: undefined, processorType: undefined });
+    targetForm.setFieldsValue({ app: undefined, workerPool: undefined, canaryJobId: undefined, processorName: undefined, processorType: undefined });
   };
   const applyAppSelection = (targetForm: typeof form | typeof editForm) => {
-    targetForm.setFieldsValue({ canaryJobId: undefined, processorName: undefined, processorType: undefined });
+    targetForm.setFieldsValue({ workerPool: undefined, canaryJobId: undefined, processorName: undefined, processorType: undefined });
   };
 
-  const workersForScope = (namespace?: string | null, app?: string | null) => {
+  const applyWorkerPoolSelection = (targetForm: typeof form | typeof editForm) => {
+    targetForm.setFieldsValue({ processorName: undefined, processorType: undefined });
+  };
+
+  const workerPoolOptionsForScope = (namespace?: string | null, app?: string | null) => {
     const normalizedNamespace = namespace?.trim();
     const normalizedApp = app?.trim();
     if (!normalizedNamespace || !normalizedApp) return [];
-    return workers.filter((worker) => worker.namespace === normalizedNamespace && worker.app === normalizedApp);
+    return workerPools
+      .filter((pool) => pool.namespace === normalizedNamespace && pool.app === normalizedApp)
+      .map((pool) => ({
+        value: pool.name,
+        label: `${pool.name} · 并发 ${pool.maxConcurrency > 0 ? pool.maxConcurrency : '不限'} / 队列 ${pool.maxQueueDepth > 0 ? pool.maxQueueDepth : '不限'}`,
+      }))
+      .sort((left, right) => left.value.localeCompare(right.value));
+  };
+
+  const workersForScope = (namespace?: string | null, app?: string | null, workerPool?: string | null) => {
+    const normalizedNamespace = namespace?.trim();
+    const normalizedApp = app?.trim();
+    const normalizedWorkerPool = workerPool?.trim();
+    if (!normalizedNamespace || !normalizedApp) return [];
+    return workers
+      .filter((worker) => worker.namespace === normalizedNamespace && worker.app === normalizedApp)
+      .filter((worker) => !normalizedWorkerPool || worker.workerPool === normalizedWorkerPool);
   };
   const processorOptionLabel = (name: string, description?: string | null) => (
     <Space direction="vertical" size={0}>
@@ -186,9 +211,9 @@ export function JobsPage() {
     </Space>
   );
   const processorSearchText = (name: string, description?: string | null) => `${name} ${description ?? ''}`.toLowerCase();
-  const normalProcessorsForScope = (namespace?: string | null, app?: string | null) => {
+  const normalProcessorsForScope = (namespace?: string | null, app?: string | null, workerPool?: string | null) => {
     const byName = new Map<string, { name: string; description: string }>();
-    for (const worker of workersForScope(namespace, app)) {
+    for (const worker of workersForScope(namespace, app, workerPool)) {
       const structured = worker.structuredCapabilities;
       for (const processor of structured?.normalProcessors ?? []) {
         if (!processor.name.trim()) continue;
@@ -205,9 +230,9 @@ export function JobsPage() {
     }
     return null;
   };
-  const pluginProcessorOptionsForScope = (namespace?: string | null, app?: string | null) => {
+  const pluginProcessorOptionsForScope = (namespace?: string | null, app?: string | null, workerPool?: string | null) => {
     const types = new Set<string>();
-    for (const worker of workersForScope(namespace, app)) {
+    for (const worker of workersForScope(namespace, app, workerPool)) {
       for (const plugin of worker.structuredCapabilities?.pluginProcessors ?? []) {
         if (plugin.type.trim()) types.add(plugin.type.trim());
       }
@@ -218,11 +243,11 @@ export function JobsPage() {
       return { value: type, label, searchText: label.toLowerCase() };
     });
   };
-  const pluginProcessorNameOptions = (processorType?: string | null, namespace?: string | null, app?: string | null) => {
+  const pluginProcessorNameOptions = (processorType?: string | null, namespace?: string | null, app?: string | null, workerPool?: string | null) => {
     const type = processorType?.trim();
     if (!type) return [];
     const byName = new Map<string, { name: string; description: string }>();
-    for (const worker of workersForScope(namespace, app)) {
+    for (const worker of workersForScope(namespace, app, workerPool)) {
       for (const plugin of worker.structuredCapabilities?.pluginProcessors ?? []) {
         if (plugin.type !== type) continue;
         for (const processor of plugin.processors ?? []) {
@@ -248,12 +273,12 @@ export function JobsPage() {
     namespace?: string | null,
     app?: string | null,
   ) => {
-    const options = pluginProcessorNameOptions(processorType, namespace, app);
+    const options = pluginProcessorNameOptions(processorType, namespace, app, targetForm.getFieldValue('workerPool'));
     targetForm.setFieldsValue({ processorName: options[0]?.value ?? undefined });
   };
 
-  const sdkProcessorOptions = (currentValue?: string | null, namespace?: string | null, app?: string | null) => {
-    const options = normalProcessorsForScope(namespace, app).map((processor) => ({
+  const sdkProcessorOptions = (currentValue?: string | null, namespace?: string | null, app?: string | null, workerPool?: string | null) => {
+    const options = normalProcessorsForScope(namespace, app, workerPool).map((processor) => ({
       value: processor.name,
       label: processorOptionLabel(processor.name, processor.description),
       searchText: processorSearchText(processor.name, processor.description),
@@ -315,6 +340,7 @@ export function JobsPage() {
     editForm.setFieldsValue({
       namespace: editingJob.namespace,
       app: editingJob.app,
+      workerPool: editingJob.workerPool ?? undefined,
       name: editingJob.name,
       scheduleType: editingJob.scheduleType,
       scheduleExpr: ['cron', 'once', 'daily_time_interval'].includes(editingJob.scheduleType) ? editingJob.scheduleExpr : undefined,
@@ -365,10 +391,10 @@ export function JobsPage() {
     await load();
   };
 
-  const validatePluginExecutor = (processorType?: string | null, processorName?: string | null, namespace?: string | null, app?: string | null) => {
-    const selected = pluginProcessorOptionsForScope(namespace, app).find((option) => option.value === processorType);
+  const validatePluginExecutor = (processorType?: string | null, processorName?: string | null, namespace?: string | null, app?: string | null, workerPool?: string | null) => {
+    const selected = pluginProcessorOptionsForScope(namespace, app, workerPool).find((option) => option.value === processorType);
     if (!selected) throw new Error('请选择当前 App 在线 Worker 已注册的插件处理器类型');
-    const candidates = pluginProcessorNameOptions(processorType, namespace, app).map((option) => option.value);
+    const candidates = pluginProcessorNameOptions(processorType, namespace, app, workerPool).map((option) => option.value);
     if (candidates.length === 0) throw new Error('当前 App 在线 Worker 未注册该插件执行器候选');
     if (!processorName?.trim()) throw new Error('请选择当前 App 在线 Worker 注册的任务处理器名');
     if (!candidates.includes(processorName.trim())) {
@@ -376,12 +402,12 @@ export function JobsPage() {
     }
   };
 
-  const normalizeExecutor = <T extends { executorKind?: 'sdk' | 'script' | 'plugin'; processorName?: string | null; scriptId?: string | null; processorType?: string | null; namespace?: string | null; app?: string | null }>(values: T) => {
+  const normalizeExecutor = <T extends { executorKind?: 'sdk' | 'script' | 'plugin'; processorName?: string | null; scriptId?: string | null; processorType?: string | null; namespace?: string | null; app?: string | null; workerPool?: string | null }>(values: T) => {
     const { executorKind: _ignoredExecutorKind, ...rest } = values;
     void _ignoredExecutorKind;
     if (values.executorKind === 'script') return { ...rest, processorName: null, processorType: null };
     if (values.executorKind === 'plugin') {
-      validatePluginExecutor(values.processorType, values.processorName, values.namespace, values.app);
+      validatePluginExecutor(values.processorType, values.processorName, values.namespace, values.app, values.workerPool);
       return { ...rest, scriptId: null };
     }
     return { ...rest, scriptId: null, processorType: null };
@@ -469,7 +495,7 @@ export function JobsPage() {
   const filteredJobs = useMemo(() => jobs.filter((job) => {
     const keyword = String(query.keyword ?? '').trim().toLowerCase();
     const scheduleType = String(query.scheduleType ?? '').trim();
-    const matchesKeyword = keyword === '' || [job.name, job.namespace, job.app, job.processorName ?? '', job.scriptId ?? '', job.id].some((value) => value.toLowerCase().includes(keyword));
+    const matchesKeyword = keyword === '' || [job.name, job.namespace, job.app, job.workerPool ?? '', job.processorName ?? '', job.scriptId ?? '', job.id].some((value) => value.toLowerCase().includes(keyword));
     const matchesSchedule = scheduleType === '' || job.scheduleType === scheduleType;
     return matchesKeyword && matchesSchedule;
   }), [jobs, query.keyword, query.scheduleType]);
@@ -534,7 +560,7 @@ export function JobsPage() {
 
   const columns: ColumnsType<JobSummary> = [
     { title: 'Name', dataIndex: 'name' },
-    { title: 'Namespace / App', render: (_, job) => <Space direction="vertical" size={0}><strong>{job.namespace}</strong><Typography.Text type="secondary" style={{ fontSize: 12 }}>{job.app}</Typography.Text></Space> },
+    { title: '作用域', render: (_, job) => <Space direction="vertical" size={0}><strong>{job.namespace}</strong><Typography.Text type="secondary" style={{ fontSize: 12 }}>{job.app}</Typography.Text>{job.workerPool ? <Tag color="geekblue">执行池 {job.workerPool}</Tag> : <Typography.Text type="secondary" style={{ fontSize: 12 }}>不限执行池</Typography.Text>}</Space> },
     { title: 'Schedule', dataIndex: 'scheduleType', render: (value: string, job) => <Space><Tag color="blue" className="soft-tag">{value}</Tag><Tag>v{job.versionNumber}</Tag>{job.canaryPercent > 0 ? <Tag color="orange">canary {job.canaryPercent}%</Tag> : null}{job.retryPolicy?.enabled && job.retryPolicy.maxAttempts > 1 ? <Tag color="volcano">retry {job.retryPolicy.maxAttempts}x</Tag> : <Tag>no retry</Tag>}</Space> },
     { title: '执行器', render: (_, job) => job.scriptId ? <Tag color="purple">脚本 · {job.scriptId}</Tag> : job.processorType ? <Tag color="geekblue">插件 · {job.processorType} · {job.processorName || job.name}</Tag> : <Typography.Text code>{job.processorName || job.name}</Typography.Text> },
     {
@@ -611,7 +637,7 @@ export function JobsPage() {
         width={900}
         destroyOnClose
       >
-        <Typography.Paragraph type="secondary">配置任务所属 namespace/app、调度类型和 Worker processor 绑定；创建后在列表统一启停和触发。</Typography.Paragraph>
+        <Typography.Paragraph type="secondary">配置任务所属 namespace/app、可选执行池、调度类型和 Worker processor 绑定；创建后在列表统一启停和触发。</Typography.Paragraph>
         <Form
           form={form}
           layout="vertical"
@@ -646,7 +672,7 @@ export function JobsPage() {
               showSearch
               optionFilterProp="label"
               options={namespaceOptions}
-              placeholder="选择租户管理中的 Namespace"
+              placeholder="选择作用域管理中的 Namespace"
               onChange={(value) => applyNamespaceSelection(form, value)}
             />
           </Form.Item>
@@ -656,9 +682,20 @@ export function JobsPage() {
               showSearch
               optionFilterProp="label"
               options={appOptionsForNamespace(createNamespace)}
-              placeholder="选择租户管理中的 App"
+              placeholder="选择作用域管理中的 App"
               disabled={!createNamespace}
               onChange={() => applyAppSelection(form)}
+            />
+          </Form.Item>
+          <Form.Item name="workerPool" label="执行池（可选）" extra="执行池是 App 下的可选执行资源分组；选择后只匹配标记了相同 worker_pool / worker-pool 标签的 Worker，并应用该执行池的队列与并发配额。">
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              options={workerPoolOptionsForScope(createNamespace, createApp)}
+              placeholder={createNamespace && createApp ? '选择执行池，留空表示不限执行池' : '先选择 Namespace 和 App'}
+              disabled={!createNamespace || !createApp}
+              onChange={() => applyWorkerPoolSelection(form)}
             />
           </Form.Item>
           <Form.Item name="name" label="任务名称" rules={[{ required: true }]}><Input placeholder="demo.echo" /></Form.Item>
@@ -667,9 +704,9 @@ export function JobsPage() {
             {({ getFieldValue }) => getFieldValue('executorKind') === 'script' ? (
               <Form.Item name="scriptId" label="具体脚本" extra="选择已审批脚本即可；Server 会按脚本语言匹配 Worker 注册的结构化 scriptRunners。" rules={[{ required: true, message: '请选择具体脚本' }]}><Select showSearch optionFilterProp="label" placeholder="选择已审批脚本" options={scriptOptions} /></Form.Item>
             ) : getFieldValue('executorKind') === 'plugin' ? (
-              <><Form.Item name="processorType" label="插件处理器类型" rules={[{ required: true, message: '请选择插件处理器类型' }]}><Select showSearch filterOption={selectSearchFilter} placeholder="选择插件处理器类型" options={pluginProcessorOptionsForScope(createNamespace, createApp)} onChange={(value) => applyPluginProcessorSelection(form, value, createNamespace, createApp)} /></Form.Item><Form.Item noStyle shouldUpdate={(prev, next) => prev.processorType !== next.processorType || prev.processorName !== next.processorName}>{({ getFieldValue }) => <Form.Item name="processorName" label="任务处理器名" extra="只能选择当前 Namespace/App 在线 Worker 注册的插件执行器；描述来自 Worker 注册能力。" rules={[{ required: true, message: '请选择任务处理器名候选' }]}><Select placeholder="自动选择任务处理器名" options={pluginProcessorNameOptions(getFieldValue('processorType'), createNamespace, createApp)} filterOption={selectSearchFilter} /></Form.Item>}</Form.Item></>
+              <><Form.Item name="processorType" label="插件处理器类型" rules={[{ required: true, message: '请选择插件处理器类型' }]}><Select showSearch filterOption={selectSearchFilter} placeholder="选择插件处理器类型" options={pluginProcessorOptionsForScope(createNamespace, createApp, createWorkerPool)} onChange={(value) => applyPluginProcessorSelection(form, value, createNamespace, createApp)} /></Form.Item><Form.Item noStyle shouldUpdate={(prev, next) => prev.processorType !== next.processorType || prev.processorName !== next.processorName || prev.workerPool !== next.workerPool}>{({ getFieldValue }) => <Form.Item name="processorName" label="任务处理器名" extra="只能选择当前 Namespace/App/执行池 在线 Worker 注册的插件执行器；描述来自 Worker 注册能力。" rules={[{ required: true, message: '请选择任务处理器名候选' }]}><Select placeholder="自动选择任务处理器名" options={pluginProcessorNameOptions(getFieldValue('processorType'), createNamespace, createApp, createWorkerPool)} filterOption={selectSearchFilter} /></Form.Item>}</Form.Item></>
             ) : (
-              <Form.Item name="processorName" label="处理器" extra="只能选择当前 Namespace/App 在线 Worker 注册的普通处理器。Java/Spring Worker 通过 @TikeoProcessor 注册，可附带 description。" rules={[{ required: true, message: '请选择当前 App 已注册的普通处理器' }]}><Select allowClear showSearch placeholder="选择当前 App 的处理器" options={sdkProcessorOptions(form.getFieldValue('processorName'), createNamespace, createApp)} filterOption={selectSearchFilter} /></Form.Item>
+              <Form.Item name="processorName" label="处理器" extra="只能选择当前 Namespace/App/执行池 在线 Worker 注册的普通处理器。Java/Spring Worker 通过 @TikeoProcessor 注册，可附带 description。" rules={[{ required: true, message: '请选择当前 App 已注册的普通处理器' }]}><Select allowClear showSearch placeholder="选择当前 App 的处理器" options={sdkProcessorOptions(form.getFieldValue('processorName'), createNamespace, createApp, createWorkerPool)} filterOption={selectSearchFilter} /></Form.Item>
             )}
           </Form.Item>
           <Form.Item name="scheduleType" label="调度类型"><Select options={scheduleTypeOptions} /></Form.Item>
@@ -703,7 +740,7 @@ export function JobsPage() {
         width={900}
         destroyOnClose
       >
-        <Typography.Paragraph type="secondary">编辑任务基础信息、所属 namespace/app、调度配置、Processor 绑定和启用状态；迁移后新的触发与 Worker 匹配会按目标 namespace/app 生效，历史实例仍保留原执行记录。</Typography.Paragraph>
+        <Typography.Paragraph type="secondary">编辑任务基础信息、所属 namespace/app/执行池、调度配置、Processor 绑定和启用状态；迁移后新的触发与 Worker 匹配会按目标作用域生效，历史实例仍保留原执行记录。</Typography.Paragraph>
         <Form form={editForm} layout="vertical" onFinish={(values) => void handleEditSubmit(values)}>
           <Space.Compact block>
             <Form.Item name="namespace" label="Namespace" rules={[{ required: true }]} style={{ flex: 1 }}>
@@ -712,7 +749,7 @@ export function JobsPage() {
                 showSearch
                 optionFilterProp="label"
                 options={namespaceOptions}
-                placeholder="选择租户管理中的 Namespace"
+                placeholder="选择作用域管理中的 Namespace"
                 onChange={(value) => applyNamespaceSelection(editForm, value)}
               />
             </Form.Item>
@@ -722,21 +759,32 @@ export function JobsPage() {
                 showSearch
                 optionFilterProp="label"
                 options={appOptionsForNamespace(editNamespace)}
-                placeholder="选择租户管理中的 App"
+                placeholder="选择作用域管理中的 App"
                 disabled={!editNamespace}
                 onChange={() => applyAppSelection(editForm)}
               />
             </Form.Item>
           </Space.Compact>
+          <Form.Item name="workerPool" label="执行池（可选）" extra="执行池是 App 下的可选执行资源分组；选择后新的触发只匹配同池 Worker，并应用该执行池配额。">
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              options={workerPoolOptionsForScope(editNamespace, editApp)}
+              placeholder={editNamespace && editApp ? '选择执行池，留空表示不限执行池' : '先选择 Namespace 和 App'}
+              disabled={!editNamespace || !editApp}
+              onChange={() => applyWorkerPoolSelection(editForm)}
+            />
+          </Form.Item>
           <Form.Item name="name" label="任务名称" rules={[{ required: true }]}><Input /></Form.Item>
           <Form.Item name="executorKind" label="执行方式" rules={[{ required: true }]}><Select options={[{ value: 'sdk', label: '处理器' }, { value: 'plugin', label: '插件处理器' }, { value: 'script', label: '脚本（沙箱自动执行）' }]} /></Form.Item>
           <Form.Item noStyle shouldUpdate={(prev, next) => prev.executorKind !== next.executorKind}>
             {({ getFieldValue }) => getFieldValue('executorKind') === 'script' ? (
               <Form.Item name="scriptId" label="具体脚本" extra="选择已审批脚本即可；Server 会按脚本语言匹配 Worker 注册的结构化 scriptRunners。" rules={[{ required: true, message: '请选择具体脚本' }]}><Select showSearch optionFilterProp="label" placeholder="选择已审批脚本" options={scriptOptions} /></Form.Item>
             ) : getFieldValue('executorKind') === 'plugin' ? (
-              <><Form.Item name="processorType" label="插件处理器类型" rules={[{ required: true, message: '请选择插件处理器类型' }]}><Select showSearch filterOption={selectSearchFilter} placeholder="选择插件处理器类型" options={pluginProcessorOptionsForScope(editNamespace, editApp)} onChange={(value) => applyPluginProcessorSelection(editForm, value, editNamespace, editApp)} /></Form.Item><Form.Item noStyle shouldUpdate={(prev, next) => prev.processorType !== next.processorType || prev.processorName !== next.processorName}>{({ getFieldValue }) => <Form.Item name="processorName" label="任务处理器名" extra="只能选择当前 Namespace/App 在线 Worker 注册的插件执行器；描述来自 Worker 注册能力。" rules={[{ required: true, message: '请选择任务处理器名候选' }]}><Select placeholder="自动选择任务处理器名" options={pluginProcessorNameOptions(getFieldValue('processorType'), editNamespace, editApp)} filterOption={selectSearchFilter} /></Form.Item>}</Form.Item></>
+              <><Form.Item name="processorType" label="插件处理器类型" rules={[{ required: true, message: '请选择插件处理器类型' }]}><Select showSearch filterOption={selectSearchFilter} placeholder="选择插件处理器类型" options={pluginProcessorOptionsForScope(editNamespace, editApp, editWorkerPool)} onChange={(value) => applyPluginProcessorSelection(editForm, value, editNamespace, editApp)} /></Form.Item><Form.Item noStyle shouldUpdate={(prev, next) => prev.processorType !== next.processorType || prev.processorName !== next.processorName || prev.workerPool !== next.workerPool}>{({ getFieldValue }) => <Form.Item name="processorName" label="任务处理器名" extra="只能选择当前 Namespace/App/执行池 在线 Worker 注册的插件执行器；描述来自 Worker 注册能力。" rules={[{ required: true, message: '请选择任务处理器名候选' }]}><Select placeholder="自动选择任务处理器名" options={pluginProcessorNameOptions(getFieldValue('processorType'), editNamespace, editApp, editWorkerPool)} filterOption={selectSearchFilter} /></Form.Item>}</Form.Item></>
             ) : (
-              <Form.Item name="processorName" label="处理器" extra="只能选择当前 Namespace/App 在线 Worker 注册的普通处理器。Java/Spring Worker 通过 @TikeoProcessor 注册，可附带 description。" rules={[{ required: true, message: '请选择当前 App 已注册的普通处理器' }]}><Select allowClear showSearch placeholder="选择当前 App 的处理器" options={sdkProcessorOptions(editForm.getFieldValue('processorName'), editNamespace, editApp)} filterOption={selectSearchFilter} /></Form.Item>
+              <Form.Item name="processorName" label="处理器" extra="只能选择当前 Namespace/App/执行池 在线 Worker 注册的普通处理器。Java/Spring Worker 通过 @TikeoProcessor 注册，可附带 description。" rules={[{ required: true, message: '请选择当前 App 已注册的普通处理器' }]}><Select allowClear showSearch placeholder="选择当前 App 的处理器" options={sdkProcessorOptions(editForm.getFieldValue('processorName'), editNamespace, editApp, editWorkerPool)} filterOption={selectSearchFilter} /></Form.Item>
             )}
           </Form.Item>
           <Form.Item name="scheduleType" label="调度类型"><Select options={scheduleTypeOptions} /></Form.Item>

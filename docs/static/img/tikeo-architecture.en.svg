@@ -109,7 +109,7 @@
     <rect x="1030" y="520" width="190" height="92" rx="20" fill="#3f5fd5" stroke="#93c5fd" stroke-width="1.5"/>
       <text x="1054" y="550" class="label">Governance</text>
       <text x="1054" y="574" class="tiny">owner · RBAC · API keys</text>
-      <text x="1054" y="596" class="tiny">tenant scope · audit</text>
+      <text x="1054" y="596" class="tiny">scope · audit</text>
     <rect x="590" y="645" width="190" height="92" rx="20" fill="#3f5fd5" stroke="#93c5fd" stroke-width="1.5"/>
       <text x="614" y="675" class="label">Worker Registry</text>
       <text x="614" y="699" class="tiny">identity · sessions</text>
@@ -147,7 +147,7 @@
     <rect x="1354" y="609" width="292" height="34" rx="17" fill="#155e75" stroke="#c4b5fd" stroke-width="1.4"/>
       <text text-anchor="middle" x="1500.0" y="631" class="chipText">Jobs · workflows · scripts · plugins</text>
     <rect x="1354" y="653" width="292" height="34" rx="17" fill="#155e75" stroke="#c4b5fd" stroke-width="1.4"/>
-      <text text-anchor="middle" x="1500.0" y="675" class="chipText">Users · roles · tenants · secrets</text>
+      <text text-anchor="middle" x="1500.0" y="675" class="chipText">Users · roles · scopes · secrets</text>
     </g>
   <path d="M1250 365C1285 365 1295 290 1320 290" class="lineCyan"/>
   <path d="M1250 600C1286 600 1298 600 1320 600" class="lineViolet"/>

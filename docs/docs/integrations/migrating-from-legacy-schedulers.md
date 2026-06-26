@@ -54,7 +54,7 @@ Before touching any export, decide the migration target and success criteria.
 | Decision | Recommended value / source | Why |
 | --- | --- | --- |
 | Target environment | Staging Tikeo Server first, production later. | Importing directly to production makes rollback and evidence review harder. |
-| Namespace | Usually the team, tenant, or business domain. | Generated drafts need stable ownership and RBAC boundaries. |
+| Namespace | Usually the team, environment, scope, or business domain. | Generated drafts need stable ownership and RBAC boundaries. |
 | App | Existing legacy executor app name when available; otherwise a planned Tikeo app name. | Workers and job drafts need a shared routing boundary. |
 | Processor naming | Prefer legacy handler names when they are stable and meaningful. | Reduces accidental mismatches between imported jobs and Worker code. |
 | API key | A staging-scoped key with job create permissions for the later import workflow. | The local `apply` command does not accept or use API keys. |

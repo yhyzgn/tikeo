@@ -370,6 +370,7 @@
                 schedule_calendar_json: None,
                 processor_name: None,
                 processor_type: None,
+                worker_pool: None,
                 script_id: None,
                 enabled: true,
                 canary_job_id: None,

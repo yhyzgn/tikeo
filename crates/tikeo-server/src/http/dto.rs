@@ -863,12 +863,40 @@ pub struct OidcStatus {
 #[derive(Debug, Clone, Serialize, ToSchema)]
 /// `ObservabilityStatusResponse` payload.
 pub struct ObservabilityStatusResponse {
+    /// Logging value.
+    pub logging: LoggingStatus,
     /// Tracing value.
     pub tracing: TracingStatus,
     /// Ready value.
     pub ready: bool,
     /// Issues value.
     pub issues: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+/// `LoggingStatus` payload.
+pub struct LoggingStatus {
+    /// Root filter level.
+    pub root_level: String,
+    /// Console sink status.
+    pub console: LogSinkStatus,
+    /// Main file sink status.
+    pub file: LogSinkStatus,
+    /// Error file sink status.
+    pub error_file: LogSinkStatus,
+    /// ELK/log collector sink status.
+    pub elk: LogSinkStatus,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+/// `LogSinkStatus` payload.
+pub struct LogSinkStatus {
+    /// Boolean state flag.
+    pub enabled: bool,
+    /// Sink minimum level.
+    pub level: String,
+    /// Configured path or endpoint summary.
+    pub target: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -1130,6 +1158,8 @@ pub struct WorkerSummary {
     pub capabilities: Vec<String>,
     /// Structured capabilities value.
     pub structured_capabilities: WorkerCapabilitiesSummary,
+    /// Optional execution pool label extracted from worker labels.
+    pub worker_pool: Option<String>,
     /// Master value.
     pub master: WorkerMasterSummary,
     /// Generation value.

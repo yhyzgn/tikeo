@@ -402,7 +402,7 @@ use super::{auth, dto, routes, sdk_api_keys};
         (name = "auth", description = "Development authentication endpoints"),
         (name = "scripts", description = "Script management endpoints"),
         (name = "jobs", description = "Job management endpoints"),
-        (name = "tenancy", description = "Tenant namespace, app, and worker-pool management endpoints"),
+        (name = "tenancy", description = "Scope namespace, app, and worker-pool management endpoints"),
         (name = "plugins", description = "Plugin registry for custom processor and alert channel types"),
         (name = "gitops", description = "Declarative manifest export and drift diff endpoints"),
         (name = "audit", description = "Audit log endpoints"),

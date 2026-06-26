@@ -83,8 +83,19 @@ notification_delivery:
 ```yaml
 observability:
   logging:
-    level: info
-    log_dir: /logs
+    root:
+      level: INFO
+    console:
+      enabled: true
+      level: INFO
+    file:
+      enabled: true
+      level: INFO
+      path: /logs
+    error-file:
+      enabled: true
+      level: ERROR
+      path: /logs
   tracing:
     enabled: true
     otlp_endpoint: http://otel-collector:4318/v1/traces

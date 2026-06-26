@@ -821,6 +821,8 @@ pub struct TikeoJobDraft {
     pub processor_name: Option<String>,
     /// Optional plugin processor type.
     pub processor_type: Option<String>,
+    /// Optional execution pool under the app.
+    pub worker_pool: Option<String>,
     /// Optional script id.
     pub script_id: Option<String>,
     /// Whether the imported job should be enabled.
@@ -1516,6 +1518,7 @@ fn plan_xxl_job(record: &Map<String, Value>, defaults: &MigrationDefaults) -> Mi
             ),
             processor_name,
             processor_type: None,
+            worker_pool: None,
             script_id: None,
             enabled,
             retry_policy: json!({"enabled": retry_count > 0, "maxAttempts": retry_count + 1, "initialDelaySeconds": 30, "backoffMultiplier": 2.0, "maxDelaySeconds": 300}),
@@ -1610,6 +1613,7 @@ fn plan_powerjob(record: &Map<String, Value>, defaults: &MigrationDefaults) -> M
             misfire_policy: MisfirePolicy::FireOnce.as_str().to_owned(),
             processor_name,
             processor_type: None,
+            worker_pool: None,
             script_id: None,
             enabled,
             retry_policy: json!({"enabled": retry_count > 0, "maxAttempts": retry_count + 1, "initialDelaySeconds": 30, "backoffMultiplier": 2.0, "maxDelaySeconds": 300}),

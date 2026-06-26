@@ -15,7 +15,7 @@ Production Workers should **not** depend on startup-time downloads. Build or pre
 | Mode | Configuration | Tool lookup behavior | Recommended use |
 | --- | --- | --- | --- |
 | Default host reuse | `TIKEO_SANDBOX_STRICT_ISOLATION=0` or unset | SDKs first use a working binary from `PATH`, then legacy `state-dir/sandbox-tools`, then `TIKEO_SANDBOX_TOOLS_DIR` / `~/.tikeo/sandbox-tools`. Each task still receives sandbox `cwd`, `HOME`, `TMPDIR`, `DENO_DIR`, and PowerShell/.NET cache directories. | Most production Worker images where the image itself is trusted. |
-| Strict sandbox isolation | `TIKEO_SANDBOX_STRICT_ISOLATION=1`; Java Boot also supports `tikeo.worker.scripts.strict-sandbox-isolation=true` | SDKs skip host `PATH` tools/interpreters and only use binaries under `TIKEO_SANDBOX_TOOLS_DIR` or `~/.tikeo/sandbox-tools`. Missing tools are not advertised and fail closed. | Regulated, multi-tenant, or change-controlled Workers. |
+| Strict sandbox isolation | `TIKEO_SANDBOX_STRICT_ISOLATION=1`; Java Boot also supports `tikeo.worker.scripts.strict-sandbox-isolation=true` | SDKs skip host `PATH` tools/interpreters and only use binaries under `TIKEO_SANDBOX_TOOLS_DIR` or `~/.tikeo/sandbox-tools`. Missing tools are not advertised and fail closed. | Regulated, multi-scope, or change-controlled Workers. |
 | Local/demo auto-prewarm | `TIKEO_SANDBOX_AUTO_INSTALL=1` / SDK defaults | Missing tools schedule background prewarm. Startup does not wait for the download. | Developer laptops and short-lived demos only. |
 
 For production images, set:

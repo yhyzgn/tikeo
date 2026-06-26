@@ -25,7 +25,7 @@ Prefer the mounted config file for normal deployment. Use environment overrides 
 | `/config/tikeo.yml` | Dockerfile, Compose, Kubernetes, Helm | Server config selected by `serve --config /config/tikeo.yml`. | Mount read-only from host path, ConfigMap, or Secret. |
 | `/config/tls` | TLS/mTLS config | Certificate, private key, and CA files referenced by `transport_security.*`. | Mount read-only. Never bake private keys into images. |
 | `/data/tikeo.db` | SQLite mode | SQLite database file from `storage.database.path=/data/tikeo.db`. | Persist `/data` when SQLite data must survive restarts. |
-| `/logs/tikeo.log` | Optional file logging | File log created when `observability.logging.log_dir=/logs`. | Optional; stdout logging is always emitted. |
+| `/logs/tikeo.log` and `/logs/tikeo-error.log` | Optional file logging | File sinks create JSON logs when enabled and pointed at `/logs`. | Optional; stdout logging is always emitted. |
 | `/etc/tikeo/tikeo.yml` | systemd/bare metal | Conventional host config file. | Own by root/deployment automation; readable by the process. |
 | `/var/lib/tikeo` | systemd/bare metal | Durable local state, usually SQLite on a VM. | Own by the `tikeo` user; include in backups if SQLite is used. |
 | `/var/log/tikeo` | systemd/bare metal | Host file logs. | Create before startup and rotate with host policy. |
@@ -97,11 +97,14 @@ The following is the Complete default-value table for Server settings: config ke
 | `transport_security.worker_tunnel.cert_path` | `TIKEO__TRANSPORT_SECURITY__WORKER_TUNNEL__CERT_PATH` | If TLS enabled | unset | Worker Tunnel certificate path. |
 | `transport_security.worker_tunnel.key_path` | `TIKEO__TRANSPORT_SECURITY__WORKER_TUNNEL__KEY_PATH` | If TLS enabled | unset | Worker Tunnel private key path. |
 | `transport_security.worker_tunnel.client_ca_path` | `TIKEO__TRANSPORT_SECURITY__WORKER_TUNNEL__CLIENT_CA_PATH` | If mTLS required | unset | Worker client CA bundle. |
-| `observability.logging.level` | `TIKEO__OBSERVABILITY__LOGGING__LEVEL` | No | `info` | Default log level when `RUST_LOG` is not set. |
-| `observability.logging.log_dir` | `TIKEO__OBSERVABILITY__LOGGING__LOG_DIR` | No | unset; production template `/logs` | Writes `tikeo.log` in addition to stdout. |
+| `observability.logging.root.level` | `TIKEO__OBSERVABILITY__LOGGING__ROOT__LEVEL` | No | `info` | Root log filter used when `RUST_LOG` is not set. |
+| `observability.logging.console.*` | `TIKEO__OBSERVABILITY__LOGGING__CONSOLE__*` | No | enabled, `info` | Console/stdout sink. |
+| `observability.logging.file.*` | `TIKEO__OBSERVABILITY__LOGGING__FILE__*` or `TIKEO_LOG_PATH` in templates | No | disabled, `info`, `/logs` | Non-blocking JSON file sink writing `tikeo.log`. |
+| `observability.logging.error-file.*` | `TIKEO__OBSERVABILITY__LOGGING__ERROR_FILE__*` or `TIKEO_LOG_PATH` in templates | No | disabled, `error`, `/logs` | Non-blocking JSON error-file sink writing `tikeo-error.log`. |
+| `observability.logging.elk.*` | `TIKEO__OBSERVABILITY__LOGGING__ELK__*` | No | disabled, topic `ivs-dev` | Non-blocking batched JSON-lines forwarding to configured log collectors. |
 | `observability.tracing.enabled` | `TIKEO__OBSERVABILITY__TRACING__ENABLED` | No | `false` | Enable OTLP trace export. |
 | `observability.tracing.otlp_endpoint` | `TIKEO__OBSERVABILITY__TRACING__OTLP_ENDPOINT` | If tracing enabled | unset | OTLP collector endpoint. |
-| `observability.tracing.headers` | `TIKEO__OBSERVABILITY__TRACING__HEADERS` | No | `[]` | Exporter auth/tenant header names; values live outside status APIs. |
+| `observability.tracing.headers` | `TIKEO__OBSERVABILITY__TRACING__HEADERS` | No | `[]` | Exporter auth/scope header names; values live outside status APIs. |
 | `alert_retry.enabled` | `TIKEO__ALERT_RETRY__ENABLED` | No | `true` | Alert retry worker switch. |
 | `alert_retry.interval_seconds` | `TIKEO__ALERT_RETRY__INTERVAL_SECONDS` | No | `60` | Due-attempt scan interval. |
 | `alert_retry.batch_size` | `TIKEO__ALERT_RETRY__BATCH_SIZE` | No | `50` | Max due attempts scanned per iteration. |
@@ -132,7 +135,7 @@ The following is the Complete default-value table for Server settings: config ke
 | `heartbeatEvery` / `heartbeat-interval-millis` | `TIKEO_WORKER_HEARTBEAT_INTERVAL_MILLIS` | No | `10000` ms / `10s` | Worker lease renewal cadence. |
 | `clientInstanceId` / `client-instance-id` | `TIKEO_WORKER_CLIENT_INSTANCE_ID` | Core SDKs: yes; Boot: no | Boot generates/persists when blank | Stable client-side hint; Server assigns authoritative `worker_id`. |
 | `state-dir` | `TIKEO_WORKER_STATE_DIR` | No | `~/.tikeo/workers` in Boot helper | Client instance id and sandbox tool cache directory. |
-| `namespace` | `TIKEO_WORKER_NAMESPACE` | No | `default` | Tenant/environment namespace. |
+| `namespace` | `TIKEO_WORKER_NAMESPACE` | No | `default` | Scope/environment namespace. |
 | `app` | `TIKEO_WORKER_APP` | No | `default` | Application scope. |
 | `cluster` | `TIKEO_WORKER_CLUSTER` | No | Java Boot `default`; other helpers `local` | Worker cluster/environment shard. |
 | `region` | `TIKEO_WORKER_REGION` | No | Java Boot `default`; other helpers `local` | Worker region/zone. |

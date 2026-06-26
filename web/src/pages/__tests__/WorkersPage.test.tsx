@@ -33,6 +33,7 @@ describe('Worker cluster page redesign', () => {
     expect(tableSource).toContain('搜索 Worker / 应用 / 区域 / 能力 / 处理器');
     expect(tableSource).toContain('命名空间');
     expect(tableSource).toContain('能力');
+    expect(tableSource).toContain('执行池');
     expect(tableSource).toContain('worker-scope-collapse');
     expect(tableSource).toContain('主节点');
     expect(tableSource).toContain('从节点');
@@ -67,6 +68,7 @@ describe('Worker capability presentation model', () => {
     clientInstanceId: 'spring-demo-worker',
     namespace: 'default',
     app: 'billing',
+    workerPool: 'invoice-service',
     cluster: 'standalone',
     region: 'local',
     capabilities: ['normal', 'legacy-script-shell', 'legacy-tag'],
@@ -104,8 +106,8 @@ describe('Worker capability presentation model', () => {
       'Script:shell',
       'Plugin:sql:billing.sql-sync',
     ]);
-    expect(filterWorkers([worker], { query: 'billing.sql-sync', namespace: '', capability: '' })).toHaveLength(1);
-    expect(filterWorkers([worker], { query: '', namespace: '', capability: 'Normal:demo.echo' })).toHaveLength(1);
+    expect(filterWorkers([worker], { query: 'billing.sql-sync', namespace: '', workerPool: '', capability: '' })).toHaveLength(1);
+    expect(filterWorkers([worker], { query: '', namespace: '', workerPool: 'invoice-service', capability: 'Normal:demo.echo' })).toHaveLength(1);
     expect(groupWorkersByNamespaceApp([worker])[0].scopeKey).toBe('default/billing');
     expect(groupWorkersByNamespaceApp([worker])[0].clusters[0].master?.workerId).toBe('worker-1');
   });

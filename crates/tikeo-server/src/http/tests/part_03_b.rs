@@ -20,6 +20,7 @@
                 schedule_calendar_json: None,
                 processor_name: None,
                 processor_type: None,
+                worker_pool: None,
                 script_id: Some("script-missing-runtime".to_owned()),
                 enabled: true,
                 canary_job_id: None,
@@ -1132,7 +1133,7 @@
         let created = post_json_raw(
             app.clone(),
             "/api/v1/auth/api-tokens",
-            r#"{"name":"billing automation","scopes":["jobs:read","jobs:write"],"scope_bindings":[{"namespace":"default","app":"billing","worker_pool":"pool-a"}]}"#,
+            r#"{"name":"billing automation","scopes":["jobs:read","jobs:write"],"scope_bindings":[{"namespace":"default","app":"billing"}]}"#,
             Some(&admin),
         )
         .await;
@@ -1145,10 +1146,7 @@
             created["data"]["token"]["scope_bindings"][0]["app"],
             "billing"
         );
-        assert_eq!(
-            created["data"]["token"]["scope_bindings"][0]["worker_pool"],
-            "pool-a"
-        );
+        assert!(created["data"]["token"]["scope_bindings"][0]["worker_pool"].is_null());
         let api_token = created["data"]["access_token"]
             .as_str()
             .unwrap_or_else(|| panic!("api token value should be returned once"))

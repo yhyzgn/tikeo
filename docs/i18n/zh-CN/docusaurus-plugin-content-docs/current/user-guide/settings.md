@@ -5,7 +5,7 @@ description: Tikeo settings 控制台页面的人类操作指南。
 
 # 设置与治理指南
 
-用 Settings 管理平台级治理：用户、角色、API-Key、RBAC、租户作用域、平台公开 URL，以及通知和外部控制台链接所使用的集成默认值。
+用 Settings 管理平台级治理：用户、角色、API-Key、RBAC、作用域绑定、平台公开 URL，以及通知和外部控制台链接所使用的集成默认值。
 
 ![设置与治理指南 截图](pathname:///img/screenshots/settings.svg)
 
@@ -29,7 +29,7 @@ description: Tikeo settings 控制台页面的人类操作指南。
 | --- | --- |
 | 用户与角色 | Owner/admin/operator/viewer 类职责、邀请、禁用和审计。 |
 | API-Key | 应用级 key、过期时间、轮换与最小权限。 |
-| 租户作用域 | Jobs、Workers、Notifications、Audit 过滤使用的 namespace/app 层级。 |
+| 作用域管理 | Jobs、Workers、Notifications、API-Key 作用域绑定和 Audit 过滤使用的 namespace/app/执行池层级。 |
 | 平台 URL | 投递模板和免登录控制台页面使用的公开控制台 base URL。 |
 
 ## Typical workflow / 典型流程

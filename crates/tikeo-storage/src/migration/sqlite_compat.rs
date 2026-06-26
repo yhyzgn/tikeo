@@ -245,6 +245,13 @@ async fn ensure_job_schema_compatibility(db: &impl ConnectionTrait) -> Result<()
         ))
         .await?;
     }
+    if !sqlite_column_exists(db, "jobs", "worker_pool").await? {
+        db.execute(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            "ALTER TABLE jobs ADD COLUMN worker_pool varchar",
+        ))
+        .await?;
+    }
     if !sqlite_column_exists(db, "jobs", "script_id").await? {
         db.execute(Statement::from_string(
             DatabaseBackend::Sqlite,
@@ -308,6 +315,7 @@ async fn ensure_job_schema_compatibility(db: &impl ConnectionTrait) -> Result<()
             schedule_calendar_json varchar,
             processor_name varchar,
             processor_type varchar,
+            worker_pool varchar,
             script_id varchar,
             enabled boolean NOT NULL,
             retry_policy_json text NOT NULL DEFAULT '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}',
@@ -329,6 +337,13 @@ async fn ensure_job_schema_compatibility(db: &impl ConnectionTrait) -> Result<()
         db.execute(Statement::from_string(
             DatabaseBackend::Sqlite,
             "ALTER TABLE job_versions ADD COLUMN processor_type varchar",
+        ))
+        .await?;
+    }
+    if !sqlite_column_exists(db, "job_versions", "worker_pool").await? {
+        db.execute(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            "ALTER TABLE job_versions ADD COLUMN worker_pool varchar",
         ))
         .await?;
     }
@@ -938,13 +953,13 @@ const SQLITE_DEFAULT_PERMISSIONS: &[(&str, &str, &str, &str)] = &[
         "perm-tenants-read",
         "tenants",
         "read",
-        "Read tenants, apps, and worker pools",
+        "Read scopes, apps, and worker pools",
     ),
     (
         "perm-tenants-manage",
         "tenants",
         "manage",
-        "Manage tenants, apps, and worker pools",
+        "Manage scopes, apps, and worker pools",
     ),
     ("perm-jobs-read", "jobs", "read", "Read jobs"),
     ("perm-jobs-write", "jobs", "write", "Create and update jobs"),

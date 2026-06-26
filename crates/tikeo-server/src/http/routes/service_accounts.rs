@@ -90,6 +90,13 @@ pub async fn create_service_account(
 ) -> Result<Json<ServiceAccountApiResponse>, ApiError> {
     let principal = auth::require_permission(&headers, &state, "tenants", "manage").await?;
     let request = validate_create_request(request)?;
+    validate_worker_pool_scope(
+        &state,
+        &request.namespace,
+        &request.app,
+        request.worker_pool.as_deref(),
+    )
+    .await?;
     let created = tikeo_storage::ServiceAccountRepository::new(state.users.db())
         .create(tikeo_storage::CreateServiceAccount {
             name: request.name,
@@ -138,6 +145,13 @@ pub async fn update_service_account(
 ) -> Result<Json<ServiceAccountApiResponse>, ApiError> {
     let principal = auth::require_permission(&headers, &state, "tenants", "manage").await?;
     let request = validate_update_request(request)?;
+    validate_worker_pool_scope(
+        &state,
+        &request.namespace,
+        &request.app,
+        request.worker_pool.as_deref(),
+    )
+    .await?;
     let Some(updated) = tikeo_storage::ServiceAccountRepository::new(state.users.db())
         .update(
             &id,
@@ -269,4 +283,29 @@ fn trim_optional(value: Option<String>) -> Option<String> {
     value
         .map(|item| item.trim().to_owned())
         .filter(|item| !item.is_empty())
+}
+
+async fn validate_worker_pool_scope(
+    state: &AppState,
+    namespace: &str,
+    app: &str,
+    worker_pool: Option<&str>,
+) -> Result<(), ApiError> {
+    let Some(worker_pool) = worker_pool.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(());
+    };
+    let exists = state
+        .jobs
+        .scopes()
+        .list_worker_pools(Some(namespace), Some(app))
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .into_iter()
+        .any(|pool| pool.name == worker_pool);
+    if !exists {
+        return Err(ApiError::bad_request(
+            "workerPool must belong to the target namespace/app",
+        ));
+    }
+    Ok(())
 }

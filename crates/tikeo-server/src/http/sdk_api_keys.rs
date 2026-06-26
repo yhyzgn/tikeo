@@ -374,7 +374,7 @@ fn sdk_principal(
         scope_bindings: vec![AccessScopeBinding {
             namespace: Some(service_account.namespace),
             app: Some(service_account.app),
-            worker_pool: None,
+            worker_pool: service_account.worker_pool,
         }],
         menu_keys: Vec::new(),
         ui_action_keys: Vec::new(),

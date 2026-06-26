@@ -111,7 +111,7 @@ Examples in this reference use placeholders. Do not include real tokens, webhook
 | `POST /api/v1/jobs/{job}/notification-bindings:validate` | Validate selected channels, template provider compatibility, and expanded job event types. | `jobs:read` + `notifications:read` |
 | `POST /api/v1/jobs/{job}/notification-bindings:preview` | Render a sample job-instance payload against the selected template without delivery. | `jobs:read` + `notifications:read` |
 | `GET /api/v1/notification-messages` | List normalized messages. | `notifications:read` |
-| `GET /api/v1/notification-messages/{id}/trace` | Return one message with policy, delivery attempts, job/instance context, and a redacted execution log excerpt. | `notifications:read` plus tenant scope check when a job can be resolved |
+| `GET /api/v1/notification-messages/{id}/trace` | Return one message with policy, delivery attempts, job/instance context, and a redacted execution log excerpt. | `notifications:read` plus scope check when a job can be resolved |
 | `GET /api/v1/notification-delivery-attempts` | List delivery attempts. | `notifications:read` |
 | `GET /api/v1/notification-delivery-attempts:queue-status` | Count retry/DLQ state and return recent dead letters. | `notifications:read` |
 | `POST /api/v1/notification-delivery-attempts:retry-due` | Process due attempts in a bounded scan. | `notifications:test` |

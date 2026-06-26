@@ -123,7 +123,7 @@ The follow-up evidence scripts are intentionally outside the `v0.3.9` binary bou
 
 | Area | Script | Evidence written | Boundary |
 | --- | --- | --- | --- |
-| Notification Center provider/e2e | `scripts/notification-provider-e2e-smoke.sh` | `REPORT.md`, `summary.json`, provider receipt JSONL, channel test responses, message/attempt/queue snapshots | Uses a local protocol-real HTTP mock provider; real tenant providers still need deployment-specific test-send evidence. |
+| Notification Center provider/e2e | `scripts/notification-provider-e2e-smoke.sh` | `REPORT.md`, `summary.json`, provider receipt JSONL, channel test responses, message/attempt/queue snapshots | Uses a local protocol-real HTTP mock provider; real scope-specific providers still need deployment-specific test-send evidence. |
 | Migration CLI old-project chain | `scripts/migration-cli-full-chain-smoke.sh` | `REPORT.md`, generated legacy project, migrated Worker project, `.tikeo-migration/`, `code-apply-evidence.json`, reviewed import payloads | Proves CLI detection, bundle generation, local code/config apply, and reviewed import payload preparation locally; domain semantic equivalence still needs a representative business project. |
 | Real cloud HA | `scripts/cloud-raft-ha-acceptance.sh` via `scripts/release-readiness-evidence.sh` | Cloud `REPORT.md` and `summary.json`, or an explicit `deferred_cloud_endpoint_missing` boundary report | Requires `TIKEO_CLOUD_HA_SERVER_URL`; local Kind evidence remains the substitute when no cloud target exists. |
 
@@ -143,7 +143,7 @@ Relevant docs: [Migrate from legacy schedulers](../integrations/migrating-from-l
 
 ## Notification Center evidence boundary
 
-Notification Center is ready for local/staging acceptance when provider test-send evidence exists for each active provider family in the target environment. The implementation and docs cover channel-row secrets, provider-specific template types, list/drawer test actions, retry/DLQ evidence, and redaction. `scripts/notification-provider-e2e-smoke.sh` now proves the local delivery state machine end-to-end with one delivered loopback request and one forced dead-letter failure. Production readiness still depends on real tenant/provider calls for the deployment environment.
+Notification Center is ready for local/staging acceptance when provider test-send evidence exists for each active provider family in the target environment. The implementation and docs cover channel-row secrets, provider-specific template types, list/drawer test actions, retry/DLQ evidence, and redaction. `scripts/notification-provider-e2e-smoke.sh` now proves the local delivery state machine end-to-end with one delivered loopback request and one forced dead-letter failure. Production readiness still depends on real scope/provider calls for the deployment environment.
 
 Relevant docs: [Notifications](../user-guide/notifications), [Notification Center reference](../reference/notification-center), and [Product readiness acceptance checklist](./product-readiness-acceptance).
 

@@ -105,7 +105,7 @@ Web route `/notifications` 同样要求 `notifications:read`。
 | `POST /api/v1/jobs/{job}/notification-bindings:validate` | 校验渠道、模板 provider 兼容性和展开后的 Job 事件类型。 | `jobs:read` + `notifications:read` |
 | `POST /api/v1/jobs/{job}/notification-bindings:preview` | 对样例 Job 实例上下文渲染模板，不发送消息。 | `jobs:read` + `notifications:read` |
 | `GET /api/v1/notification-messages` | 列出标准化消息。 | `notifications:read` |
-| `GET /api/v1/notification-messages/{id}/trace` | 查看消息、policy、投递 attempts、Job/实例上下文和脱敏执行日志摘要。 | `notifications:read`，可解析 Job 时还会做租户 scope 检查 |
+| `GET /api/v1/notification-messages/{id}/trace` | 查看消息、policy、投递 attempts、Job/实例上下文和脱敏执行日志摘要。 | `notifications:read`，可解析 Job 时还会做作用域检查 |
 | `GET /api/v1/notification-delivery-attempts` | 列出投递尝试。 | `notifications:read` |
 | `GET /api/v1/notification-delivery-attempts:queue-status` | 统计 retry/DLQ 并返回最近 dead letters。 | `notifications:read` |
 | `POST /api/v1/notification-delivery-attempts:retry-due` | 处理 due attempts。 | `notifications:test` |

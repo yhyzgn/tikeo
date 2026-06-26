@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use tikeo_storage::WorkerLifecycleRepository;
-use tracing::{debug, warn};
+use tracing::{info, warn};
 
 const DEFAULT_LEASE_SCAN_BATCH: u64 = 100;
 
@@ -18,7 +18,7 @@ pub async fn run_lease_scanner(lifecycle: WorkerLifecycleRepository, interval: D
         {
             Ok(expired) if expired.is_empty() => {}
             Ok(expired) => {
-                debug!(
+                info!(
                     expired_count = expired.len(),
                     "marked worker sessions offline after lease expiry"
                 );
