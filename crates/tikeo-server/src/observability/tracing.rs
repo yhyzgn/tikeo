@@ -274,13 +274,23 @@ where
         let metadata = event.metadata();
         write!(
             writer,
-            "{} {:<5} {} {}",
+            "\u{001b}[2m{}\u{001b}[0m {} \u{001b}[2m{}\u{001b}[0m {}",
             current_datetime(),
-            metadata.level(),
+            ansi_level(*metadata.level()),
             metadata.target(),
             captured.message_with_fields()
         )?;
         writeln!(writer)
+    }
+}
+
+const fn ansi_level(level: tracing::Level) -> &'static str {
+    match level {
+        tracing::Level::TRACE => "\u{001b}[35mTRACE\u{001b}[0m",
+        tracing::Level::DEBUG => "\u{001b}[34mDEBUG\u{001b}[0m",
+        tracing::Level::INFO => "\u{001b}[32mINFO \u{001b}[0m",
+        tracing::Level::WARN => "\u{001b}[33mWARN \u{001b}[0m",
+        tracing::Level::ERROR => "\u{001b}[31;1mERROR\u{001b}[0m",
     }
 }
 
