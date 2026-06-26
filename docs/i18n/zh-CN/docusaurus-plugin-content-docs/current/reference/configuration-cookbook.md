@@ -80,6 +80,8 @@ notification_delivery:
 
 ## 观测
 
+日志每个字段的行为、默认值、性能影响和安全注意事项，请查看[日志配置](./logging)。
+
 ```yaml
 observability:
   logging:

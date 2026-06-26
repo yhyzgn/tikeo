@@ -89,6 +89,7 @@ const sidebars: SidebarsConfig = {
       label: 'Reference',
       items: [
         'reference/configuration',
+        'reference/logging',
         'reference/configuration-cookbook',
         'reference/management-openapi',
         'reference/notification-center',

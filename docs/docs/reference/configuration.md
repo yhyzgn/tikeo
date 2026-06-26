@@ -54,6 +54,8 @@ storage:
 ```
 
 
+For the full logging configuration, sink behavior, security cautions, and performance impact, see [Logging configuration](./logging).
+
 ## Server configuration table
 
 The following is the Complete default-value table for Server settings: config key, environment variable, requirement level, default, and operational meaning.

@@ -80,6 +80,8 @@ notification_delivery:
 
 ## Observability
 
+For field-by-field logging behavior, defaults, and performance/security cautions, see [Logging configuration](./logging).
+
 ```yaml
 observability:
   logging:
