@@ -6,6 +6,8 @@
 //! them to disk or collectors.
 
 use std::{
+    collections::BTreeMap,
+    fmt,
     io::{self, Write},
     net::TcpStream,
     path::{Path, PathBuf},
@@ -22,14 +24,16 @@ use anyhow::{Context, Result};
 use opentelemetry::{global, trace::TracerProvider};
 use opentelemetry_otlp::{Protocol, SpanExporter, WithExportConfig, WithHttpConfig};
 use opentelemetry_sdk::{Resource, trace::SdkTracerProvider};
-use serde_json::json;
+use serde_json::{Map, Value};
 use tikeo_config::{ElkLogConfig, FileLogSinkConfig, LoggingConfig, TikeoConfig, TracingConfig};
-use tracing::{debug, error, trace, warn};
+use tracing::{Event, Subscriber, debug, error, field::Visit, trace, warn};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{
     Layer, Registry,
     filter::{EnvFilter, LevelFilter},
+    fmt::{FmtContext, FormatEvent, FormatFields, format::Writer},
     layer::SubscriberExt,
+    registry::LookupSpan,
     util::SubscriberInitExt,
 };
 
@@ -81,8 +85,8 @@ impl TracingRuntime {
         if logging.console.enabled {
             layers.push(
                 tracing_subscriber::fmt::layer()
-                    .with_target(false)
-                    .compact()
+                    .event_format(DirectTextFormatter)
+                    .fmt_fields(tracing_subscriber::fmt::format::DefaultFields::new())
                     .with_filter(level_filter(&logging.console.level))
                     .boxed(),
             );
@@ -93,9 +97,8 @@ impl TracingRuntime {
             file_log_guards.push(guard);
             layers.push(
                 tracing_subscriber::fmt::layer()
-                    .json()
-                    .with_current_span(false)
-                    .with_span_list(false)
+                    .event_format(DirectJsonFormatter)
+                    .fmt_fields(tracing_subscriber::fmt::format::DefaultFields::new())
                     .with_ansi(false)
                     .with_writer(writer)
                     .with_filter(level_filter(&logging.file.level))
@@ -108,9 +111,8 @@ impl TracingRuntime {
             file_log_guards.push(guard);
             layers.push(
                 tracing_subscriber::fmt::layer()
-                    .json()
-                    .with_current_span(false)
-                    .with_span_list(false)
+                    .event_format(DirectJsonFormatter)
+                    .fmt_fields(tracing_subscriber::fmt::format::DefaultFields::new())
                     .with_ansi(false)
                     .with_writer(writer)
                     .with_filter(level_filter(&logging.error_file.level))
@@ -122,9 +124,8 @@ impl TracingRuntime {
             let forwarder = ElkForwarder::start(&logging.elk);
             layers.push(
                 tracing_subscriber::fmt::layer()
-                    .json()
-                    .with_current_span(false)
-                    .with_span_list(false)
+                    .event_format(ElkJsonFormatter::new())
+                    .fmt_fields(tracing_subscriber::fmt::format::DefaultFields::new())
                     .with_ansi(false)
                     .with_writer(forwarder.writer())
                     .with_filter(level_filter(&logging.elk.level))
@@ -253,6 +254,316 @@ impl Drop for TracingRuntime {
             let _ = handle.join();
         }
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct DirectTextFormatter;
+
+impl<S, N> FormatEvent<S, N> for DirectTextFormatter
+where
+    S: Subscriber + for<'span> LookupSpan<'span>,
+    N: for<'writer> FormatFields<'writer> + 'static,
+{
+    fn format_event(
+        &self,
+        _ctx: &FmtContext<'_, S, N>,
+        mut writer: Writer<'_>,
+        event: &Event<'_>,
+    ) -> fmt::Result {
+        let captured = CapturedFields::from_event(event);
+        let metadata = event.metadata();
+        write!(
+            writer,
+            "{} {:<5} {} {}",
+            current_datetime(),
+            metadata.level(),
+            metadata.target(),
+            captured.message_with_fields()
+        )?;
+        writeln!(writer)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct DirectJsonFormatter;
+
+impl<S, N> FormatEvent<S, N> for DirectJsonFormatter
+where
+    S: Subscriber + for<'span> LookupSpan<'span>,
+    N: for<'writer> FormatFields<'writer> + 'static,
+{
+    fn format_event(
+        &self,
+        _ctx: &FmtContext<'_, S, N>,
+        mut writer: Writer<'_>,
+        event: &Event<'_>,
+    ) -> fmt::Result {
+        let captured = CapturedFields::from_event(event);
+        let metadata = event.metadata();
+        let mut object = Map::new();
+        object.insert("timestamp".to_owned(), Value::String(current_datetime()));
+        object.insert(
+            "level".to_owned(),
+            Value::String(metadata.level().to_string()),
+        );
+        object.insert(
+            "target".to_owned(),
+            Value::String(metadata.target().to_owned()),
+        );
+        object.insert("message".to_owned(), Value::String(captured.message()));
+        let fields = captured.fields_json();
+        if !fields.is_empty() {
+            object.insert("fields".to_owned(), Value::Object(fields));
+        }
+        write_json_line(&mut writer, &Value::Object(object))
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ElkJsonFormatter {
+    hostname: Option<String>,
+}
+
+impl ElkJsonFormatter {
+    fn new() -> Self {
+        Self {
+            hostname: local_hostname(),
+        }
+    }
+}
+
+impl<S, N> FormatEvent<S, N> for ElkJsonFormatter
+where
+    S: Subscriber + for<'span> LookupSpan<'span>,
+    N: for<'writer> FormatFields<'writer> + 'static,
+{
+    fn format_event(
+        &self,
+        _ctx: &FmtContext<'_, S, N>,
+        mut writer: Writer<'_>,
+        event: &Event<'_>,
+    ) -> fmt::Result {
+        let captured = CapturedFields::from_event(event);
+        let metadata = event.metadata();
+        let mut object = Map::new();
+        object.insert("app".to_owned(), Value::String("tikeo-server".to_owned()));
+        object.insert("ip".to_owned(), Value::Null);
+        object.insert(
+            "hostname".to_owned(),
+            self.hostname.clone().map_or(Value::Null, Value::String),
+        );
+        object.insert(
+            "class".to_owned(),
+            Value::String(metadata.target().to_owned()),
+        );
+        object.insert(
+            "file".to_owned(),
+            Value::String(metadata.file().unwrap_or_default().to_owned()),
+        );
+        object.insert(
+            "method".to_owned(),
+            Value::String(metadata.module_path().unwrap_or_default().to_owned()),
+        );
+        object.insert(
+            "line".to_owned(),
+            Value::String(
+                metadata
+                    .line()
+                    .map_or_else(String::new, |line| line.to_string()),
+            ),
+        );
+        object.insert("datetime".to_owned(), Value::String(current_datetime()));
+        object.insert("thread".to_owned(), Value::String(current_thread_name()));
+        object.insert(
+            "level".to_owned(),
+            Value::String(metadata.level().to_string()),
+        );
+        object.insert("trace_id".to_owned(), Value::String(captured.trace_id()));
+        object.insert(
+            "msg".to_owned(),
+            Value::String(captured.message_with_fields()),
+        );
+        object.insert("exception".to_owned(), Value::String(captured.exception()));
+        write_json_line(&mut writer, &Value::Object(object))
+    }
+}
+
+#[derive(Debug, Default)]
+struct CapturedFields {
+    values: BTreeMap<String, Value>,
+    message: Option<String>,
+    summary: Option<String>,
+    db_statement: Option<String>,
+    trace_id: Option<String>,
+    exception: Option<String>,
+}
+
+impl CapturedFields {
+    fn from_event(event: &Event<'_>) -> Self {
+        let mut captured = Self::default();
+        event.record(&mut captured);
+        captured
+    }
+
+    fn message(&self) -> String {
+        self.db_statement
+            .as_ref()
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty())
+            .or(self.message.as_deref())
+            .or(self.summary.as_deref())
+            .unwrap_or_default()
+            .to_owned()
+    }
+
+    fn message_with_fields(&self) -> String {
+        let mut message = self.message();
+        for (key, value) in self.loggable_fields() {
+            if !message.is_empty() {
+                message.push(' ');
+            }
+            message.push_str(key);
+            message.push('=');
+            message.push_str(&json_value_to_log_text(value));
+        }
+        message
+    }
+
+    fn fields_json(&self) -> Map<String, Value> {
+        self.loggable_fields()
+            .map(|(key, value)| (key.to_owned(), value.clone()))
+            .collect()
+    }
+
+    fn loggable_fields(&self) -> impl Iterator<Item = (&str, &Value)> {
+        self.values.iter().filter_map(|(key, value)| {
+            if matches!(key.as_str(), "message" | "summary" | "db.statement") {
+                None
+            } else {
+                Some((key.as_str(), value))
+            }
+        })
+    }
+
+    fn trace_id(&self) -> String {
+        self.trace_id.clone().unwrap_or_default()
+    }
+
+    fn exception(&self) -> String {
+        self.exception.clone().unwrap_or_default()
+    }
+
+    fn record_text(&mut self, field: &tracing::field::Field, value: String) {
+        let name = field.name();
+        match name {
+            "message" => self.message = Some(value.clone()),
+            "summary" => self.summary = Some(value.clone()),
+            "db.statement" => self.db_statement = Some(value.clone()),
+            "trace_id" => self.trace_id = Some(value.clone()),
+            "error" | "exception" => self.exception = Some(value.clone()),
+            _ => {}
+        }
+        self.values.insert(name.to_owned(), Value::String(value));
+    }
+}
+
+impl Visit for CapturedFields {
+    fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn fmt::Debug) {
+        self.record_text(field, clean_debug_value(&format!("{value:?}")));
+    }
+
+    fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
+        self.record_text(field, value.to_owned());
+    }
+
+    fn record_bool(&mut self, field: &tracing::field::Field, value: bool) {
+        self.values
+            .insert(field.name().to_owned(), Value::Bool(value));
+    }
+
+    fn record_i64(&mut self, field: &tracing::field::Field, value: i64) {
+        self.values
+            .insert(field.name().to_owned(), Value::Number(value.into()));
+    }
+
+    fn record_u64(&mut self, field: &tracing::field::Field, value: u64) {
+        self.values
+            .insert(field.name().to_owned(), Value::Number(value.into()));
+    }
+
+    fn record_f64(&mut self, field: &tracing::field::Field, value: f64) {
+        let value = serde_json::Number::from_f64(value).map_or(Value::Null, Value::Number);
+        self.values.insert(field.name().to_owned(), value);
+    }
+
+    fn record_error(
+        &mut self,
+        field: &tracing::field::Field,
+        value: &(dyn std::error::Error + 'static),
+    ) {
+        self.record_text(field, value.to_string());
+    }
+}
+
+fn clean_debug_value(value: &str) -> String {
+    if value.len() >= 2 && value.starts_with('"') && value.ends_with('"') {
+        serde_json::from_str::<String>(value).unwrap_or_else(|_| value.to_owned())
+    } else {
+        value.to_owned()
+    }
+}
+
+fn json_value_to_log_text(value: &Value) -> String {
+    match value {
+        Value::String(value) => value.clone(),
+        other => other.to_string(),
+    }
+}
+
+fn write_json_line(writer: &mut Writer<'_>, value: &Value) -> fmt::Result {
+    serde_json::to_writer(JsonFmtWriter(writer), value).map_err(|_| fmt::Error)?;
+    writeln!(writer)
+}
+
+struct JsonFmtWriter<'writer, 'fmt>(&'writer mut Writer<'fmt>);
+
+impl io::Write for JsonFmtWriter<'_, '_> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let value = std::str::from_utf8(buf).map_err(io::Error::other)?;
+        self.0
+            .write_str(value)
+            .map_err(|_| io::Error::other("format writer failed"))?;
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+fn current_datetime() -> String {
+    time::OffsetDateTime::now_utc()
+        .format(&time::format_description::well_known::Rfc3339)
+        .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_owned())
+}
+
+fn current_thread_name() -> String {
+    let thread = thread::current();
+    thread
+        .name()
+        .map_or_else(|| format!("{:?}", thread.id()), ToOwned::to_owned)
+}
+
+fn local_hostname() -> Option<String> {
+    std::env::var("HOSTNAME")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| {
+            std::fs::read_to_string("/etc/hostname")
+                .ok()
+                .map(|value| value.trim().to_owned())
+                .filter(|value| !value.is_empty())
+        })
 }
 
 fn env_filter(logging: &LoggingConfig) -> EnvFilter {
@@ -442,7 +753,6 @@ struct ElkWorkerConfig {
     servers: Vec<String>,
     topic: String,
     sasl_enabled: bool,
-    sasl_username: String,
 }
 
 impl From<&ElkLogConfig> for ElkWorkerConfig {
@@ -457,7 +767,6 @@ impl From<&ElkLogConfig> for ElkWorkerConfig {
                 .collect(),
             topic: config.topic.clone(),
             sasl_enabled: config.sasl.enabled,
-            sasl_username: config.sasl.username.clone(),
         }
     }
 }
@@ -476,11 +785,11 @@ fn run_elk_forwarder(receiver: &Receiver<Vec<u8>>, stop: &AtomicBool, config: &E
         match receiver.recv_timeout(ELK_RECV_TIMEOUT) {
             Ok(line) if line.is_empty() && stop.load(Ordering::Relaxed) => break,
             Ok(line) if !line.is_empty() => {
-                append_elk_frame(&mut batch, &line, config);
+                append_elk_frame(&mut batch, &line);
                 batch_line_count = batch_line_count.saturating_add(1);
                 for line in receiver.try_iter().take(ELK_BATCH_MAX_LINES - 1) {
                     if !line.is_empty() {
-                        append_elk_frame(&mut batch, &line, config);
+                        append_elk_frame(&mut batch, &line);
                         batch_line_count = batch_line_count.saturating_add(1);
                     }
                 }
@@ -507,7 +816,7 @@ fn run_elk_forwarder(receiver: &Receiver<Vec<u8>>, stop: &AtomicBool, config: &E
     }
     while let Ok(line) = receiver.try_recv() {
         if !line.is_empty() {
-            append_elk_frame(&mut batch, &line, config);
+            append_elk_frame(&mut batch, &line);
             batch_line_count = batch_line_count.saturating_add(1);
         }
         if batch.len() >= ELK_BATCH_MAX_LINES * 256 {
@@ -534,15 +843,10 @@ fn run_elk_forwarder(receiver: &Receiver<Vec<u8>>, stop: &AtomicBool, config: &E
     debug!("elk log forwarder worker stopped");
 }
 
-fn append_elk_frame(batch: &mut Vec<u8>, line: &[u8], config: &ElkWorkerConfig) {
+fn append_elk_frame(batch: &mut Vec<u8>, line: &[u8]) {
     let payload = String::from_utf8_lossy(line).trim().to_owned();
-    let frame = json!({
-        "topic": config.topic,
-        "saslEnabled": config.sasl_enabled,
-        "saslUsername": config.sasl_username,
-        "payload": payload,
-    });
-    if serde_json::to_writer(&mut *batch, &frame).is_ok() {
+    if !payload.is_empty() {
+        batch.extend_from_slice(payload.as_bytes());
         batch.push(b'\n');
     }
 }
