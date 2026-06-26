@@ -13,6 +13,8 @@ DOCKER_DOCS = (WORKFLOWS / "publish-docker-docs.yml").read_text()
 JAVA_SDK = (WORKFLOWS / "publish-java-sdk.yml").read_text()
 RUST_SDK = (WORKFLOWS / "publish-rust-sdk.yml").read_text()
 GO_SDK = (WORKFLOWS / "publish-go-sdk.yml").read_text()
+NODEJS_SDK = (WORKFLOWS / "publish-nodejs-sdk.yml").read_text()
+PYTHON_SDK = (WORKFLOWS / "publish-python-sdk.yml").read_text()
 RC_WORKER_SOAK = (WORKFLOWS / "release-candidate-worker-soak.yml").read_text()
 
 
@@ -377,6 +379,27 @@ class WorkflowContractTest(unittest.TestCase):
             self.assertIn(f"--readme {readme}", job_block)
             self.assertIn("DOCKERHUB_USERNAME", job_block)
             self.assertIn("DOCKERHUB_TOKEN", job_block)
+
+    def test_publish_workflows_register_github_deployment_environments(self):
+        expected_publish_envs = {
+            DOCKER_SERVER: ("publish", "dockerhub-tikeo-server", "https://hub.docker.com/r/yhyzgn/tikeo-server/tags"),
+            DOCKER_WEB: ("publish", "dockerhub-tikeo-web", "https://hub.docker.com/r/yhyzgn/tikeo-web/tags"),
+            DOCKER_DOCS: ("publish", "dockerhub-tikeo-docs", "https://hub.docker.com/r/yhyzgn/tikeo-docs/tags"),
+            RUST_SDK: ("publish", "crates-io-tikeo", "https://crates.io/crates/tikeo"),
+            NODEJS_SDK: ("publish", "npm-yhyzgn-tikeo", "https://www.npmjs.com/package/@yhyzgn/tikeo"),
+            PYTHON_SDK: ("publish", "pypi-tikeo", "https://pypi.org/project/tikeo/"),
+            GO_SDK: ("publish", "go-module-tikeo", "https://pkg.go.dev/github.com/yhyzgn/tikeo/sdks/go/tikeo"),
+            JAVA_SDK: ("publish", "maven-central-net-tikeo", "https://central.sonatype.com/namespace/net.tikeo"),
+            GITHUB_RELEASE: ("github-release", "github-release", "https://github.com/yhyzgn/tikeo/releases/tag/"),
+        }
+        for workflow_text, (job, env_name, env_url) in expected_publish_envs.items():
+            job_block = workflow_job_block(workflow_text, job)
+            self.assertIn("environment:", job_block)
+            self.assertIn(f"name: {env_name}", job_block)
+            self.assertIn(f"url: {env_url}", job_block)
+
+        for validation_workflow in [CI, MIGRATE_CLI, RC_WORKER_SOAK]:
+            self.assertNotIn("environment:", validation_workflow)
 
     def test_dockerhub_overviews_include_run_and_compose_paths(self):
         for readme in [

@@ -25,6 +25,9 @@ jobs:
   publish:
     name: Publish Java SDK to Maven Central and GitHub Release
     runs-on: ubuntu-latest
+    environment:
+      name: maven-central-net-tikeo
+      url: https://central.sonatype.com/namespace/net.tikeo
     steps:
       - uses: actions/checkout@v6
         with:

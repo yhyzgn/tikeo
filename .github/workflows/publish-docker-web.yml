@@ -29,6 +29,9 @@ jobs:
   publish:
     name: Publish web image
     runs-on: ubuntu-latest
+    environment:
+      name: dockerhub-tikeo-web
+      url: https://hub.docker.com/r/yhyzgn/tikeo-web/tags
     steps:
       - uses: actions/checkout@v6
         with:

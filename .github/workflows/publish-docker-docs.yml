@@ -29,6 +29,9 @@ jobs:
   publish:
     name: Publish docs image
     runs-on: ubuntu-latest
+    environment:
+      name: dockerhub-tikeo-docs
+      url: https://hub.docker.com/r/yhyzgn/tikeo-docs/tags
     steps:
       - uses: actions/checkout@v6
         with:

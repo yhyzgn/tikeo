@@ -4,21 +4,39 @@ The repository uses one validation lane plus independent publish lanes. Normal d
 
 ## Workflow lanes
 
-| Workflow | File | Trigger | Publishes |
-| --- | --- | --- | --- |
-| CI | `.github/workflows/ci.yml` | Push to `main`, pull request | Nothing; validates server, web, SDKs, demos, deploy tooling, and Docker builds with `push: false`. |
-| GitHub assets | `.github/workflows/release-github-assets.yml` | `v*` tag or manual dispatch | Cross-platform server binaries, cross-platform `tikeo-migrate` migration CLI binaries, web dist archive, Terraform provider binaries, K8s operator binaries, CRD/manifests, Helm chart, and deploy source package. |
-| Migration CLI binary CI | `.github/workflows/build-migrate-cli.yml` | Push/PR touching migration CLI paths or manual dispatch | Nothing external; builds and uploads workflow artifacts for Linux x86_64/arm64, macOS Intel/Apple Silicon, and Windows x86_64/arm64. Release attachment is handled by GitHub assets workflow. |
-| Release candidate Worker soak | `.github/workflows/release-candidate-worker-soak.yml` | Manual dispatch | Nothing external; runs the cross-language Worker soak for a selected ref and uploads the `cross-language-worker-soak` evidence artifact. |
-| Docker server | `.github/workflows/publish-docker-server.yml` | `v*` tag or manual dispatch | `yhyzgn/tikeo-server`. |
-| Docker web | `.github/workflows/publish-docker-web.yml` | `v*` tag or manual dispatch | `yhyzgn/tikeo-web`. |
-| Docker docs | `.github/workflows/publish-docker-docs.yml` | `v*` tag or manual dispatch | `yhyzgn/tikeo-docs`. |
-| Java SDK | `.github/workflows/publish-java-sdk.yml` | `v*` tag or manual dispatch | Java SDK modules to Maven Central plus GitHub Release tarball. |
-| Rust SDK | `.github/workflows/publish-rust-sdk.yml` | `v*` tag or manual dispatch | Rust SDK crate to crates.io plus GitHub Release tarball. |
-| Node.js SDK | `.github/workflows/publish-nodejs-sdk.yml` | `v*` tag or manual dispatch | `@yhyzgn/tikeo` to npm plus GitHub Release tarball. |
-| Python SDK | `.github/workflows/publish-python-sdk.yml` | `v*` tag or manual dispatch | `tikeo` to PyPI plus GitHub Release tarball. |
+| Workflow | File | Trigger | Publishes | Deployment environment |
+| --- | --- | --- | --- | --- |
+| CI | `.github/workflows/ci.yml` | Push to `main`, pull request | Nothing; validates server, web, SDKs, demos, deploy tooling, and Docker builds with `push: false`. | none |
+| GitHub assets | `.github/workflows/release-github-assets.yml` | `v*` tag or manual dispatch | Cross-platform server binaries, cross-platform `tikeo-migrate` migration CLI binaries, web dist archive, Terraform provider binaries, K8s operator binaries, CRD/manifests, Helm chart, and deploy source package. | `github-release` |
+| Migration CLI binary CI | `.github/workflows/build-migrate-cli.yml` | Push/PR touching migration CLI paths or manual dispatch | Nothing external; builds and uploads workflow artifacts for Linux x86_64/arm64, macOS Intel/Apple Silicon, and Windows x86_64/arm64. Release attachment is handled by GitHub assets workflow. | none |
+| Release candidate Worker soak | `.github/workflows/release-candidate-worker-soak.yml` | Manual dispatch | Nothing external; runs the cross-language Worker soak for a selected ref and uploads the `cross-language-worker-soak` evidence artifact. | none |
+| Docker server | `.github/workflows/publish-docker-server.yml` | `v*` tag or manual dispatch | `yhyzgn/tikeo-server`. | `dockerhub-tikeo-server` |
+| Docker web | `.github/workflows/publish-docker-web.yml` | `v*` tag or manual dispatch | `yhyzgn/tikeo-web`. | `dockerhub-tikeo-web` |
+| Docker docs | `.github/workflows/publish-docker-docs.yml` | `v*` tag or manual dispatch | `yhyzgn/tikeo-docs`. | `dockerhub-tikeo-docs` |
+| Java SDK | `.github/workflows/publish-java-sdk.yml` | `v*` tag or manual dispatch | Java SDK modules to Maven Central plus GitHub Release tarball. | `maven-central-net-tikeo` |
+| Rust SDK | `.github/workflows/publish-rust-sdk.yml` | `v*` tag or manual dispatch | Rust SDK crate to crates.io plus GitHub Release tarball. | `crates-io-tikeo` |
+| Node.js SDK | `.github/workflows/publish-nodejs-sdk.yml` | `v*` tag or manual dispatch | `@yhyzgn/tikeo` to npm plus GitHub Release tarball. | `npm-yhyzgn-tikeo` |
+| Python SDK | `.github/workflows/publish-python-sdk.yml` | `v*` tag or manual dispatch | `tikeo` to PyPI plus GitHub Release tarball. | `pypi-tikeo` |
 
 Manual dispatch keeps each target independently releasable. Use the same `v*` tag input as the release version when running a publish workflow manually.
+
+## GitHub Deployments page
+
+Release publish workflows intentionally attach a GitHub Actions `environment` to every external publishing target. These environments are not fake runtime clusters: they are the real artifact distribution surfaces operators consume after a release tag is cut.
+
+| Environment | Real target represented |
+| --- | --- |
+| `github-release` | GitHub Release assets: binaries, web dist, Helm chart, manifests, Compose files, and deploy source bundles. |
+| `dockerhub-tikeo-server` | Docker Hub `yhyzgn/tikeo-server` image tags. |
+| `dockerhub-tikeo-web` | Docker Hub `yhyzgn/tikeo-web` image tags. |
+| `dockerhub-tikeo-docs` | Docker Hub `yhyzgn/tikeo-docs` image tags. |
+| `crates-io-tikeo` | crates.io `tikeo` Rust SDK crate. |
+| `npm-yhyzgn-tikeo` | npm `@yhyzgn/tikeo` Node.js SDK package. |
+| `pypi-tikeo` | PyPI `tikeo` Python SDK package. |
+| `go-module-tikeo` | Go module tag and Go proxy indexing for `github.com/yhyzgn/tikeo/sdks/go/tikeo`. |
+| `maven-central-net-tikeo` | Maven Central `net.tikeo` Java SDK artifacts. |
+
+The GitHub project **Deployments** page is therefore the release distribution ledger: each successful publish job creates a deployment status for the tag and links to the target registry or release page. Validation-only workflows must not use an environment because they do not publish an external artifact.
 
 
 ## Release candidate soak gate

@@ -25,6 +25,9 @@ jobs:
   publish:
     name: Package and optionally publish Python SDK
     runs-on: ubuntu-latest
+    environment:
+      name: pypi-tikeo
+      url: https://pypi.org/project/tikeo/
     steps:
       - uses: actions/checkout@v6
         with:

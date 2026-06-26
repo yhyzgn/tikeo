@@ -29,6 +29,9 @@ jobs:
   publish:
     name: Publish server image
     runs-on: ubuntu-latest
+    environment:
+      name: dockerhub-tikeo-server
+      url: https://hub.docker.com/r/yhyzgn/tikeo-server/tags
     steps:
       - uses: actions/checkout@v6
         with:

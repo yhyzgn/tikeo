@@ -26,6 +26,9 @@ jobs:
   publish:
     name: Package and publish Go SDK module tag
     runs-on: ubuntu-latest
+    environment:
+      name: go-module-tikeo
+      url: https://pkg.go.dev/github.com/yhyzgn/tikeo/sdks/go/tikeo
     steps:
       - uses: actions/checkout@v6
         with:

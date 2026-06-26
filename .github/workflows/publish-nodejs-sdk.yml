@@ -26,6 +26,9 @@ jobs:
   publish:
     name: Package and optionally publish Node.js SDK
     runs-on: ubuntu-latest
+    environment:
+      name: npm-yhyzgn-tikeo
+      url: https://www.npmjs.com/package/@yhyzgn/tikeo
     steps:
       - uses: actions/checkout@v6
         with:

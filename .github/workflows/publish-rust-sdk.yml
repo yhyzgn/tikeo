@@ -25,6 +25,9 @@ jobs:
   publish:
     name: Publish Rust SDK to crates.io and GitHub Release
     runs-on: ubuntu-latest
+    environment:
+      name: crates-io-tikeo
+      url: https://crates.io/crates/tikeo
     steps:
       - uses: actions/checkout@v6
         with:

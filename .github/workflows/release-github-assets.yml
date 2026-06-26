@@ -406,6 +406,9 @@ jobs:
   github-release:
     name: Upload GitHub Release assets
     runs-on: ubuntu-latest
+    environment:
+      name: github-release
+      url: https://github.com/yhyzgn/tikeo/releases/tag/${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
     needs: [server-binaries, migrate-cli-binaries, web-dist, deploy-assets]
     steps:
       - uses: actions/checkout@v6
