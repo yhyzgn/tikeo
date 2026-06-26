@@ -16,7 +16,7 @@ Tikeo ships deployment assets for local validation, VM/bare-metal operation, Kub
 
 ## Operator defaults
 
-- Keep server logs at INFO and set `observability.logging.log_dir` for durable VM/container logs.
+- Keep server logs at INFO; enable `observability.logging.channels.file.enabled` and set `observability.logging.channels.file.path` for durable VM/container logs.
 - Prefer PostgreSQL/MySQL/CockroachDB for shared environments and inject database URLs through platform Secrets.
 - Do not expose business worker ports. Workers initiate outbound Worker Tunnel connections.
 - Mount TLS/mTLS certificates and secret references from the deployment platform, not from Git.

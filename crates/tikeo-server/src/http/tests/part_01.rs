@@ -693,10 +693,10 @@
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
         let mut observability = tikeo_config::ObservabilityConfig::default();
         observability.logging.root.level = "WARN".to_owned();
-        observability.logging.file.enabled = true;
-        observability.logging.file.path = "/tmp/tikeo-test-logs".to_owned();
-        observability.logging.elk.enabled = true;
-        observability.logging.elk.servers = "127.0.0.1:19094".to_owned();
+        observability.logging.channels.file.enabled = true;
+        observability.logging.channels.file.path = "/tmp/tikeo-test-logs".to_owned();
+        observability.logging.channels.elk.enabled = true;
+        observability.logging.channels.elk.servers = "127.0.0.1:19094".to_owned();
         observability.tracing.enabled = true;
         observability.tracing.otlp_endpoint =
             Some("https://collector.example.com/v1/traces".to_owned());

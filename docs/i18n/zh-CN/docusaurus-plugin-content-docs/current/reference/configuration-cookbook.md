@@ -85,17 +85,22 @@ observability:
   logging:
     root:
       level: INFO
-    console:
-      enabled: true
-      level: INFO
-    file:
-      enabled: true
-      level: INFO
-      path: /logs
-    error-file:
-      enabled: true
-      level: ERROR
-      path: /logs
+    http:
+      include_headers: false
+      include_body: false
+      max_body_bytes: 65536
+    channels:
+      console:
+        enabled: true
+        level: INFO
+      file:
+        enabled: true
+        level: INFO
+        path: /logs
+      error-file:
+        enabled: true
+        level: ERROR
+        path: /logs
   tracing:
     enabled: true
     otlp_endpoint: http://otel-collector:4318/v1/traces

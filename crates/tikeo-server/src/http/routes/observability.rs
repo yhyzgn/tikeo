@@ -39,24 +39,24 @@ pub async fn observability_status(
         logging: LoggingStatus {
             root_level: logging.root.level.clone(),
             console: LogSinkStatus {
-                enabled: logging.console.enabled,
-                level: logging.console.level.clone(),
+                enabled: logging.channels.console.enabled,
+                level: logging.channels.console.level.clone(),
                 target: Some("stdout".to_owned()),
             },
             file: LogSinkStatus {
-                enabled: logging.file.enabled,
-                level: logging.file.level.clone(),
-                target: Some(logging.file.path.clone()),
+                enabled: logging.channels.file.enabled,
+                level: logging.channels.file.level.clone(),
+                target: Some(logging.channels.file.path.clone()),
             },
             error_file: LogSinkStatus {
-                enabled: logging.error_file.enabled,
-                level: logging.error_file.level.clone(),
-                target: Some(logging.error_file.path.clone()),
+                enabled: logging.channels.error_file.enabled,
+                level: logging.channels.error_file.level.clone(),
+                target: Some(logging.channels.error_file.path.clone()),
             },
             elk: LogSinkStatus {
-                enabled: logging.elk.enabled,
-                level: logging.elk.level.clone(),
-                target: Some(logging.elk.servers.clone()),
+                enabled: logging.channels.elk.enabled,
+                level: logging.channels.elk.level.clone(),
+                target: Some(logging.channels.elk.servers.clone()),
             },
         },
         tracing: TracingStatus {

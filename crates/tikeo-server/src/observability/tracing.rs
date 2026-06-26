@@ -82,18 +82,18 @@ impl TracingRuntime {
         let mut file_log_guards = Vec::new();
         let mut layers = Vec::new();
 
-        if logging.console.enabled {
+        if logging.channels.console.enabled {
             layers.push(
                 tracing_subscriber::fmt::layer()
                     .event_format(DirectTextFormatter)
                     .fmt_fields(tracing_subscriber::fmt::format::DefaultFields::new())
-                    .with_filter(level_filter(&logging.console.level))
+                    .with_filter(level_filter(&logging.channels.console.level))
                     .boxed(),
             );
         }
 
-        if logging.file.enabled {
-            let (writer, guard) = file_logging_writer(&logging.file, "tikeo.log")?;
+        if logging.channels.file.enabled {
+            let (writer, guard) = file_logging_writer(&logging.channels.file, "tikeo.log")?;
             file_log_guards.push(guard);
             layers.push(
                 tracing_subscriber::fmt::layer()
@@ -101,13 +101,14 @@ impl TracingRuntime {
                     .fmt_fields(tracing_subscriber::fmt::format::DefaultFields::new())
                     .with_ansi(false)
                     .with_writer(writer)
-                    .with_filter(level_filter(&logging.file.level))
+                    .with_filter(level_filter(&logging.channels.file.level))
                     .boxed(),
             );
         }
 
-        if logging.error_file.enabled {
-            let (writer, guard) = file_logging_writer(&logging.error_file, "tikeo-error.log")?;
+        if logging.channels.error_file.enabled {
+            let (writer, guard) =
+                file_logging_writer(&logging.channels.error_file, "tikeo-error.log")?;
             file_log_guards.push(guard);
             layers.push(
                 tracing_subscriber::fmt::layer()
@@ -115,20 +116,20 @@ impl TracingRuntime {
                     .fmt_fields(tracing_subscriber::fmt::format::DefaultFields::new())
                     .with_ansi(false)
                     .with_writer(writer)
-                    .with_filter(level_filter(&logging.error_file.level))
+                    .with_filter(level_filter(&logging.channels.error_file.level))
                     .boxed(),
             );
         }
 
-        let elk_guard = if logging.elk.enabled {
-            let forwarder = ElkForwarder::start(&logging.elk);
+        let elk_guard = if logging.channels.elk.enabled {
+            let forwarder = ElkForwarder::start(&logging.channels.elk);
             layers.push(
                 tracing_subscriber::fmt::layer()
                     .event_format(ElkJsonFormatter::new())
                     .fmt_fields(tracing_subscriber::fmt::format::DefaultFields::new())
                     .with_ansi(false)
                     .with_writer(forwarder.writer())
-                    .with_filter(level_filter(&logging.elk.level))
+                    .with_filter(level_filter(&logging.channels.elk.level))
                     .boxed(),
             );
             Some(forwarder)
@@ -150,22 +151,22 @@ impl TracingRuntime {
 
         debug!(
             root_filter = %root_filter(&logging.root.level),
-            console_level = %normalize_log_level(&logging.console.level),
-            file_level = %normalize_log_level(&logging.file.level),
-            error_file_level = %normalize_log_level(&logging.error_file.level),
-            elk_level = %normalize_log_level(&logging.elk.level),
+            console_level = %normalize_log_level(&logging.channels.console.level),
+            file_level = %normalize_log_level(&logging.channels.file.level),
+            error_file_level = %normalize_log_level(&logging.channels.error_file.level),
+            elk_level = %normalize_log_level(&logging.channels.elk.level),
             "tikeo logging filters configured"
         );
         trace!(
-            file_raw_path = %logging.file.path,
-            error_file_raw_path = %logging.error_file.path,
-            elk_servers = %logging.elk.servers,
+            file_raw_path = %logging.channels.file.path,
+            error_file_raw_path = %logging.channels.error_file.path,
+            elk_servers = %logging.channels.elk.servers,
             "tikeo logging sink raw configuration loaded"
         );
-        if !logging.console.enabled
-            && !logging.file.enabled
-            && !logging.error_file.enabled
-            && !logging.elk.enabled
+        if !logging.channels.console.enabled
+            && !logging.channels.file.enabled
+            && !logging.channels.error_file.enabled
+            && !logging.channels.elk.enabled
         {
             warn!(
                 "all logging sinks are disabled; runtime diagnostics will be unavailable unless RUST_LOG subscriber is installed externally"
@@ -174,16 +175,16 @@ impl TracingRuntime {
 
         tracing::info!(
             root_level = %normalize_log_level(&logging.root.level),
-            console_enabled = logging.console.enabled,
-            console_level = %normalize_log_level(&logging.console.level),
-            file_enabled = logging.file.enabled,
-            file_level = %normalize_log_level(&logging.file.level),
-            file_path = %logging.file.path,
-            error_file_enabled = logging.error_file.enabled,
-            error_file_level = %normalize_log_level(&logging.error_file.level),
-            error_file_path = %logging.error_file.path,
-            elk_enabled = logging.elk.enabled,
-            elk_topic = %logging.elk.topic,
+            console_enabled = logging.channels.console.enabled,
+            console_level = %normalize_log_level(&logging.channels.console.level),
+            file_enabled = logging.channels.file.enabled,
+            file_level = %normalize_log_level(&logging.channels.file.level),
+            file_path = %logging.channels.file.path,
+            error_file_enabled = logging.channels.error_file.enabled,
+            error_file_level = %normalize_log_level(&logging.channels.error_file.level),
+            error_file_path = %logging.channels.error_file.path,
+            elk_enabled = logging.channels.elk.enabled,
+            elk_topic = %logging.channels.elk.topic,
             otlp_endpoint_configured = provider.is_some(),
             "tikeo logging runtime initialized"
         );

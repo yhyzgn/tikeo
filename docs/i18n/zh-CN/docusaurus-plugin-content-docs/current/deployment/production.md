@@ -60,17 +60,22 @@ observability:
   logging:
     root:
       level: INFO
-    console:
-      enabled: true
-      level: INFO
-    file:
-      enabled: true
-      level: INFO
-      path: /logs
-    error-file:
-      enabled: true
-      level: ERROR
-      path: /logs
+    http:
+      include_headers: false
+      include_body: false
+      max_body_bytes: 65536
+    channels:
+      console:
+        enabled: true
+        level: INFO
+      file:
+        enabled: true
+        level: INFO
+        path: /logs
+      error-file:
+        enabled: true
+        level: ERROR
+        path: /logs
 ```
 
 完整 Server/Worker 表格见 [配置参考](../reference/configuration)。

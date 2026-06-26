@@ -72,31 +72,35 @@ observability:
   logging:
     root:
       level: INFO
-    console:
-      enabled: true
-      level: INFO
-    file:
-      enabled: true
-      level: INFO
-      path: "${TIKEO_LOG_PATH:/logs}"
-    error-file:
-      enabled: true
-      level: ERROR
-      path: "${TIKEO_LOG_PATH:/logs}"
-    elk:
-      enabled: ${ELK_ENABLED:false}
-      servers: "${ELK_SERVERS:elk-server:8094}"
-      topic: "${ELK_TOPIC:ivs-dev}"
-      level: INFO
-      sasl:
-        enabled: ${ELK_SASL_ENABLED:false}
-        username: "${ELK_USERNAME:}"
-        password: "${ELK_PASSWORD:}"
+    http:
+      include_headers: false
+      include_body: false
+      max_body_bytes: 65536
+    channels:
+      console:
+        enabled: true
+        level: INFO
+      file:
+        enabled: true
+        level: INFO
+        path: "${TIKEO_LOG_PATH:/logs}"
+      error-file:
+        enabled: true
+        level: ERROR
+        path: "${TIKEO_LOG_PATH:/logs}"
+      elk:
+        enabled: ${ELK_ENABLED:false}
+        servers: "${ELK_SERVERS:elk-server:8094}"
+        topic: "${ELK_TOPIC:ivs-dev}"
+        level: INFO
+        sasl:
+          enabled: ${ELK_SASL_ENABLED:false}
+          username: "${ELK_USERNAME:}"
+          password: "${ELK_PASSWORD:}"
   tracing:
     enabled: false
     headers: []
     # otlp_endpoint: "http://otel-collector:4318/v1/traces"
-
 transport_security:
   http:
     tls_enabled: false

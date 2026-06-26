@@ -46,10 +46,10 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
         cluster_mode = ?cluster_config.mode,
         node_id = %cluster_config.node_id,
         database_type = %config.storage.database.kind,
-        log_console_enabled = observability.logging.console.enabled,
-        log_file_enabled = observability.logging.file.enabled,
-        log_error_file_enabled = observability.logging.error_file.enabled,
-        log_elk_enabled = observability.logging.elk.enabled,
+        log_console_enabled = observability.logging.channels.console.enabled,
+        log_file_enabled = observability.logging.channels.file.enabled,
+        log_error_file_enabled = observability.logging.channels.error_file.enabled,
+        log_elk_enabled = observability.logging.channels.elk.enabled,
         "starting tikeo server runtime"
     );
     tikeo_storage::set_timestamp_offset(offset);

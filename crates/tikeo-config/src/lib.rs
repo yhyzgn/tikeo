@@ -490,7 +490,7 @@ pub struct ObservabilityConfig {
 }
 
 /// Runtime logging configuration.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LoggingConfig {
     /// Deprecated flat minimum log level accepted for backward compatibility.
     #[serde(default)]
@@ -501,7 +501,35 @@ pub struct LoggingConfig {
     /// Root log filter.
     #[serde(default)]
     pub root: LogLevelConfig,
-    /// Console sink.
+    /// HTTP access/detail logging behavior.
+    #[serde(default)]
+    pub http: HttpLogConfig,
+    /// Log output channel sinks.
+    #[serde(default)]
+    pub channels: LogChannelsConfig,
+    /// Deprecated top-level console sink accepted for backward compatibility.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub console: Option<LogSinkConfig>,
+    /// Deprecated top-level main file sink accepted for backward compatibility.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file: Option<FileLogSinkConfig>,
+    /// Deprecated top-level error-only file sink accepted for backward compatibility.
+    #[serde(
+        default,
+        rename = "error-file",
+        alias = "error_file",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub error_file: Option<FileLogSinkConfig>,
+    /// Deprecated top-level ELK/log collector sink accepted for backward compatibility.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub elk: Option<ElkLogConfig>,
+}
+
+/// Log output channel sink configuration.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LogChannelsConfig {
+    /// Console/stdout sink.
     #[serde(default)]
     pub console: LogSinkConfig,
     /// Main file sink.
@@ -510,20 +538,14 @@ pub struct LoggingConfig {
     /// Error-only file sink.
     #[serde(default, rename = "error-file", alias = "error_file")]
     pub error_file: FileLogSinkConfig,
-    /// HTTP access/detail logging behavior.
-    #[serde(default)]
-    pub http: HttpLogConfig,
     /// ELK/log collector sink.
     #[serde(default)]
     pub elk: ElkLogConfig,
 }
 
-impl Default for LoggingConfig {
+impl Default for LogChannelsConfig {
     fn default() -> Self {
         Self {
-            level: None,
-            log_dir: None,
-            root: LogLevelConfig::default(),
             console: LogSinkConfig::default(),
             file: FileLogSinkConfig::default(),
             error_file: FileLogSinkConfig {
@@ -531,7 +553,6 @@ impl Default for LoggingConfig {
                 level: "error".to_owned(),
                 path: default_app_log_path(),
             },
-            http: HttpLogConfig::default(),
             elk: ElkLogConfig::default(),
         }
     }
@@ -621,8 +642,11 @@ impl Default for HttpLogConfig {
     }
 }
 
+const DEFAULT_HTTP_LOG_MAX_BODY_BYTES: usize = 64 * 1024;
+const DEFAULT_HTTP_LOG_MAX_BODY_BYTES_I64: i64 = 64 * 1024;
+
 const fn default_http_log_max_body_bytes() -> usize {
-    64 * 1024
+    DEFAULT_HTTP_LOG_MAX_BODY_BYTES
 }
 
 /// ELK/log collector sink.
@@ -876,24 +900,48 @@ pub fn load_config(path: Option<&Path>) -> Result<TikeoConfig, ConfigError> {
         .set_default("transport_security.worker_tunnel.tls_enabled", false)?
         .set_default("transport_security.worker_tunnel.mtls_required", false)?
         .set_default("observability.logging.root.level", default_log_level())?
-        .set_default("observability.logging.console.enabled", true)?
-        .set_default("observability.logging.console.level", default_log_level())?
-        .set_default("observability.logging.file.enabled", false)?
-        .set_default("observability.logging.file.level", default_log_level())?
-        .set_default("observability.logging.file.path", default_app_log_path())?
-        .set_default("observability.logging.error-file.enabled", false)?
-        .set_default("observability.logging.error-file.level", "error")?
+        .set_default("observability.logging.http.include_headers", false)?
+        .set_default("observability.logging.http.include_body", false)?
         .set_default(
-            "observability.logging.error-file.path",
+            "observability.logging.http.max_body_bytes",
+            DEFAULT_HTTP_LOG_MAX_BODY_BYTES_I64,
+        )?
+        .set_default("observability.logging.channels.console.enabled", true)?
+        .set_default(
+            "observability.logging.channels.console.level",
+            default_log_level(),
+        )?
+        .set_default("observability.logging.channels.file.enabled", false)?
+        .set_default(
+            "observability.logging.channels.file.level",
+            default_log_level(),
+        )?
+        .set_default(
+            "observability.logging.channels.file.path",
             default_app_log_path(),
         )?
-        .set_default("observability.logging.elk.enabled", false)?
-        .set_default("observability.logging.elk.servers", default_elk_servers())?
-        .set_default("observability.logging.elk.topic", default_elk_topic())?
-        .set_default("observability.logging.elk.level", default_log_level())?
-        .set_default("observability.logging.elk.sasl.enabled", false)?
-        .set_default("observability.logging.elk.sasl.username", "")?
-        .set_default("observability.logging.elk.sasl.password", "")?
+        .set_default("observability.logging.channels.error-file.enabled", false)?
+        .set_default("observability.logging.channels.error-file.level", "error")?
+        .set_default(
+            "observability.logging.channels.error-file.path",
+            default_app_log_path(),
+        )?
+        .set_default("observability.logging.channels.elk.enabled", false)?
+        .set_default(
+            "observability.logging.channels.elk.servers",
+            default_elk_servers(),
+        )?
+        .set_default(
+            "observability.logging.channels.elk.topic",
+            default_elk_topic(),
+        )?
+        .set_default(
+            "observability.logging.channels.elk.level",
+            default_log_level(),
+        )?
+        .set_default("observability.logging.channels.elk.sasl.enabled", false)?
+        .set_default("observability.logging.channels.elk.sasl.username", "")?
+        .set_default("observability.logging.channels.elk.sasl.password", "")?
         .set_default("observability.tracing.enabled", false)?
         .set_default("observability.tracing.headers", Vec::<String>::new())?
         .set_default("alert_secrets.allow_env_refs", true)?
@@ -937,15 +985,28 @@ pub fn load_config(path: Option<&Path>) -> Result<TikeoConfig, ConfigError> {
 }
 
 fn apply_legacy_logging_compat(logging: &mut LoggingConfig) {
+    if let Some(console) = logging.console.take() {
+        logging.channels.console = console;
+    }
+    if let Some(file) = logging.file.take() {
+        logging.channels.file = file;
+    }
+    if let Some(error_file) = logging.error_file.take() {
+        logging.channels.error_file = error_file;
+    }
+    if let Some(elk) = logging.elk.take() {
+        logging.channels.elk = elk;
+    }
+
     if let Some(level) = logging
         .level
         .as_ref()
         .filter(|value| !value.trim().is_empty())
     {
         logging.root.level.clone_from(level);
-        logging.console.level.clone_from(level);
-        if logging.file.level == default_log_level() {
-            logging.file.level.clone_from(level);
+        logging.channels.console.level.clone_from(level);
+        if logging.channels.file.level == default_log_level() {
+            logging.channels.file.level.clone_from(level);
         }
     }
     if let Some(path) = logging
@@ -953,8 +1014,8 @@ fn apply_legacy_logging_compat(logging: &mut LoggingConfig) {
         .as_ref()
         .filter(|value| !value.trim().is_empty())
     {
-        logging.file.enabled = true;
-        logging.file.path.clone_from(path);
+        logging.channels.file.enabled = true;
+        logging.channels.file.path.clone_from(path);
     }
 }
 
@@ -1124,22 +1185,28 @@ mod tests {
             load_config(None).unwrap_or_else(|error| panic!("default config should load: {error}"));
 
         assert_eq!(config.observability.logging.root.level, "info");
-        assert!(config.observability.logging.console.enabled);
-        assert_eq!(config.observability.logging.console.level, "info");
-        assert!(!config.observability.logging.file.enabled);
-        assert_eq!(config.observability.logging.file.path, "/logs");
-        assert!(!config.observability.logging.error_file.enabled);
-        assert_eq!(config.observability.logging.error_file.level, "error");
-        assert_eq!(config.observability.logging.error_file.path, "/logs");
+        assert!(config.observability.logging.channels.console.enabled);
+        assert_eq!(config.observability.logging.channels.console.level, "info");
+        assert!(!config.observability.logging.channels.file.enabled);
+        assert_eq!(config.observability.logging.channels.file.path, "/logs");
+        assert!(!config.observability.logging.channels.error_file.enabled);
+        assert_eq!(
+            config.observability.logging.channels.error_file.level,
+            "error"
+        );
+        assert_eq!(
+            config.observability.logging.channels.error_file.path,
+            "/logs"
+        );
         assert!(!config.observability.logging.http.include_headers);
         assert!(!config.observability.logging.http.include_body);
         assert_eq!(config.observability.logging.http.max_body_bytes, 64 * 1024);
-        assert!(!config.observability.logging.elk.enabled);
+        assert!(!config.observability.logging.channels.elk.enabled);
         assert_eq!(
-            config.observability.logging.elk.servers,
+            config.observability.logging.channels.elk.servers,
             "203.83.233.63:8094,36.111.150.189:8094,106.63.7.44:8094"
         );
-        assert_eq!(config.observability.logging.elk.topic, "ivs-dev");
+        assert_eq!(config.observability.logging.channels.elk.topic, "ivs-dev");
         assert!(!config.observability.tracing.enabled);
         assert!(config.observability.tracing.otlp_endpoint.is_none());
         assert!(config.observability.tracing.headers.is_empty());
@@ -1157,26 +1224,31 @@ mod tests {
   logging:
     root:
       level: WARN
-    console:
-      enabled: false
-      level: ERROR
-    file:
-      enabled: true
-      level: INFO
-      path: "${TIKEO_LOG_PATH:./var/tikeo/logs}"
-    error-file:
-      enabled: true
-      level: ERROR
-      path: "${TIKEO_LOG_PATH:./var/tikeo/logs}"
-    elk:
-      enabled: ${ELK_ENABLED:false}
-      servers: "${ELK_SERVERS:203.83.233.63:8094,36.111.150.189:8094,106.63.7.44:8094}"
-      topic: "${ELK_TOPIC:ivs-dev}"
-      level: INFO
-      sasl:
-        enabled: ${ELK_SASL_ENABLED:false}
-        username: "${ELK_USERNAME:}"
-        password: "${ELK_PASSWORD:}"
+    http:
+      include_headers: true
+      include_body: true
+      max_body_bytes: 4096
+    channels:
+      console:
+        enabled: false
+        level: ERROR
+      file:
+        enabled: true
+        level: INFO
+        path: "${TIKEO_LOG_PATH:./var/tikeo/logs}"
+      error-file:
+        enabled: true
+        level: ERROR
+        path: "${TIKEO_LOG_PATH:./var/tikeo/logs}"
+      elk:
+        enabled: ${ELK_ENABLED:false}
+        servers: "${ELK_SERVERS:203.83.233.63:8094,36.111.150.189:8094,106.63.7.44:8094}"
+        topic: "${ELK_TOPIC:ivs-dev}"
+        level: INFO
+        sasl:
+          enabled: ${ELK_SASL_ENABLED:false}
+          username: "${ELK_USERNAME:}"
+          password: "${ELK_PASSWORD:}"
 "#,
         )
         .unwrap_or_else(|error| panic!("temp config should write: {error}"));
@@ -1186,19 +1258,25 @@ mod tests {
             .unwrap_or_else(|error| panic!("temp config should delete: {error}"));
 
         assert_eq!(config.observability.logging.root.level, "WARN");
-        assert!(!config.observability.logging.console.enabled);
-        assert_eq!(config.observability.logging.console.level, "ERROR");
-        assert!(config.observability.logging.file.enabled);
-        assert_eq!(config.observability.logging.file.path, "./var/tikeo/logs");
-        assert!(config.observability.logging.error_file.enabled);
+        assert!(config.observability.logging.http.include_headers);
+        assert!(config.observability.logging.http.include_body);
+        assert_eq!(config.observability.logging.http.max_body_bytes, 4096);
+        assert!(!config.observability.logging.channels.console.enabled);
+        assert_eq!(config.observability.logging.channels.console.level, "ERROR");
+        assert!(config.observability.logging.channels.file.enabled);
         assert_eq!(
-            config.observability.logging.error_file.path,
+            config.observability.logging.channels.file.path,
             "./var/tikeo/logs"
         );
-        assert!(!config.observability.logging.elk.enabled);
-        assert_eq!(config.observability.logging.elk.topic, "ivs-dev");
-        assert_eq!(config.observability.logging.elk.sasl.username, "");
-        assert_eq!(config.observability.logging.elk.sasl.password, "");
+        assert!(config.observability.logging.channels.error_file.enabled);
+        assert_eq!(
+            config.observability.logging.channels.error_file.path,
+            "./var/tikeo/logs"
+        );
+        assert!(!config.observability.logging.channels.elk.enabled);
+        assert_eq!(config.observability.logging.channels.elk.topic, "ivs-dev");
+        assert_eq!(config.observability.logging.channels.elk.sasl.username, "");
+        assert_eq!(config.observability.logging.channels.elk.sasl.password, "");
     }
 
     #[test]
@@ -1227,10 +1305,13 @@ mod tests {
             Some("./legacy-logs")
         );
         assert_eq!(config.observability.logging.root.level, "debug");
-        assert_eq!(config.observability.logging.console.level, "debug");
-        assert!(config.observability.logging.file.enabled);
-        assert_eq!(config.observability.logging.file.level, "debug");
-        assert_eq!(config.observability.logging.file.path, "./legacy-logs");
+        assert_eq!(config.observability.logging.channels.console.level, "debug");
+        assert!(config.observability.logging.channels.file.enabled);
+        assert_eq!(config.observability.logging.channels.file.level, "debug");
+        assert_eq!(
+            config.observability.logging.channels.file.path,
+            "./legacy-logs"
+        );
     }
 
     #[test]
@@ -1243,18 +1324,24 @@ mod tests {
                 .unwrap_or_else(|error| panic!("{name} should load: {error}"));
 
             assert_eq!(config.observability.logging.root.level, "INFO");
-            assert!(config.observability.logging.console.enabled);
-            assert!(config.observability.logging.file.enabled);
-            assert!(config.observability.logging.error_file.enabled);
-            assert!(!config.observability.logging.elk.enabled);
+            assert!(!config.observability.logging.http.include_headers);
+            assert!(!config.observability.logging.http.include_body);
+            assert_eq!(config.observability.logging.http.max_body_bytes, 65_536);
+            assert!(config.observability.logging.channels.console.enabled);
+            assert!(config.observability.logging.channels.file.enabled);
+            assert!(config.observability.logging.channels.error_file.enabled);
+            assert!(!config.observability.logging.channels.elk.enabled);
             let expected_log_path = if name == "dev.yml" {
                 ".dev/logs"
             } else {
                 "/logs"
             };
-            assert_eq!(config.observability.logging.file.path, expected_log_path);
             assert_eq!(
-                config.observability.logging.error_file.path,
+                config.observability.logging.channels.file.path,
+                expected_log_path
+            );
+            assert_eq!(
+                config.observability.logging.channels.error_file.path,
                 expected_log_path
             );
         }

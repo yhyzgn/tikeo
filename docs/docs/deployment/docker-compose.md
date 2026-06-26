@@ -68,7 +68,7 @@ Important configuration files:
 | `/config/tikeo.yml` | `./config/tikeo.yml:/config/tikeo.yml:ro` | same | same | Server configuration file. |
 | `/config/tls` | `./config/tls:/config/tls:ro` | same | same | Optional HTTP and Worker Tunnel TLS or mTLS material. |
 | `/data` | `tikeo-data:/data` | `tikeo-data:/data` | `tikeo-data:/data` | SQLite database path and common runtime data mount. |
-| `/logs` | `tikeo-logs:/logs` | `tikeo-logs:/logs` | `tikeo-logs:/logs` | File logs when `observability.logging.file.path` is `/logs`. |
+| `/logs` | `tikeo-logs:/logs` | `tikeo-logs:/logs` | `tikeo-logs:/logs` | File logs when `observability.logging.channels.file.path` is `/logs`. |
 | DB service data | not used | `tikeo-postgres-data:/var/lib/postgresql/data` | `tikeo-mysql-data:/var/lib/mysql` | Durable self-hosted database storage. |
 
 Back up the volume that owns the active database. For SQLite that is `tikeo-data`; for PostgreSQL and MySQL it is the database service volume.
@@ -112,7 +112,7 @@ Edit `config/tikeo.yml` before startup:
 - `storage.database.*` selects SQLite, PostgreSQL, MySQL, or another supported database.
 - `notification_delivery.public_console_base_url` should be the browser-reachable Web console URL, for example `http://127.0.0.1:8080` for a local Compose install.
 - `transport_security.*` points to files under `/config/tls` when HTTP or Worker Tunnel TLS/mTLS is enabled.
-- `observability.logging.file.path` should stay `/logs` if you want file logs in the `tikeo-logs` volume.
+- `observability.logging.channels.file.path` should stay `/logs` if you want file logs in the `tikeo-logs` volume.
 
 Use structured database fields rather than URL strings. Passwords containing `@`, `/`, `:`, or `#` are valid YAML values, and Tikeo encodes the generated internal database URL safely.
 

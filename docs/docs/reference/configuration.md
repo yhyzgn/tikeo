@@ -98,10 +98,11 @@ The following is the Complete default-value table for Server settings: config ke
 | `transport_security.worker_tunnel.key_path` | `TIKEO__TRANSPORT_SECURITY__WORKER_TUNNEL__KEY_PATH` | If TLS enabled | unset | Worker Tunnel private key path. |
 | `transport_security.worker_tunnel.client_ca_path` | `TIKEO__TRANSPORT_SECURITY__WORKER_TUNNEL__CLIENT_CA_PATH` | If mTLS required | unset | Worker client CA bundle. |
 | `observability.logging.root.level` | `TIKEO__OBSERVABILITY__LOGGING__ROOT__LEVEL` | No | `info` | Root log filter used when `RUST_LOG` is not set. |
-| `observability.logging.console.*` | `TIKEO__OBSERVABILITY__LOGGING__CONSOLE__*` | No | enabled, `info` | Console/stdout sink. |
-| `observability.logging.file.*` | `TIKEO__OBSERVABILITY__LOGGING__FILE__*` or `TIKEO_LOG_PATH` in templates | No | disabled, `info`, `/logs` | Non-blocking JSON file sink writing `tikeo.log`. |
-| `observability.logging.error-file.*` | `TIKEO__OBSERVABILITY__LOGGING__ERROR_FILE__*` or `TIKEO_LOG_PATH` in templates | No | disabled, `error`, `/logs` | Non-blocking JSON error-file sink writing `tikeo-error.log`. |
-| `observability.logging.elk.*` | `TIKEO__OBSERVABILITY__LOGGING__ELK__*` | No | disabled, topic `ivs-dev` | Non-blocking batched JSON-lines forwarding to configured log collectors. |
+| `observability.logging.http.*` | `TIKEO__OBSERVABILITY__LOGGING__HTTP__*` | No | headers/body disabled, `65536` bytes | HTTP access/detail policy. INFO logs summary only; full headers/bodies require `include_headers`/`include_body` and DEBUG for `tikeo_server::http::trace`. |
+| `observability.logging.channels.console.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__CONSOLE__*` | No | enabled, `info` | Console/stdout sink. |
+| `observability.logging.channels.file.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__FILE__*` or `TIKEO_LOG_PATH` in templates | No | disabled, `info`, `/logs` | Non-blocking JSON file sink writing `tikeo.log`. |
+| `observability.logging.channels.error-file.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__ERROR_FILE__*` or `TIKEO_LOG_PATH` in templates | No | disabled, `error`, `/logs` | Non-blocking JSON error-file sink writing `tikeo-error.log`. |
+| `observability.logging.channels.elk.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__ELK__*` | No | disabled, topic `ivs-dev` | Non-blocking batched JSON-lines forwarding to configured log collectors. |
 | `observability.tracing.enabled` | `TIKEO__OBSERVABILITY__TRACING__ENABLED` | No | `false` | Enable OTLP trace export. |
 | `observability.tracing.otlp_endpoint` | `TIKEO__OBSERVABILITY__TRACING__OTLP_ENDPOINT` | If tracing enabled | unset | OTLP collector endpoint. |
 | `observability.tracing.headers` | `TIKEO__OBSERVABILITY__TRACING__HEADERS` | No | `[]` | Exporter auth/scope header names; values live outside status APIs. |

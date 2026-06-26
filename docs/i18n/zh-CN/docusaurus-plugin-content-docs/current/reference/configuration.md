@@ -80,10 +80,11 @@ storage:
 | `transport_security.http.*` | `TIKEO__TRANSPORT_SECURITY__HTTP__*` | 启用时 | TLS/mTLS 关闭 | HTTP listener TLS/mTLS 与证书路径。 |
 | `transport_security.worker_tunnel.*` | `TIKEO__TRANSPORT_SECURITY__WORKER_TUNNEL__*` | 启用时 | TLS/mTLS 关闭 | Worker Tunnel TLS/mTLS 与证书路径。 |
 | `observability.logging.root.level` | `TIKEO__OBSERVABILITY__LOGGING__ROOT__LEVEL` | 否 | `info` | 未设置 `RUST_LOG` 时的根日志过滤级别。 |
-| `observability.logging.console.*` | `TIKEO__OBSERVABILITY__LOGGING__CONSOLE__*` | 否 | 启用，`info` | console/stdout sink。 |
-| `observability.logging.file.*` | `TIKEO__OBSERVABILITY__LOGGING__FILE__*` 或模板中的 `TIKEO_LOG_PATH` | 否 | 禁用，`info`，`/logs` | 非阻塞 JSON 文件日志 sink，写入 `tikeo.log`。 |
-| `observability.logging.error-file.*` | `TIKEO__OBSERVABILITY__LOGGING__ERROR_FILE__*` 或模板中的 `TIKEO_LOG_PATH` | 否 | 禁用，`error`，`/logs` | 非阻塞 JSON 错误日志 sink，写入 `tikeo-error.log`。 |
-| `observability.logging.elk.*` | `TIKEO__OBSERVABILITY__LOGGING__ELK__*` | 否 | 禁用，topic `ivs-dev` | 非阻塞批量 JSON-lines 转发到配置的日志采集器。 |
+| `observability.logging.http.*` | `TIKEO__OBSERVABILITY__LOGGING__HTTP__*` | 否 | header/body 关闭，`65536` bytes | HTTP 访问/明细日志策略。INFO 只打印摘要；完整 header/body 还需要开启 `include_headers`/`include_body` 并让 `tikeo_server::http::trace` 达到 DEBUG。 |
+| `observability.logging.channels.console.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__CONSOLE__*` | 否 | 启用，`info` | console/stdout sink。 |
+| `observability.logging.channels.file.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__FILE__*` 或模板中的 `TIKEO_LOG_PATH` | 否 | 禁用，`info`，`/logs` | 非阻塞 JSON 文件日志 sink，写入 `tikeo.log`。 |
+| `observability.logging.channels.error-file.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__ERROR_FILE__*` 或模板中的 `TIKEO_LOG_PATH` | 否 | 禁用，`error`，`/logs` | 非阻塞 JSON 错误日志 sink，写入 `tikeo-error.log`。 |
+| `observability.logging.channels.elk.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__ELK__*` | 否 | 禁用，topic `ivs-dev` | 非阻塞批量 JSON-lines 转发到配置的日志采集器。 |
 | `observability.tracing.*` | `TIKEO__OBSERVABILITY__TRACING__*` | tracing 启用时 | disabled / 未设置 | OTLP trace 导出开关、endpoint、headers。 |
 | `alert_retry.*` | `TIKEO__ALERT_RETRY__*` | 否 | 开启，`60`，`50`，`3`，`300` | Alert retry worker 配置。 |
 | `notification_delivery.*` | `TIKEO__NOTIFICATION_DELIVERY__*` | 否 | 开启，恢复扫描 `60`，`50`，`3`，`300` | 通知中心通用投递 worker；新 attempt 会立即唤醒本进程投递 worker，`interval_seconds` 是恢复扫描兜底；卡片链接设置 `public_console_base_url`。 |

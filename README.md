@@ -470,26 +470,31 @@ observability:
   logging:
     root:
       level: INFO
-    console:
-      enabled: true
-      level: INFO
-    file:
-      enabled: true
-      level: INFO
-      path: ./logs
-    error-file:
-      enabled: true
-      level: ERROR
-      path: ./logs
-    elk:
-      enabled: false
-      servers: "203.83.233.63:8094,36.111.150.189:8094,106.63.7.44:8094"
-      topic: "ivs-dev"
-      level: INFO
-      sasl:
+    http:
+      include_headers: false
+      include_body: false
+      max_body_bytes: 65536
+    channels:
+      console:
+        enabled: true
+        level: INFO
+      file:
+        enabled: true
+        level: INFO
+        path: ./logs
+      error-file:
+        enabled: true
+        level: ERROR
+        path: ./logs
+      elk:
         enabled: false
-        username: ""
-        password: ""
+        servers: "203.83.233.63:8094,36.111.150.189:8094,106.63.7.44:8094"
+        topic: "ivs-dev"
+        level: INFO
+        sasl:
+          enabled: false
+          username: ""
+          password: ""
   tracing:
     enabled: true
     otlp_endpoint: "http://otel-collector:4318/v1/traces"
@@ -1147,10 +1152,11 @@ Server configuration is loaded from defaults, then a config file, then `TIKEO__.
 | `transport_security.http.*` | `TIKEO__TRANSPORT_SECURITY__HTTP__*` | Only when enabled | TLS/mTLS disabled | HTTP listener TLS/mTLS and cert/key/client CA paths. |
 | `transport_security.worker_tunnel.*` | `TIKEO__TRANSPORT_SECURITY__WORKER_TUNNEL__*` | Only when enabled | TLS/mTLS disabled | Worker Tunnel TLS/mTLS and cert/key/client CA paths. |
 | `observability.logging.root.level` | `TIKEO__OBSERVABILITY__LOGGING__ROOT__LEVEL` | No | `info` | Root log filter used when `RUST_LOG` is not set. |
-| `observability.logging.console.*` | `TIKEO__OBSERVABILITY__LOGGING__CONSOLE__*` | No | enabled, `info` | Console/stdout sink. |
-| `observability.logging.file.*` | `TIKEO__OBSERVABILITY__LOGGING__FILE__*` or `TIKEO_LOG_PATH` in templates | No | disabled, `info`, `/logs` | Non-blocking JSON file sink writing `tikeo.log`. Mount `/logs` if enabled in containers. |
-| `observability.logging.error-file.*` | `TIKEO__OBSERVABILITY__LOGGING__ERROR_FILE__*` or `TIKEO_LOG_PATH` in templates | No | disabled, `error`, `/logs` | Non-blocking JSON error-file sink writing `tikeo-error.log`. |
-| `observability.logging.elk.*` | `TIKEO__OBSERVABILITY__LOGGING__ELK__*` | No | disabled, topic `ivs-dev` | Non-blocking batched JSON-lines forwarding to configured log collectors. |
+| `observability.logging.http.*` | `TIKEO__OBSERVABILITY__LOGGING__HTTP__*` | No | headers/body disabled, `65536` bytes | HTTP access/detail policy. INFO logs summary only; full headers/bodies require `include_headers`/`include_body` and DEBUG for `tikeo_server::http::trace`. |
+| `observability.logging.channels.console.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__CONSOLE__*` | No | enabled, `info` | Console/stdout sink. |
+| `observability.logging.channels.file.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__FILE__*` or `TIKEO_LOG_PATH` in templates | No | disabled, `info`, `/logs` | Non-blocking JSON file sink writing `tikeo.log`. Mount `/logs` if enabled in containers. |
+| `observability.logging.channels.error-file.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__ERROR_FILE__*` or `TIKEO_LOG_PATH` in templates | No | disabled, `error`, `/logs` | Non-blocking JSON error-file sink writing `tikeo-error.log`. |
+| `observability.logging.channels.elk.*` | `TIKEO__OBSERVABILITY__LOGGING__CHANNELS__ELK__*` | No | disabled, topic `ivs-dev` | Non-blocking batched JSON-lines forwarding to configured log collectors. |
 | `observability.tracing.enabled` | `TIKEO__OBSERVABILITY__TRACING__ENABLED` | No | `false` | Enable OTLP trace export. |
 | `observability.tracing.otlp_endpoint` | `TIKEO__OBSERVABILITY__TRACING__OTLP_ENDPOINT` | If tracing enabled | unset | OTLP collector endpoint. |
 | `observability.tracing.headers` | `TIKEO__OBSERVABILITY__TRACING__HEADERS` | No | `[]` | Exporter auth/scope header names; values live outside status APIs. |
@@ -1223,7 +1229,7 @@ for PostgreSQL or `tikeo-mysql-data:/var/lib/mysql` for MySQL, and configure Ser
 For Kubernetes and Helm, Tikeo mounts the Server ConfigMap at `/config` and runs
 `serve --config /config/tikeo.yml`. SQLite mode mounts a PVC at `/data`; external database mode
 injects the database URL from a Secret and does not need a SQLite data PVC. Prefer stdout
-logs for cluster log collection; if you enable `observability.logging.file.enabled` or `observability.logging.error-file.enabled`, add an explicit volume
+logs for cluster log collection; if you enable `observability.logging.channels.file.enabled` or `observability.logging.channels.error-file.enabled`, add an explicit volume
 or PVC for the configured path.
 
 ### Realtime console streams and proxies
@@ -1340,7 +1346,7 @@ Production environments should prefer PostgreSQL or MySQL and durable log direct
 cargo build --release --bin tikeo
 install -d ./var/lib/tikeo ./logs
 cp config/tikeo.yml ./tikeo.yml
-# Edit ./tikeo.yml, for example set observability.logging.file/error-file paths to "./logs".
+# Edit ./tikeo.yml, for example enable observability.logging.channels.file/error-file and set paths to "./logs".
 ./target/release/tikeo serve --config ./tikeo.yml
 curl -fsS http://127.0.0.1:9090/readyz
 ```

@@ -13,7 +13,7 @@ cp config/dev.yml ./tikeo.yml
 
 Operational cautions:
 
-- Set `observability.logging.log_dir` to a durable directory.
+- Enable `observability.logging.channels.file.enabled` and set `observability.logging.channels.file.path` to a durable directory.
 - Use a stable worker identity such as `${service}@${host}#${slot}` for bare-metal workers.
 - Prefer PostgreSQL/MySQL for multi-node services.
 - Use TLS/mTLS before exposing HTTP or Worker Tunnel listeners outside a trusted network.
