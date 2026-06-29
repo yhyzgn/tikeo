@@ -405,7 +405,7 @@ export function NotificationCenterPage() {
   const templateRefOptions = notificationTemplateOptions(templates, policyProviderFilter);
 
   return (
-    <Space direction="vertical" size={20} style={{ width: '100%' }}>
+    <Space orientation="vertical" size={20} style={{ width: '100%' }}>
       <div>
         <Typography.Title level={2}>{t('通知中心')}</Typography.Title>
         <Typography.Text type="secondary">
@@ -417,8 +417,8 @@ export function NotificationCenterPage() {
         <Col xs={12} md={6}><Card><Statistic title={t('渠道')} value={channels.length} /></Card></Col>
         <Col xs={12} md={6}><Card><Statistic title={t('策略')} value={policies.length} /></Card></Col>
         <Col xs={12} md={6}><Card><Statistic title={t('模板')} value={templates.length} /></Card></Col>
-        <Col xs={12} md={6}><Card><Statistic title={t('待重试')} value={status?.retryPending ?? 0} valueStyle={{ color: '#d48806' }} /></Card></Col>
-        <Col xs={12} md={6}><Card><Statistic title={t('死信队列')} value={status?.deadLetter ?? 0} valueStyle={{ color: '#cf1322' }} /></Card></Col>
+        <Col xs={12} md={6}><Card><Statistic title={t('待重试')} value={status?.retryPending ?? 0} styles={{ content: { color: '#d48806' } }} /></Card></Col>
+        <Col xs={12} md={6}><Card><Statistic title={t('死信队列')} value={status?.deadLetter ?? 0} styles={{ content: { color: '#cf1322' } }} /></Card></Col>
       </Row>
       <Tabs
         items={[
@@ -543,15 +543,15 @@ export function NotificationCenterPage() {
             key: 'delivery',
             label: t('投递'),
             children: (
-              <Space direction="vertical" size={16} style={{ width: '100%' }}>
+              <Space orientation="vertical" size={16} style={{ width: '100%' }}>
                 <Card title={t('投递队列')} extra={<PermissionGate resource="notifications" action="test"><Button loading={retrying} onClick={runRetry}>{t('重试到期投递')}</Button></PermissionGate>}>
                   <Row gutter={[16, 16]}>
                     <Col xs={12} md={4}><Statistic title={t('总数')} value={status?.totalAttempts ?? 0} /></Col>
-                    <Col xs={12} md={4}><Statistic title={t('已投递')} value={status?.delivered ?? 0} valueStyle={{ color: '#389e0d' }} /></Col>
-                    <Col xs={12} md={4}><Statistic title={t('待重试')} value={status?.retryPending ?? 0} valueStyle={{ color: '#d48806' }} /></Col>
+                    <Col xs={12} md={4}><Statistic title={t('已投递')} value={status?.delivered ?? 0} styles={{ content: { color: '#389e0d' } }} /></Col>
+                    <Col xs={12} md={4}><Statistic title={t('待重试')} value={status?.retryPending ?? 0} styles={{ content: { color: '#d48806' } }} /></Col>
                     <Col xs={12} md={4}><Statistic title={t('重试已消费')} value={status?.retryConsumed ?? 0} /></Col>
-                    <Col xs={12} md={4}><Statistic title={t('死信队列')} value={status?.deadLetter ?? 0} valueStyle={{ color: '#cf1322' }} /></Col>
-                    <Col xs={12} md={4}><Statistic title={t('失败')} value={status?.failed ?? 0} valueStyle={{ color: '#cf1322' }} /></Col>
+                    <Col xs={12} md={4}><Statistic title={t('死信队列')} value={status?.deadLetter ?? 0} styles={{ content: { color: '#cf1322' } }} /></Col>
+                    <Col xs={12} md={4}><Statistic title={t('失败')} value={status?.failed ?? 0} styles={{ content: { color: '#cf1322' } }} /></Col>
                   </Row>
                 </Card>
                 <Card title={t('最近死信队列')}>
@@ -603,7 +603,7 @@ export function NotificationCenterPage() {
         width={760}
       >
         {channelTestResult ? (
-          <Space direction="vertical" style={{ width: '100%' }}>
+          <Space orientation="vertical" style={{ width: '100%' }}>
             <Descriptions size="small" bordered column={1} items={[
               { key: 'delivered', label: t('delivered'), children: String(channelTestResult.delivered) },
               { key: 'provider', label: t('provider'), children: channelTestResult.provider },

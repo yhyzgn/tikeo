@@ -24,7 +24,7 @@ export function DispatchQueuePanel({ queue, loading }: DispatchQueuePanelProps) 
   return (
     <Card
       className="worker-ops-card dispatch-queue-card"
-      title={<Space direction="vertical" size={0}><span>Dispatch Queue</span><Typography.Text type="secondary">按状态聚焦积压、租约中任务和失败项</Typography.Text></Space>}
+      title={<Space orientation="vertical" size={0}><span>Dispatch Queue</span><Typography.Text type="secondary">按状态聚焦积压、租约中任务和失败项</Typography.Text></Space>}
       extra={<Tag color="purple">{items.length} items</Tag>}
     >
       <Segmented className="dispatch-queue-filter" value={status} onChange={(value) => setStatus(value as QueueStatusFilter)} options={STATUS_OPTIONS} />
@@ -44,7 +44,7 @@ export function DispatchQueuePanel({ queue, loading }: DispatchQueuePanelProps) 
 function DispatchQueueItem({ item }: { item: DispatchQueueSummary }) {
   return (
     <List.Item className="dispatch-queue-item">
-      <Space direction="vertical" size={8} style={{ width: '100%' }}>
+      <Space orientation="vertical" size={8} style={{ width: '100%' }}>
         <Space wrap align="center">
           <Typography.Text strong copyable data-runtime-text>{item.id}</Typography.Text>
           <Tag color={queueStatusColor(item.status)} data-runtime-text>{item.status}</Tag>

@@ -650,7 +650,7 @@ export function Dashboard() {
         <Col xs={24} sm={12} xl={4}><Link className="dashboard-metric-link" to={instancesPath({ status: 'active' })}><Card className="metric-card"><Statistic prefix={<ClockCircleOutlined />} title="活跃实例" value={pendingInstances} /></Card></Link></Col>
         <Col xs={24} sm={12} xl={4}><Card className="metric-card"><Statistic prefix={<TeamOutlined />} title="在线 Worker" value={onlineWorkers} /></Card></Col>
         <Col xs={24} sm={12} xl={4}><Link className="dashboard-metric-link" to={instancesPath({ executionMode: 'broadcast' })}><Card className="metric-card"><Statistic prefix={<DeploymentUnitOutlined />} title="广播实例" value={broadcastInstances} /></Card></Link></Col>
-        <Col xs={24} sm={12} xl={4}><Link className="dashboard-metric-link" to={instancesPath({ status: 'failed' })}><Card className="metric-card"><Statistic prefix={<WarningOutlined />} title="失败实例" value={failedInstances} valueStyle={{ color: failedInstances ? '#ef4444' : '#10b981' }} /></Card></Link></Col>
+        <Col xs={24} sm={12} xl={4}><Link className="dashboard-metric-link" to={instancesPath({ status: 'failed' })}><Card className="metric-card"><Statistic prefix={<WarningOutlined />} title="失败实例" value={failedInstances} styles={{ content: { color: failedInstances ? '#ef4444' : '#10b981' } }} /></Card></Link></Col>
       </Row>
 
       <Row gutter={[16, 16]}>
@@ -677,7 +677,7 @@ export function Dashboard() {
                 value={notificationDeliveryRate}
                 suffix="%"
                 prefix={<ApiOutlined />}
-                valueStyle={{ color: notificationDeadLetters || notificationFailed ? '#ef4444' : '#10b981' }}
+                styles={{ content: { color: notificationDeadLetters || notificationFailed ? '#ef4444' : '#10b981' } }}
               />
               <Tag color={notificationDeadLetters || notificationFailed ? 'red' : notificationRetryPending ? 'gold' : 'green'}>{notificationToneLabel}</Tag>
             </div>
@@ -772,7 +772,7 @@ export function Dashboard() {
               dataSource={plans}
               className="dashboard-plan-table"
               columns={[
-                { title: '任务', dataIndex: 'name', render: (value: string, row) => <Space direction="vertical" size={0}><Link className="dashboard-plan-link" to={ROUTE_META.jobs.path}>{value}</Link><Typography.Text type="secondary">{row.namespace}/{row.app}</Typography.Text></Space> },
+                { title: '任务', dataIndex: 'name', render: (value: string, row) => <Space orientation="vertical" size={0}><Link className="dashboard-plan-link" to={ROUTE_META.jobs.path}>{value}</Link><Typography.Text type="secondary">{row.namespace}/{row.app}</Typography.Text></Space> },
                 { title: '计划', dataIndex: 'scheduleType', width: 240, render: (value: string, row) => <span className={scheduleTagClass(value)}>{value}{row.scheduleExpr ? ` · ${row.scheduleExpr}` : ''}</span> },
                 { title: '处理器', width: 180, render: (_, row) => <span data-runtime-text>{row.processorName ?? row.processorType ?? row.scriptId ?? '-'}</span> },
                 { title: '状态', dataIndex: 'enabled', width: 90, render: (value: boolean) => value ? <Tag color="green">启用</Tag> : <Tag>停用</Tag> },
@@ -781,9 +781,9 @@ export function Dashboard() {
           </Card>
         </Col>
         <Col xs={24} xl={9}>
-          <Space direction="vertical" size={16} style={{ width: '100%' }}>
+          <Space orientation="vertical" size={16} style={{ width: '100%' }}>
             <Card className="clean-card" title="调度健康">
-              <Space direction="vertical" size={14} style={{ width: '100%' }}>
+              <Space orientation="vertical" size={14} style={{ width: '100%' }}>
                 <div><Typography.Text strong>成功率</Typography.Text><Progress percent={successRate} status={failedInstances ? 'exception' : 'success'} /></div>
                 <div><Typography.Text strong>Worker 覆盖</Typography.Text><Progress percent={workerCoverage} /></div>
                 <div><Typography.Text strong>通知投递</Typography.Text><Progress percent={notificationDeliveryRate} status={notificationDeadLetters || notificationFailed ? 'exception' : notificationRetryPending ? 'active' : 'success'} /></div>

@@ -99,7 +99,7 @@ export function WorkerTable({ workers, loading }: WorkerTableProps) {
   return (
     <Card
       className="worker-ops-card worker-topology-card"
-      title={<Space direction="vertical" size={0}><span>{isEnglish ? 'App cluster nodes' : '应用集群节点'}</span><Typography.Text type="secondary">{isEnglish ? 'Grouped by namespace/app, with optional execution-pool filtering.' : '先按命名空间 / 应用分组，可按执行池定位对应 Worker'}</Typography.Text></Space>}
+      title={<Space orientation="vertical" size={0}><span>{isEnglish ? 'App cluster nodes' : '应用集群节点'}</span><Typography.Text type="secondary">{isEnglish ? 'Grouped by namespace/app, with optional execution-pool filtering.' : '先按命名空间 / 应用分组，可按执行池定位对应 Worker'}</Typography.Text></Space>}
       extra={<Tag color="blue">{filteredWorkers.length}/{workers.items.length}</Tag>}
       loading={loading}
     >

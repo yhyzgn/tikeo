@@ -370,7 +370,7 @@ export function ScopesPage() {
       </Drawer>
 
       <Card className="clean-card" title="OIDC 作用域/应用/角色绑定" extra={<PermissionGate resource="tenants" action="manage"><Space className="card-toolbar"><Button onClick={() => setDrawer('oidc')}>新建映射</Button></Space></PermissionGate>}>
-        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+        <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
           <Alert type="info" showIcon message="Fail-closed OIDC 映射" description="外部身份必须显式映射后才可换取本地 session；scope binding 会限制 namespace/app/执行池。" />
           <Table rowKey="id" loading={loading} columns={oidcColumns} dataSource={oidcIdentities} pagination={persistentPagination(pageSize, setPageSize)} size="small" />
         </Space>

@@ -119,7 +119,7 @@ export function TemplateVariableCatalog({ variables, title = '可用模板变量
 
   return (
     <>
-      <Space direction="vertical" size={compact ? 8 : 10} className="template-variable-catalog" style={{ width: '100%' }}>
+      <Space orientation="vertical" size={compact ? 8 : 10} className="template-variable-catalog" style={{ width: '100%' }}>
         <div className="template-variable-catalog__title">
           <Space size={6} align="center">
             <Typography.Text strong>{t(title)}</Typography.Text>

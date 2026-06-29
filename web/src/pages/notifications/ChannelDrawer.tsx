@@ -553,7 +553,7 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
     <Drawer
       className="channel-config-drawer"
       title={(
-        <Space direction="vertical" size={2}>
+        <Space orientation="vertical" size={2}>
           <Typography.Text type="secondary">{editingChannel ? t('编辑通知渠道') : t('新建通知渠道')}</Typography.Text>
           <Typography.Title level={4}>{editingChannel ? editingChannel.name : t('配置一条可复用的出站通知渠道')}</Typography.Title>
         </Space>
@@ -597,7 +597,7 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
 
             <div className="channel-drawer-map__section">
               <Typography.Text strong>{t('保存影响')}</Typography.Text>
-              <Space direction="vertical" size={8} style={{ width: '100%', marginTop: 10 }}>
+              <Space orientation="vertical" size={8} style={{ width: '100%', marginTop: 10 }}>
                 <Alert
                   type={editingChannel ? 'info' : 'success'}
                   showIcon
@@ -746,7 +746,7 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
                       ]} />
                     </Col>
                   </Row>
-                  <Space direction="vertical" style={{ width: '100%' }}>
+                  <Space orientation="vertical" style={{ width: '100%' }}>
                     <Space wrap>{schema.messageTypes.map((item) => <Tag key={item.id} color={item.id === messageType ? 'blue' : 'default'}>{item.label} · {item.id}</Tag>)}</Space>
                     <Space wrap><Typography.Text type="secondary">{t('官方文档')}</Typography.Text>{schema.docs.map((doc) => <Typography.Link key={doc.url} href={doc.url} target="_blank" rel="noreferrer">{doc.label}</Typography.Link>)}</Space>
                   </Space>

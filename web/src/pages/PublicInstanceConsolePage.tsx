@@ -27,7 +27,7 @@ export function PublicInstanceConsolePage() {
       .finally(() => setLoading(false));
   }, [id, t]);
 
-  if (loading) return <div className="public-console-page public-console-page--loading"><Spin tip={t('正在加载执行控制台')} /></div>;
+  if (loading) return <div className="public-console-page public-console-page--loading"><Spin description={t('正在加载执行控制台')} /></div>;
   if (error) return <div className="public-console-page"><Alert type="error" showIcon message={t('执行控制台加载失败')} description={<span data-runtime-text>{error}</span>} /></div>;
   if (!trace) return <div className="public-console-page"><Empty description={t('没有可展示的执行信息')} /></div>;
 

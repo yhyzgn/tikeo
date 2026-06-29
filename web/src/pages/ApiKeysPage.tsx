@@ -10,7 +10,7 @@ import { ROUTE_META } from '../routes';
 const DEFAULT_SCOPES = ['jobs:read', 'jobs:write', 'instances:execute'];
 
 const SectionTitle = ({ title, desc }: { title: string; desc: string }) => (
-  <Space direction="vertical" size={0}>
+  <Space orientation="vertical" size={0}>
     <Typography.Text strong>{title}</Typography.Text>
     <Typography.Text type="secondary" className="api-key-section-desc">{desc}</Typography.Text>
   </Space>
@@ -177,7 +177,7 @@ export function ApiKeysPage() {
     .sort((left, right) => left.value.localeCompare(right.value)), [serviceAccountApp, serviceAccountNamespace, workerPools]);
 
   return (
-    <Space direction="vertical" size={20} style={{ width: '100%' }}>
+    <Space orientation="vertical" size={20} style={{ width: '100%' }}>
       <Card
         title={<Space><KeyOutlined />SDK Management API-Key</Space>}
         extra={<Button icon={<ReloadOutlined />} onClick={reload}>刷新列表</Button>}
@@ -189,7 +189,7 @@ export function ApiKeysPage() {
           message="本页分为两栏：Service Account 是 app 作用域机器身份；API-Key 是绑定到 Service Account 的访问凭证。先维护机器身份，再给它签发一个或多个 Key。"
         />
 
-        <Space direction="vertical" size={16} style={{ width: '100%' }}>
+        <Space orientation="vertical" size={16} style={{ width: '100%' }}>
           <Card
             size="small"
             className="api-key-section-card"
@@ -204,7 +204,7 @@ export function ApiKeysPage() {
               size="small"
               scroll={{ x: 980 }}
               columns={[
-                { title: 'Service Account', width: 260, render: (_, item) => <Space direction="vertical" size={0}><Typography.Text strong>{item.name}</Typography.Text><Typography.Text type="secondary">{item.id}</Typography.Text></Space> },
+                { title: 'Service Account', width: 260, render: (_, item) => <Space orientation="vertical" size={0}><Typography.Text strong>{item.name}</Typography.Text><Typography.Text type="secondary">{item.id}</Typography.Text></Space> },
                 { title: '作用域', width: 180, render: (_, item) => `${item.namespace}/${item.app}` },
                 { title: '执行池', dataIndex: 'workerPool', width: 140, render: (value) => value ?? '不限' },
                 { title: '状态', dataIndex: 'status', width: 100, render: (status) => <Tag color={status === 'active' ? 'green' : 'default'}>{status}</Tag> },
@@ -245,7 +245,7 @@ export function ApiKeysPage() {
                   render: (value: string) => <Typography.Text className="api-key-masked-text">{value}</Typography.Text>,
                 },
                 { title: '范围', width: 180, render: (_, item) => `${item.namespace}/${item.app}` },
-                { title: 'Service Account', width: 240, render: (_, item) => <Space direction="vertical" size={0}><Typography.Text>{item.service_account_name}</Typography.Text><Typography.Text type="secondary">{item.service_account_id}</Typography.Text></Space> },
+                { title: 'Service Account', width: 240, render: (_, item) => <Space orientation="vertical" size={0}><Typography.Text>{item.service_account_name}</Typography.Text><Typography.Text type="secondary">{item.service_account_id}</Typography.Text></Space> },
                 { title: 'Scopes', width: 260, render: (_, item) => <Space wrap>{item.scopes.map((scope) => <Tag key={scope}>{scope}</Tag>)}</Space> },
                 { title: '状态', dataIndex: 'status', width: 100, render: (status) => <Tag color={status === 'active' ? 'green' : 'default'}>{status}</Tag> },
                 { title: '有效期', dataIndex: 'expires_at', width: 190, render: (value) => value ?? '永久有效' },

@@ -136,7 +136,7 @@ const displayExecutionNodes = (
   const nodes = workerIds.length > 0 ? workerIds : [displayWorkerId(instance)];
 
   return (
-    <Space direction="vertical" size={2} className="instance-execution-node-list">
+    <Space orientation="vertical" size={2} className="instance-execution-node-list">
       {nodes.map((workerId) => (
         <Typography.Text
           key={workerId}
@@ -551,7 +551,7 @@ export function InstancesPage() {
       title: 'Latest Log',
       width: 320,
       render: (_, instance) => (
-        <Space direction="vertical" size={2}>
+        <Space orientation="vertical" size={2}>
           <Typography.Text ellipsis style={{ maxWidth: 188 }} data-runtime-text>
             {instance.latestLog?.message ?? t('暂无日志')}
           </Typography.Text>

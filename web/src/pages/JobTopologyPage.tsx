@@ -52,7 +52,7 @@ export function JobTopologyPage() {
 
   return (
     <div className="page-stack">
-      <Space direction="vertical" size={18} style={{ width: '100%' }}>
+      <Space orientation="vertical" size={18} style={{ width: '100%' }}>
         <div className="hero-panel workflow-hero workflow-editor-hero">
           <div className="hero-panel__content">
             <Button className="workflow-back-button" onClick={() => navigate(ROUTE_META.jobs.path)}>← 返回任务列表</Button>
@@ -73,7 +73,7 @@ export function JobTopologyPage() {
 
         <Card size="small" title="跨工作流影响分析" loading={impactLoading}>
           {jobImpact ? (
-            <Space direction="vertical" size={12} style={{ width: '100%' }}>
+            <Space orientation="vertical" size={12} style={{ width: '100%' }}>
               <Alert type={jobImpact.riskSummary.riskLevel === 'high' ? 'error' : jobImpact.riskSummary.riskLevel === 'medium' ? 'warning' : 'success'} showIcon message={<span data-runtime-text>{`${jobImpact.targetJob.name} · ${jobImpact.riskSummary.riskLevel}`}</span>} description={<span data-runtime-text>{jobImpact.riskSummary.reasons.join('；')}</span>} />
               <Descriptions size="small" column={2}>
                 <Descriptions.Item label="引用工作流">{jobImpact.referencingWorkflows.map((workflow) => <Tag key={workflow.id} data-runtime-text>{workflow.name}</Tag>)}</Descriptions.Item>

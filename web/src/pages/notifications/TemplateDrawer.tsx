@@ -198,7 +198,7 @@ export function TemplateDrawer({ open, channelTypes, editingTemplate, onClose, o
         </Row>
 
         <Card size="small" style={{ marginBottom: 16 }}>
-          <Space direction="vertical" size={8}>
+          <Space orientation="vertical" size={8}>
             <Space wrap><Tag>{schema.provider}</Tag><Tag>{selectedMessageType.id}</Tag><Typography.Text>{selectedMessageType.description}</Typography.Text></Space>
             <TemplateVariableCatalog variables={schema.templateVariables} compact t={t} />
           </Space>

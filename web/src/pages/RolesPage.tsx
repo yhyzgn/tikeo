@@ -144,7 +144,7 @@ export function RolesPage() {
       dataIndex: 'displayName',
       align: 'center',
       render: (_, role) => (
-        <Space direction="vertical" size={2}>
+        <Space orientation="vertical" size={2}>
           <Space>
             <strong>{role.displayName}</strong>
             {role.builtin ? <Tag color="purple">OWNER</Tag> : null}

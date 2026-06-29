@@ -36,7 +36,7 @@ export function AlertDeliveryPage() {
   }, [active]);
 
   return (
-    <Space direction="vertical" size={20} style={{ width: '100%' }}>
+    <Space orientation="vertical" size={20} style={{ width: '100%' }}>
       <div>
         <Typography.Title level={2}>告警投递</Typography.Title>
         <Typography.Text type="secondary">查看生产告警投递 retry / DLQ 状态，Provider target 已脱敏。</Typography.Text>
@@ -44,9 +44,9 @@ export function AlertDeliveryPage() {
       {error ? <Alert type="error" showIcon message="告警投递状态加载失败" description={<span data-runtime-text>{error}</span>} /> : null}
       <Row gutter={[16, 16]}>
         <Col xs={12} md={6}><Card><Statistic title="总尝试" value={status?.total_attempts ?? 0} /></Card></Col>
-        <Col xs={12} md={6}><Card><Statistic title="待重试" value={status?.retry_pending ?? 0} valueStyle={{ color: '#d48806' }} /></Card></Col>
-        <Col xs={12} md={6}><Card><Statistic title="DLQ" value={status?.dead_letter ?? 0} valueStyle={{ color: '#cf1322' }} /></Card></Col>
-        <Col xs={12} md={6}><Card><Statistic title="已投递" value={status?.delivered ?? 0} valueStyle={{ color: '#389e0d' }} /></Card></Col>
+        <Col xs={12} md={6}><Card><Statistic title="待重试" value={status?.retry_pending ?? 0} styles={{ content: { color: '#d48806' } }} /></Card></Col>
+        <Col xs={12} md={6}><Card><Statistic title="DLQ" value={status?.dead_letter ?? 0} styles={{ content: { color: '#cf1322' } }} /></Card></Col>
+        <Col xs={12} md={6}><Card><Statistic title="已投递" value={status?.delivered ?? 0} styles={{ content: { color: '#389e0d' } }} /></Card></Col>
       </Row>
       <Card title="最近 DLQ">
         <Table<AlertDeliveryAttemptSummary>

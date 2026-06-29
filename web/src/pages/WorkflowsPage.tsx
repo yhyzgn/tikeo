@@ -600,7 +600,7 @@ function DagPreview({ definition, instance, jobs = [], workflows = [], notificat
             const value = selectedEdge.condition ?? defaultEdgeConditionFor(fromNode);
             return (
               <Card size="small" className="workflow-edge-popover" style={{ left: selectedEdgeOverlay.x, top: selectedEdgeOverlay.y }} onPointerDown={(event) => event.stopPropagation()}>
-                <Space direction="vertical" size={8}>
+                <Space orientation="vertical" size={8}>
                   <Typography.Text strong>{selectedEdge.from} → {selectedEdge.to}</Typography.Text>
                   <Select size="small" value={value} style={{ width: 180 }} options={options.map((option) => ({ label: option.label, value: option.value }))} onChange={(nextValue) => changeEdge(selectedEdgeIndex ?? 0, { condition: nextValue as WorkflowEdgeSpec['condition'] })} />
                   <Space>
@@ -649,14 +649,14 @@ function DagPreview({ definition, instance, jobs = [], workflows = [], notificat
 
       {editable && selectedNode ? (
         <Card size="small" title={`节点属性 · ${selectedNode.key}`} className="workflow-node-inspector" extra={<Tag>{nodeKind(selectedNode)}</Tag>}>
-          <Space direction="vertical" style={{ width: '100%' }} size={12}>
+          <Space orientation="vertical" style={{ width: '100%' }} size={12}>
             <Space wrap>
               <Input addonBefore="Key" value={selectedNode.key} style={{ width: 260 }} onChange={(event) => renameNodeKey(selectedNode.key, event.target.value)} />
               <Input addonBefore="名称" value={selectedNode.name ?? ''} style={{ width: 260 }} onChange={(event) => updateNode(selectedNode.key, { name: event.target.value })} />
             </Space>
 
             {nodeKind(selectedNode) === 'job' ? (
-              <Space direction="vertical" style={{ width: '100%' }}>
+              <Space orientation="vertical" style={{ width: '100%' }}>
                 <Typography.Text strong>绑定调度任务</Typography.Text>
                 <Select
                   showSearch
@@ -682,7 +682,7 @@ function DagPreview({ definition, instance, jobs = [], workflows = [], notificat
             ) : null}
 
             {nodeKind(selectedNode) === 'http' ? (
-              <Space direction="vertical" style={{ width: '100%' }}>
+              <Space orientation="vertical" style={{ width: '100%' }}>
                 <Typography.Text strong>HTTP 调用节点</Typography.Text>
                 <Space wrap>
                   <Select value={(selectedNode.config as { method?: string } | undefined)?.method ?? 'GET'} style={{ width: 120 }} options={['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map((value) => ({ value, label: value }))} onChange={(value) => updateNodeConfig(selectedNode.key, { method: value })} />
@@ -701,7 +701,7 @@ function DagPreview({ definition, instance, jobs = [], workflows = [], notificat
             ) : null}
 
             {nodeKind(selectedNode) === 'grpc' ? (
-              <Space direction="vertical" style={{ width: '100%' }}>
+              <Space orientation="vertical" style={{ width: '100%' }}>
                 <Typography.Text strong>gRPC 调用节点</Typography.Text>
                 <Space wrap>
                   <Input placeholder="https://grpc.example.com" value={(selectedNode.config as { endpoint?: string } | undefined)?.endpoint ?? ''} style={{ width: 360 }} onChange={(event) => updateNodeConfig(selectedNode.key, { endpoint: event.target.value })} />
@@ -714,7 +714,7 @@ function DagPreview({ definition, instance, jobs = [], workflows = [], notificat
             ) : null}
 
             {nodeKind(selectedNode) === 'sql' ? (
-              <Space direction="vertical" style={{ width: '100%' }}>
+              <Space orientation="vertical" style={{ width: '100%' }}>
                 <Typography.Text strong>SQL 执行节点</Typography.Text>
                 <Input placeholder="sqlite://data.db?mode=ro" value={(selectedNode.config as { databaseUrl?: string } | undefined)?.databaseUrl ?? ''} onChange={(event) => updateNodeConfig(selectedNode.key, { databaseUrl: event.target.value })} />
                 <Input.TextArea rows={2} placeholder="allowedDatabaseUrls，每行一个完整 DSN" value={Array.isArray((selectedNode.config as { allowedDatabaseUrls?: string[] } | undefined)?.allowedDatabaseUrls) ? ((selectedNode.config as { allowedDatabaseUrls?: string[] }).allowedDatabaseUrls ?? []).join('\n') : ''} onChange={(event) => updateNodeConfig(selectedNode.key, { allowedDatabaseUrls: event.target.value.split('\n').map((value) => value.trim()).filter(Boolean) })} />
@@ -728,7 +728,7 @@ function DagPreview({ definition, instance, jobs = [], workflows = [], notificat
             ) : null}
 
             {nodeKind(selectedNode) === 'condition' ? (
-              <Space direction="vertical" style={{ width: '100%' }}>
+              <Space orientation="vertical" style={{ width: '100%' }}>
                 <Typography.Text strong>条件分支节点</Typography.Text>
                 <Input.TextArea rows={3} placeholder="例如：context.amount > 1000" value={(selectedNode.config as { expression?: string } | undefined)?.expression ?? ''} onChange={(event) => updateNodeConfig(selectedNode.key, { expression: event.target.value })} />
                 <Typography.Text type="secondary">建议将两条出边分别设置为 on_success / on_failure，表达式通过为 success，不通过为 failure。</Typography.Text>
@@ -736,7 +736,7 @@ function DagPreview({ definition, instance, jobs = [], workflows = [], notificat
             ) : null}
 
             {nodeKind(selectedNode) === 'parallel' ? (
-              <Space direction="vertical" style={{ width: '100%' }}>
+              <Space orientation="vertical" style={{ width: '100%' }}>
                 <Typography.Text strong>并行分发节点</Typography.Text>
                 <Input addonBefore="策略" value={(selectedNode.config as { strategy?: string } | undefined)?.strategy ?? 'fan-out'} onChange={(event) => updateNodeConfig(selectedNode.key, { strategy: event.target.value })} />
                 <Typography.Text type="secondary">该节点可连接多条输出边，用于同时推进多个后继分支。</Typography.Text>
@@ -744,7 +744,7 @@ function DagPreview({ definition, instance, jobs = [], workflows = [], notificat
             ) : null}
 
             {nodeKind(selectedNode) === 'join' ? (
-              <Space direction="vertical" style={{ width: '100%' }}>
+              <Space orientation="vertical" style={{ width: '100%' }}>
                 <Typography.Text strong>并行汇聚节点</Typography.Text>
                 <Input addonBefore="Quorum" value={(selectedNode.config as { quorum?: string } | undefined)?.quorum ?? 'all'} onChange={(event) => updateNodeConfig(selectedNode.key, { quorum: event.target.value })} />
                 <Typography.Text type="secondary">当前推进规则要求所有满足条件的前置边完成后才会进入该节点。</Typography.Text>
@@ -756,7 +756,7 @@ function DagPreview({ definition, instance, jobs = [], workflows = [], notificat
             ) : null}
 
             {nodeKind(selectedNode) === 'approval' ? (
-              <Space direction="vertical" style={{ width: '100%' }}>
+              <Space orientation="vertical" style={{ width: '100%' }}>
                 <Typography.Text strong>人工审批节点</Typography.Text>
                 <Input addonBefore="审批人" placeholder="alice,bob 或 role:ops" value={(selectedNode.config as { approvers?: string } | undefined)?.approvers ?? ''} onChange={(event) => updateNodeConfig(selectedNode.key, { approvers: event.target.value })} />
                 <Input addonBefore="超时" placeholder="24h" value={(selectedNode.config as { timeout?: string } | undefined)?.timeout ?? '24h'} onChange={(event) => updateNodeConfig(selectedNode.key, { timeout: event.target.value })} />
@@ -765,7 +765,7 @@ function DagPreview({ definition, instance, jobs = [], workflows = [], notificat
 
 
             {nodeKind(selectedNode) === 'compensation' ? (
-              <Space direction="vertical" style={{ width: '100%' }}>
+              <Space orientation="vertical" style={{ width: '100%' }}>
                 <Typography.Text strong>补偿节点</Typography.Text>
                 <Input addonBefore="补偿目标" placeholder="需要补偿的节点 key" value={(selectedNode.config as { compensates?: string } | undefined)?.compensates ?? ''} onChange={(event) => updateNodeConfig(selectedNode.key, { compensates: event.target.value })} />
                 <Input addonBefore="策略" placeholder="saga / rollback" value={(selectedNode.config as { strategy?: string } | undefined)?.strategy ?? 'saga'} onChange={(event) => updateNodeConfig(selectedNode.key, { strategy: event.target.value })} />
@@ -773,7 +773,7 @@ function DagPreview({ definition, instance, jobs = [], workflows = [], notificat
             ) : null}
 
             {nodeKind(selectedNode) === 'notification' ? (
-              <Space direction="vertical" style={{ width: '100%' }}>
+              <Space orientation="vertical" style={{ width: '100%' }}>
                 <Typography.Text strong>通知节点</Typography.Text>
                 <Alert type="info" showIcon message="通知节点会写入 Notification Center" description="默认不阻塞工作流。选择渠道后保存为 config.channelRefs；不选择渠道时必须开启 usePolicies，由已有 workflow/workflow_node 策略匹配。" />
                 <Space wrap align="center">
@@ -791,7 +791,7 @@ function DagPreview({ definition, instance, jobs = [], workflows = [], notificat
             ) : null}
 
             {nodeKind(selectedNode) === 'file_cleanup' ? (
-              <Space direction="vertical" style={{ width: '100%' }}>
+              <Space orientation="vertical" style={{ width: '100%' }}>
                 <Typography.Text strong>文件清理节点</Typography.Text>
                 <Input.TextArea rows={3} placeholder="待清理路径，每行一个绝对路径" value={Array.isArray((selectedNode.config as { paths?: string[] } | undefined)?.paths) ? ((selectedNode.config as { paths?: string[] }).paths ?? []).join('\n') : ''} onChange={(event) => updateNodeConfig(selectedNode.key, { paths: event.target.value.split('\n').map((value) => value.trim()).filter(Boolean) })} />
                 <Input.TextArea rows={2} placeholder="允许根目录 allowedRoots，每行一个绝对路径" value={Array.isArray((selectedNode.config as { allowedRoots?: string[] } | undefined)?.allowedRoots) ? ((selectedNode.config as { allowedRoots?: string[] }).allowedRoots ?? []).join('\n') : ''} onChange={(event) => updateNodeConfig(selectedNode.key, { allowedRoots: event.target.value.split('\n').map((value) => value.trim()).filter(Boolean) })} />
@@ -804,7 +804,7 @@ function DagPreview({ definition, instance, jobs = [], workflows = [], notificat
             ) : null}
 
             {(nodeKind(selectedNode) === 'map' || nodeKind(selectedNode) === 'map_reduce') ? (
-              <Space direction="vertical" style={{ width: '100%' }}>
+              <Space orientation="vertical" style={{ width: '100%' }}>
                 <Typography.Text strong>分片输入 mapItems</Typography.Text>
                 <Select
                   showSearch
@@ -821,7 +821,7 @@ function DagPreview({ definition, instance, jobs = [], workflows = [], notificat
             ) : null}
 
             {nodeKind(selectedNode) === 'sub_workflow' ? (
-              <Space direction="vertical" style={{ width: '100%' }}>
+              <Space orientation="vertical" style={{ width: '100%' }}>
                 <Typography.Text strong>绑定子工作流</Typography.Text>
                 <Select
                   showSearch
@@ -1052,7 +1052,7 @@ export function WorkflowsPage() {
   };
 
   return (
-    <Space direction="vertical" size={18} style={{ width: '100%' }}>
+    <Space orientation="vertical" size={18} style={{ width: '100%' }}>
       <div className="hero-panel workflow-hero">
         <div className="hero-panel__content">
           <Tag className="soft-tag" color="blue">Phase 2 · Workflow Engine</Tag>
@@ -1085,7 +1085,7 @@ export function WorkflowsPage() {
               </List.Item>
               {expandedWorkflowId === item.id ? (
                 <div className="workflow-inline-run-panel">
-                  <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                  <Space orientation="vertical" size={16} style={{ width: '100%' }}>
                     <Card size="small" title="运行视图" extra={<Space wrap className="card-toolbar">{canExecuteWorkflows ? <Popconfirm title="准备下一节点执行？" description="将把 queued 工作流节点物化为实际执行项。" onConfirm={materializeNext}><Button>准备下一节点执行</Button></Popconfirm> : null}{canExecuteWorkflows ? <Popconfirm title="标记当前节点成功？" description="该人工推进会改变工作流实例状态。" onConfirm={completeFirstQueued}><Button disabled={!activeInstance}>标记当前节点成功</Button></Popconfirm> : null}{canExecuteWorkflows ? <Popconfirm title="重试失败节点？" description="将对第一个失败节点执行 retry 恢复操作。" onConfirm={recoverFirstFailed}><Button disabled={!activeInstance}>重试失败节点</Button></Popconfirm> : null}<Button onClick={refreshShards} disabled={!activeInstance}>刷新 Shards</Button><Button onClick={loadReplay} loading={replayLoading} disabled={!activeInstance}>回放实例</Button></Space>}>
                       <DagPreview definition={item.definition} instance={activeWorkflow?.id === item.id ? activeInstance : null} />
                       {activeWorkflow?.id === item.id && shards.length > 0 ? <List size="small" style={{ marginTop: 16 }} dataSource={shards} renderItem={(shard) => <List.Item><Typography.Text data-runtime-text>{shard.nodeKey}#{shard.shardIndex} · {shard.status} · {JSON.stringify(shard.input)}</Typography.Text></List.Item>} /> : null}
@@ -1096,7 +1096,7 @@ export function WorkflowsPage() {
                     </Card>
                     {activeWorkflow?.id === item.id && replay ? (
                       <Card size="small" title="回放快照" className="workflow-replay-panel">
-                        <Space direction="vertical" size={10} style={{ width: '100%' }}>
+                        <Space orientation="vertical" size={10} style={{ width: '100%' }}>
                           <Typography.Text type="secondary">workflow replay · <span data-runtime-text>{replay.instance.id} · {replay.instance.status}</span> · events: {replay.events.length}</Typography.Text>
                           <DagPreview definition={replay.workflow.definition} instance={replay.instance} />
                           <div className="workflow-replay-player" aria-label="workflow replay player">
@@ -1113,7 +1113,7 @@ export function WorkflowsPage() {
                             <Progress percent={replayProgress} size="small" status={currentReplayEvent?.eventType.includes('failed') ? 'exception' : replayProgress === 100 ? 'success' : 'active'} />
                             <div className="workflow-replay-player__current">
                               {currentReplayEvent ? (
-                                <Space direction="vertical" size={2}>
+                                <Space orientation="vertical" size={2}>
                                   <Typography.Text strong data-runtime-text>{currentReplayEvent.eventType}</Typography.Text>
                                   <Typography.Text type="secondary" data-runtime-text>{currentReplayEvent.createdAt}</Typography.Text>
                                   <Typography.Text data-runtime-text>{currentReplayEvent.message || '无事件消息'}</Typography.Text>
@@ -1230,7 +1230,7 @@ export function WorkflowEditorPage() {
   };
 
   return (
-    <Space direction="vertical" size={18} style={{ width: '100%' }}>
+    <Space orientation="vertical" size={18} style={{ width: '100%' }}>
       <div className="hero-panel workflow-hero workflow-editor-hero">
         <div className="hero-panel__content">
           <Button className="workflow-back-button" onClick={() => navigate('/workflows')}>← 返回工作流列表</Button>

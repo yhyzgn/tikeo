@@ -23,7 +23,7 @@ export function WorkerLifecycleHistory({ history, loading }: WorkerLifecycleHist
   return (
     <Card
       className="worker-ops-card worker-history-card"
-      title={<Space direction="vertical" size={0}><span>Worker 生命周期</span><Typography.Text type="secondary">按在线、异常与历史分层排查 session 代际</Typography.Text></Space>}
+      title={<Space orientation="vertical" size={0}><span>Worker 生命周期</span><Typography.Text type="secondary">按在线、异常与历史分层排查 session 代际</Typography.Text></Space>}
       extra={<Tag color="purple">events {history.events.length}</Tag>}
     >
       <Segmented
@@ -42,7 +42,7 @@ export function WorkerLifecycleHistory({ history, loading }: WorkerLifecycleHist
         locale={{ emptyText: '暂无该分层 Worker session' }}
         renderItem={(session) => (
           <List.Item>
-            <Space direction="vertical" size={4} className="worker-history-list__item">
+            <Space orientation="vertical" size={4} className="worker-history-list__item">
               <Space wrap>
                 <Typography.Text strong copyable data-runtime-text>{session.workerId}</Typography.Text>
                 <Tag color={sessionStatusColor(session.status)} data-runtime-text>{session.status}</Tag>
@@ -60,7 +60,7 @@ export function WorkerLifecycleHistory({ history, loading }: WorkerLifecycleHist
         items={history.events.slice(0, 8).map((event) => ({
           color: sessionStatusColor(event.reason ?? event.eventType),
           children: (
-            <Space direction="vertical" size={0}>
+            <Space orientation="vertical" size={0}>
               <Typography.Text strong data-runtime-text>{event.eventType}</Typography.Text>
               <Typography.Text type="secondary" data-runtime-text>{event.workerId} · {event.reason ?? 'no reason'}</Typography.Text>
               <Typography.Text type="secondary">{event.createdAt}</Typography.Text>

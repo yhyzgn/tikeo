@@ -205,7 +205,7 @@ export function JobsPage() {
       .filter((worker) => !normalizedWorkerPool || worker.workerPool === normalizedWorkerPool);
   };
   const processorOptionLabel = (name: string, description?: string | null) => (
-    <Space direction="vertical" size={0}>
+    <Space orientation="vertical" size={0}>
       <Typography.Text data-runtime-text>{name}</Typography.Text>
       {description ? <Typography.Text type="secondary" style={{ fontSize: 12 }} data-runtime-text>{description}</Typography.Text> : null}
     </Space>
@@ -560,7 +560,7 @@ export function JobsPage() {
 
   const columns: ColumnsType<JobSummary> = [
     { title: 'Name', dataIndex: 'name' },
-    { title: '作用域', render: (_, job) => <Space direction="vertical" size={0}><strong>{job.namespace}</strong><Typography.Text type="secondary" style={{ fontSize: 12 }}>{job.app}</Typography.Text>{job.workerPool ? <Tag color="geekblue">执行池 {job.workerPool}</Tag> : <Typography.Text type="secondary" style={{ fontSize: 12 }}>不限执行池</Typography.Text>}</Space> },
+    { title: '作用域', render: (_, job) => <Space orientation="vertical" size={0}><strong>{job.namespace}</strong><Typography.Text type="secondary" style={{ fontSize: 12 }}>{job.app}</Typography.Text>{job.workerPool ? <Tag color="geekblue">执行池 {job.workerPool}</Tag> : <Typography.Text type="secondary" style={{ fontSize: 12 }}>不限执行池</Typography.Text>}</Space> },
     { title: 'Schedule', dataIndex: 'scheduleType', render: (value: string, job) => <Space><Tag color="blue" className="soft-tag">{value}</Tag><Tag>v{job.versionNumber}</Tag>{job.canaryPercent > 0 ? <Tag color="orange">canary {job.canaryPercent}%</Tag> : null}{job.retryPolicy?.enabled && job.retryPolicy.maxAttempts > 1 ? <Tag color="volcano">retry {job.retryPolicy.maxAttempts}x</Tag> : <Tag>no retry</Tag>}</Space> },
     { title: '执行器', render: (_, job) => job.scriptId ? <Tag color="purple">脚本 · {job.scriptId}</Tag> : job.processorType ? <Tag color="geekblue">插件 · {job.processorType} · {job.processorName || job.name}</Tag> : <Typography.Text code>{job.processorName || job.name}</Typography.Text> },
     {
@@ -842,7 +842,7 @@ export function JobsPage() {
           items={jobVersions.map((version) => ({
             color: version.version_number === versionJob?.versionNumber ? 'green' : 'blue',
             children: (
-              <Space direction="vertical" size={4} style={{ width: '100%' }}>
+              <Space orientation="vertical" size={4} style={{ width: '100%' }}>
                 <Space wrap>
                   <Tag color={version.version_number === versionJob?.versionNumber ? 'green' : 'default'}>v{version.version_number}</Tag>
                   <Typography.Text strong>{version.name}</Typography.Text>
@@ -873,7 +873,7 @@ export function JobsPage() {
         <Typography.Paragraph className="scheduling-advice-intro" type="secondary">基于当前 Job 绑定、在线 Worker 能力和最近实例状态给出触发前建议；只读展示，不改变调度行为。</Typography.Paragraph>
         {adviceLoading ? <Typography.Text type="secondary">加载调度建议...</Typography.Text> : null}
         {schedulingAdvice ? (
-          <Space direction="vertical" size={16} className="scheduling-advice-panel">
+          <Space orientation="vertical" size={16} className="scheduling-advice-panel">
             <Alert
               className="scheduling-advice-status"
               type={schedulingAdvice.severity === 'error' ? 'error' : schedulingAdvice.severity === 'warning' ? 'warning' : 'success'}

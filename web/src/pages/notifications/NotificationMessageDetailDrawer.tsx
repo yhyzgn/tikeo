@@ -62,7 +62,7 @@ export function NotificationMessageDetailDrawer({ message, open, onClose }: Prop
 
 function Overview({ trace, t }: { trace: NotificationMessageTrace; t: (value: string) => string }) {
   return (
-    <Space direction="vertical" size="large" style={{ width: '100%' }}>
+    <Space orientation="vertical" size="large" style={{ width: '100%' }}>
       <Descriptions bordered size="small" column={1} items={[
         { key: 'message', label: 'messageId', children: <Typography.Text copyable code>{trace.message.id}</Typography.Text> },
         { key: 'status', label: t('状态'), children: <Tag color={stateColor[trace.message.status] ?? 'default'}>{trace.message.status}</Tag> },
@@ -101,7 +101,7 @@ function Delivery({ attempts, t }: { attempts: NotificationDeliveryAttemptSummar
 function Logs({ trace, t }: { trace: NotificationMessageTrace | null; t: (value: string) => string }) {
   if (!trace?.instance) return <Empty description={t('该消息没有关联执行实例')} />;
   return (
-    <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+    <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
       <Alert type="info" showIcon message={trace.logs.url ? `${t('完整日志')}: ${trace.logs.url}` : t('该消息没有关联执行实例')} action={trace.logs.url ? <Button size="small" href={trace.logs.url}>{t('打开')}</Button> : null} />
       <Card size="small" title={trace.logs.truncated ? t('最近日志摘要（已截断）') : t('执行日志摘要')}>
         {trace.logs.excerpt.length ? (

@@ -95,7 +95,7 @@ export function AuditLogsPage() {
           return <Typography.Text type="secondary">-</Typography.Text>;
         }
         return (
-          <Space direction="vertical" size={0}>
+          <Space orientation="vertical" size={0}>
             <Typography.Text strong>{date.toLocaleDateString()}</Typography.Text>
             <Typography.Text type="secondary" className="audit-log-subtext">{date.toLocaleTimeString()}</Typography.Text>
           </Space>
@@ -121,7 +121,7 @@ export function AuditLogsPage() {
       key: 'resource',
       width: 260,
       render: (_: unknown, r: AuditLogSummary) => (
-        <Space direction="vertical" size={2} className="audit-log-resource">
+        <Space orientation="vertical" size={2} className="audit-log-resource">
           <Tag color="blue">{r.resource_type}</Tag>
           {renderCompactText(r.resource_id, 'audit-log-mono')}
         </Space>

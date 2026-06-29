@@ -40,7 +40,7 @@ type WorkerLogTerminalProps = {
 export function WorkerLogTerminal({ groups }: WorkerLogTerminalProps) {
   const { locale, t } = useI18n();
   return (
-    <Space direction="vertical" size={14} style={{ width: '100%' }}>
+    <Space orientation="vertical" size={14} style={{ width: '100%' }}>
       {groups.map((group) => (
         <Card
           key={group.workerId}

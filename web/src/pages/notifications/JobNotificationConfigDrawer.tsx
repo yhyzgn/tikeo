@@ -148,7 +148,7 @@ export function JobNotificationConfigDrawer({ job, open, onClose }: Props) {
 
   return (
     <Drawer title={job ? `${t('任务通知配置')} · ${job.name}` : t('任务通知配置')} open={open} onClose={onClose} width={1040} destroyOnClose>
-      <Space direction="vertical" size="large" style={{ width: '100%' }}>
+      <Space orientation="vertical" size="large" style={{ width: '100%' }}>
         <Alert type="info" showIcon message={t('渠道和凭证仍由 Notification Center 统一管理；这里仅声明该任务在什么状态下通知哪些渠道。')} />
         <Card size="small" title={t('已有通知规则')} extra={<Button type="primary" onClick={startCreate}>{t('新建规则')}</Button>}>
           <Table<JobNotificationBindingSummary>
@@ -176,7 +176,7 @@ export function JobNotificationConfigDrawer({ job, open, onClose }: Props) {
               <Form.Item name="trigger" label={t('触发条件')} rules={[{ required: true }]}><Select options={triggerOptions.map((item) => ({ ...item, label: t(item.label) }))} /></Form.Item>
               <Form.Item name="severity" label={t('严重级别')} rules={[{ required: true }]}><Select options={['info', 'warning', 'critical'].map((value) => ({ value, label: value }))} /></Form.Item>
             </div>
-            {trigger === 'advanced' ? <Form.Item name="eventTypes" label={t('高级事件')} rules={[{ required: true }]}><Select mode="multiple" optionLabelProp="title" options={JOB_NOTIFICATION_EVENT_OPTIONS.map((item) => ({ value: item.value, title: item.value, label: <Space direction="vertical" size={0}><Typography.Text code>{item.value}</Typography.Text><Typography.Text type="secondary">{t(item.label)}</Typography.Text></Space> }))} /></Form.Item> : null}
+            {trigger === 'advanced' ? <Form.Item name="eventTypes" label={t('高级事件')} rules={[{ required: true }]}><Select mode="multiple" optionLabelProp="title" options={JOB_NOTIFICATION_EVENT_OPTIONS.map((item) => ({ value: item.value, title: item.value, label: <Space orientation="vertical" size={0}><Typography.Text code>{item.value}</Typography.Text><Typography.Text type="secondary">{t(item.label)}</Typography.Text></Space> }))} /></Form.Item> : null}
             <Form.Item name="channelIds" label={t('通知渠道')} rules={[{ required: true }]}><Select mode="multiple" options={channels.map((item) => ({ value: item.id, label: `${item.name} · ${item.provider} · ${item.targetRedacted}` }))} /></Form.Item>
             <Form.Item name="templateRef" label={t('通知模板')}><Select allowClear options={templateOptions} /></Form.Item>
             <div className="form-grid three">

@@ -110,7 +110,7 @@ export function CalendarsPage() {
   };
 
   return (
-    <Space direction="vertical" size={20} style={{ width: '100%' }}>
+    <Space orientation="vertical" size={20} style={{ width: '100%' }}>
       <div>
         <Typography.Title level={2}>调度日历</Typography.Title>
         <Typography.Text type="secondary">集中维护 namespace/app 作用域下的节假日、维护窗口和冻结窗口；任务可通过 Calendar 引用绑定。</Typography.Text>

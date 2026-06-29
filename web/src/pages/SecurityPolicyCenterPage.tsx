@@ -120,8 +120,8 @@ export function SecurityPolicyCenterPage() {
 
       <Row gutter={[16, 16]}>
         <Col xs={12} lg={6}><Card><Statistic title="脚本总数" value={script?.totalScripts ?? 0} /></Card></Col>
-        <Col xs={12} lg={6}><Card><Statistic title="默认拒绝脚本" value={script?.safeDefaultDenyScripts ?? 0} valueStyle={{ color: '#389e0d' }} /></Card></Col>
-        <Col xs={12} lg={6}><Card><Statistic title="危险策略快照" value={script?.dangerousPolicyScripts ?? 0} valueStyle={{ color: script?.dangerousPolicyScripts ? '#cf1322' : '#389e0d' }} /></Card></Col>
+        <Col xs={12} lg={6}><Card><Statistic title="默认拒绝脚本" value={script?.safeDefaultDenyScripts ?? 0} styles={{ content: { color: '#389e0d' } }} /></Card></Col>
+        <Col xs={12} lg={6}><Card><Statistic title="危险策略快照" value={script?.dangerousPolicyScripts ?? 0} styles={{ content: { color: script?.dangerousPolicyScripts ? '#cf1322' : '#389e0d' } }} /></Card></Col>
         <Col xs={12} lg={6}><Card><Statistic title="已签名发布" value={script?.signedReleases ?? 0} /></Card></Col>
       </Row>
 
@@ -144,7 +144,7 @@ export function SecurityPolicyCenterPage() {
           </Card>
         </Col>
         <Col xs={24} xl={10}>
-          <Space direction="vertical" size={16} style={{ width: '100%' }}>
+          <Space orientation="vertical" size={16} style={{ width: '100%' }}>
             <Card title="部署与传输前置条件">
               <Descriptions column={1} size="small">
                 <Descriptions.Item label="HTTP Listener">{httpTransport?.listenerMode ?? '-'}</Descriptions.Item>

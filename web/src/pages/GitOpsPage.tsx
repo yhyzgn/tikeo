@@ -82,7 +82,7 @@ export function GitOpsPage() {
   };
 
   return (
-    <Space direction="vertical" size={20} style={{ width: '100%' }}>
+    <Space orientation="vertical" size={20} style={{ width: '100%' }}>
       <div>
         <Typography.Title level={2}>GitOps / IaC</Typography.Title>
         <Typography.Text type="secondary">导出 Job、Workflow、Script、Plugin、AlertRule 的声明式 Manifest，并对 desired JSON 做 drift diff。</Typography.Text>

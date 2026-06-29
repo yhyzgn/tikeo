@@ -872,7 +872,7 @@ export function ScriptEditorPage() {
   };
 
   return (
-    <Space direction="vertical" size={18} style={{ width: '100%' }}>
+    <Space orientation="vertical" size={18} style={{ width: '100%' }}>
       <div className="hero-panel script-editor-hero">
         <div className="hero-panel__content">
           <Button className="workflow-back-button" onClick={() => navigate('/scripts')}>← 返回脚本列表</Button>
