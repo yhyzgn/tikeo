@@ -37,7 +37,8 @@ pub(super) struct JobInstanceListStreamSnapshot {
     pub(super) jobs: Vec<JobSummary>,
     /// Latest visible instances sorted newest first.
     pub(super) instances: Vec<JobInstanceSummary>,
-    /// Attempt summaries grouped by instance.
+    /// Attempt summaries grouped by instance. Omitted on the list stream to avoid per-instance N+1 work; details stream carries attempts.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(super) attempts: Vec<JobInstanceListStreamAttemptGroup>,
 }
 
@@ -105,26 +106,10 @@ pub(super) async fn instance_list_stream_snapshot(
     }
     instances.sort_by(|left, right| right.created_at.cmp(&left.created_at));
 
-    let mut attempts = Vec::new();
-    for instance in &instances {
-        let items = state
-            .attempts
-            .list_by_instance(&instance.id)
-            .await
-            .map_err(|error| ApiError::storage(&error))?
-            .into_iter()
-            .map(JobInstanceAttemptSummary::from)
-            .collect();
-        attempts.push(JobInstanceListStreamAttemptGroup {
-            instance_id: instance.id.clone(),
-            items,
-        });
-    }
-
     Ok(JobInstanceListStreamSnapshot {
         jobs,
         instances,
-        attempts,
+        attempts: Vec::new(),
     })
 }
 

@@ -1,6 +1,6 @@
 import { Alert, Button, Card, Col, Drawer, Empty, Input, Popconfirm, Row, Select, Space, Table, Tag, Typography, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import {
@@ -27,6 +27,8 @@ import { persistentPagination, usePersistentTablePageSize } from '../utils/pagin
 
 
 const ACTIVE_INSTANCE_STATUSES = ['pending', 'dispatching', 'running', 'retrying'];
+const INSTANCE_LIST_FALLBACK_INTERVAL_MS = 30_000;
+const INSTANCE_LIST_STREAM_WATCHDOG_MS = 5_000;
 const INSTANCE_STATUS_OPTIONS = ['pending', 'dispatching', 'running', 'retrying', 'succeeded', 'failed', 'partial_failed', 'cancelled'];
 const INSTANCE_TRIGGER_OPTIONS = ['api', 'schedule', 'manual', 'cron', 'fixed_rate', 'webhook', 'unknown'];
 const INSTANCE_MODE_OPTIONS = ['single', 'broadcast'];
@@ -66,7 +68,6 @@ function hasInstanceFilters(filters: InstanceFilters): boolean {
 
 function instanceMatchesFilters(
   instance: JobInstanceSummary,
-  attempts: JobInstanceAttemptSummary[] | undefined,
   jobName: Map<string, string>,
   filters: InstanceFilters,
 ): boolean {
@@ -79,7 +80,7 @@ function instanceMatchesFilters(
   if (filters.executionMode && instance.executionMode !== filters.executionMode) return false;
   if (filters.workerId) {
     const workerNeedle = filters.workerId.toLowerCase();
-    const workerValues = [instance.workerId, instance.latestLog?.workerId, ...(attempts ?? []).map((attempt) => attempt.workerId)]
+    const workerValues = [instance.workerId, instance.latestLog?.workerId]
       .filter(Boolean)
       .map((value) => String(value).toLowerCase());
     if (!workerValues.some((value) => value.includes(workerNeedle))) return false;
@@ -300,7 +301,7 @@ const renderExecutionResult = (instance: JobInstanceSummary | null, attempts: Jo
 type InstanceListStreamSnapshot = {
   jobs: JobSummary[];
   instances: JobInstanceSummary[];
-  attempts: Array<{ instanceId: string; items: JobInstanceAttemptSummary[] }>;
+  attempts?: Array<{ instanceId: string; items: JobInstanceAttemptSummary[] }>;
 };
 
 export function InstancesPage() {
@@ -311,60 +312,94 @@ export function InstancesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const filters = useMemo(() => filtersFromSearchParams(searchParams), [searchParams]);
   const active = useRouteActive(ROUTE_META.instances.path);
+  const [loading, setLoading] = useState(false);
+  const [tablePage, setTablePage] = useState(1);
+  const [pageSize, setPageSize] = usePersistentTablePageSize();
+  const streamHealthyRef = useRef(false);
 
   const applyInstanceSnapshot = useCallback((snapshot: InstanceListStreamSnapshot) => {
     setJobs(snapshot.jobs);
     setInstances(snapshot.instances);
-    setAttemptsByInstance(new Map(snapshot.attempts.map((entry) => [entry.instanceId, entry.items])));
+    if (snapshot.attempts) {
+      setAttemptsByInstance(new Map(snapshot.attempts.map((entry) => [entry.instanceId, entry.items])));
+    }
   }, []);
 
   const load = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setLoading(true);
+    }
     try {
       const jobPage = await listJobs();
       const instancePages = await Promise.all(jobPage.items.map((job) => listJobInstances(job.id)));
       const sortedInstances = instancePages
         .flatMap((page) => page.items)
         .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
-      const attemptPairs = await Promise.all(sortedInstances.map(async (instance) => {
-        try {
-          const attemptPage = await listInstanceAttempts(instance.id);
-          return [instance.id, attemptPage.items] as const;
-        } catch {
-          return [instance.id, [] as JobInstanceAttemptSummary[]] as const;
-        }
-      }));
       applyInstanceSnapshot({
         jobs: jobPage.items,
         instances: sortedInstances,
-        attempts: attemptPairs.map(([instanceId, items]) => ({ instanceId, items })),
       });
     } catch (cause) {
       if (!options?.silent) {
         message.error(cause instanceof Error ? cause.message : t('实例加载失败'));
       }
+    } finally {
+      if (!options?.silent) {
+        setLoading(false);
+      }
     }
   }, [applyInstanceSnapshot, t]);
 
-  useEffect(() => { if (active) void load(); }, [active, load]);
   useEffect(() => {
     if (!active) return undefined;
+    streamHealthyRef.current = false;
+    setLoading(true);
     const source = new EventSource(instanceListStreamUrl());
     source.addEventListener('instances.snapshot', (event) => {
       try {
         const snapshot = JSON.parse((event as MessageEvent).data) as InstanceListStreamSnapshot;
+        streamHealthyRef.current = true;
         applyInstanceSnapshot(snapshot);
+        setLoading(false);
       } catch {
-        // Ignore malformed stream frames; the 3s fallback refresh and manual navigation remain available.
+        // Ignore malformed stream frames; the fallback refresh and manual navigation remain available.
       }
     });
-    const fallbackTimer = window.setInterval(() => { void load({ silent: true }); }, 3000);
+    source.onerror = () => {
+      streamHealthyRef.current = false;
+    };
+    const watchdogTimer = window.setTimeout(() => {
+      if (!streamHealthyRef.current) {
+        void load();
+      }
+    }, INSTANCE_LIST_STREAM_WATCHDOG_MS);
+    const fallbackTimer = window.setInterval(() => {
+      if (!streamHealthyRef.current) {
+        void load({ silent: true });
+      }
+    }, INSTANCE_LIST_FALLBACK_INTERVAL_MS);
     return () => {
       source.close();
+      window.clearTimeout(watchdogTimer);
       window.clearInterval(fallbackTimer);
     };
   }, [active, applyInstanceSnapshot, load]);
   const jobName = useMemo(() => new Map(jobs.map((job) => [job.id, job.name])), [jobs]);
-  const filteredInstances = useMemo(() => instances.filter((instance) => instanceMatchesFilters(instance, attemptsByInstance.get(instance.id), jobName, filters)), [attemptsByInstance, filters, instances, jobName]);
+  const filteredInstances = useMemo(() => instances.filter((instance) => instanceMatchesFilters(instance, jobName, filters)), [filters, instances, jobName]);
+  useEffect(() => setTablePage(1), [filters, pageSize]);
+  const visibleInstances = useMemo(() => {
+    const start = (tablePage - 1) * pageSize;
+    return filteredInstances.slice(start, start + pageSize);
+  }, [filteredInstances, pageSize, tablePage]);
+  const tablePagination = useMemo(() => ({
+    ...persistentPagination(pageSize, setPageSize),
+    current: tablePage,
+    total: filteredInstances.length,
+    onChange: (page: number, nextPageSize: number) => {
+      setTablePage(nextPageSize === pageSize ? page : 1);
+      setPageSize(nextPageSize);
+    },
+  }), [filteredInstances.length, pageSize, setPageSize, tablePage]);
   const filterEntryLabel = semanticFilterLabel(filters);
   const updateFilters = useCallback((patch: Partial<InstanceFilters>) => {
     const next = { ...filters, ...patch };
@@ -390,7 +425,6 @@ export function InstancesPage() {
   const [logs, setLogs] = useState<JobInstanceLogSummary[]>([]);
   const [attempts, setAttempts] = useState<JobInstanceAttemptSummary[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
-  const [pageSize, setPageSize] = usePersistentTablePageSize();
 
   const loadLogs = useCallback(async (instance: JobInstanceSummary, showLoading = true) => {
     if (showLoading) {
@@ -618,12 +652,12 @@ export function InstancesPage() {
           </Col>
         </Row>
       </div>
-      {instances.length === 0 ? (
+      {instances.length === 0 && !loading ? (
         <Empty description="还没有实例，请先在 Jobs 页面创建并触发任务" />
       ) : (
         <>
           <Typography.Paragraph type="secondary">实例详情 API 已可用：GET /api/v1/instances/&lt;instance&gt;</Typography.Paragraph>
-          <Table rowKey="id" columns={columns} dataSource={filteredInstances} pagination={persistentPagination(pageSize, setPageSize)} scroll={{ x: 1_440 }} locale={{ emptyText: hasInstanceFilters(filters) ? '没有匹配当前过滤条件的实例' : '暂无实例' }} />
+          <Table rowKey="id" loading={loading} columns={columns} dataSource={visibleInstances} pagination={tablePagination} scroll={{ x: 1_440 }} locale={{ emptyText: hasInstanceFilters(filters) ? '没有匹配当前过滤条件的实例' : '暂无实例' }} />
         </>
       )}
       <Drawer

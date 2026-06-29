@@ -164,14 +164,32 @@ describe('instance execution result view', () => {
 
 
 describe('instance list realtime refresh', () => {
-  test('subscribes to instance list SSE and keeps a 3s polling fallback while active', () => {
+  test('subscribes to instance list SSE and only uses REST as an unhealthy-stream fallback', () => {
     expect(source).toContain('instanceListStreamUrl');
     expect(source).toContain('new EventSource(instanceListStreamUrl())');
     expect(source).toContain("source.addEventListener('instances.snapshot'");
+    expect(source).toContain('streamHealthyRef.current = true;');
     expect(source).toContain('setInstances(snapshot.instances);');
-    expect(source).toContain('setAttemptsByInstance(new Map(snapshot.attempts.map');
-    expect(source).toContain('window.setInterval(() => { void load({ silent: true }); }, 3000)');
+    expect(source).toContain('if (snapshot.attempts)');
+    expect(source).toContain('INSTANCE_LIST_STREAM_WATCHDOG_MS');
+    expect(source).toContain('INSTANCE_LIST_FALLBACK_INTERVAL_MS');
+    expect(source).toContain('if (!streamHealthyRef.current)');
+    expect(source).toContain('window.clearTimeout(watchdogTimer);');
     expect(source).toContain('window.clearInterval(fallbackTimer);');
+  });
+
+  test('does not eagerly fetch every instance attempts page during list loading', () => {
+    expect(source).toContain('listInstanceAttempts(instance.id)');
+    expect(source).toContain('const [logPage, attemptPage, freshInstance] = await Promise.all([');
+    expect(source).not.toContain('sortedInstances.map(async (instance)');
+    expect(source).not.toContain('attemptPairs');
+  });
+
+  test('renders only the current table page slice after filtering', () => {
+    expect(source).toContain('const visibleInstances = useMemo(() => {');
+    expect(source).toContain('filteredInstances.slice(start, start + pageSize)');
+    expect(source).toContain('dataSource={visibleInstances}');
+    expect(source).toContain('pagination={tablePagination}');
   });
 });
 
@@ -180,7 +198,7 @@ describe('instance list filters', () => {
   test('supports URL-driven semantic filters and filtered table data', () => {
     expect(source).toContain('useSearchParams');
     expect(source).toContain('filtersFromSearchParams(searchParams)');
-    expect(source).toContain('instanceMatchesFilters(instance, attemptsByInstance.get(instance.id), jobName, filters)');
+    expect(source).toContain('instanceMatchesFilters(instance, jobName, filters)');
     expect(source).toContain('semanticFilterLabel(filters)');
     expect(source).toContain('instance-filter-panel');
     expect(source).toContain('状态');
@@ -189,7 +207,7 @@ describe('instance list filters', () => {
     expect(source).toContain('执行模式');
     expect(source).toContain('Worker');
     expect(source).toContain('实例 / 日志关键字');
-    expect(source).toContain('dataSource={filteredInstances}');
+    expect(source).toContain('dataSource={visibleInstances}');
     expect(source).toContain('没有匹配当前过滤条件的实例');
   });
 });
