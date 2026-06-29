@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import ts from 'typescript';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,6 +22,43 @@ function collectTsxFiles(directory: string): string[] {
     if (stat.isDirectory()) return name === '__tests__' ? [] : collectTsxFiles(path);
     return path.endsWith('.tsx') ? [path] : [];
   });
+}
+
+
+function collectSourceFiles(directory: string): string[] {
+  return readdirSync(directory).flatMap((name) => {
+    const path = join(directory, name);
+    const stat = statSync(path);
+    if (stat.isDirectory()) return name === '__tests__' ? [] : collectSourceFiles(path);
+    if (!/\.(ts|tsx)$/.test(path) || /\.test\.(ts|tsx)$/.test(path)) return [];
+    if (path.includes('/i18n/locales/') || path.endsWith('/i18n/messages.ts')) return [];
+    return [path];
+  });
+}
+
+const chineseLiteralAllowList = new Set([
+  'job_instance.运行中',
+  'job_instance.成功',
+  'job_instance.失败',
+  'job_instance.部分失败',
+  'job_instance.取消',
+  'job_instance.重试中',
+  'job_instance.重试耗尽',
+  'job_instance.无可用执行节点',
+  'job_instance.脚本治理失败',
+]);
+
+function hasChinese(value: string): boolean {
+  return /[\u4e00-\u9fff]/.test(value);
+}
+
+function isIgnoredChineseLiteral(value: string): boolean {
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  if (!normalized || !hasChinese(normalized)) return true;
+  if (chineseLiteralAllowList.has(normalized)) return true;
+  if (normalized.includes('${')) return true;
+  if (/^https?:\/\//.test(normalized) || /^\/api\//.test(normalized)) return true;
+  return false;
 }
 
 const visibleAttributePatterns: RegExp[] = [
@@ -138,6 +176,44 @@ describe('i18n message dictionaries', () => {
     expect(enUS['节点执行结果']).toBe('Node execution results');
     expect(enUS['广播节点结果']).toBe('Broadcast node results');
     expect(enUS['等待 Worker 返回结果']).toBe('Waiting for Worker result');
+  });
+
+
+  test('keeps Chinese source string literals covered by the i18n dictionaries', () => {
+    const files = collectSourceFiles(srcDir);
+    const keys = new Set([...Object.keys(zhCN), ...Object.keys(enUS)]);
+    const missing: string[] = [];
+
+    for (const file of files) {
+      const sourceText = readFileSync(file, 'utf8');
+      const sourceFile = ts.createSourceFile(
+        file,
+        sourceText,
+        ts.ScriptTarget.Latest,
+        true,
+        file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+      );
+
+      const check = (node: ts.Node, value: string) => {
+        const normalized = value.replace(/\s+/g, ' ').trim();
+        if (isIgnoredChineseLiteral(normalized) || keys.has(normalized)) return;
+        const line = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
+        missing.push(`${file.replace(`${srcDir}/`, '')}:${line}:${normalized}`);
+      };
+
+      const visit = (node: ts.Node) => {
+        if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+          check(node, node.text);
+        } else if (ts.isJsxText(node)) {
+          check(node, node.getText(sourceFile));
+        }
+        ts.forEachChild(node, visit);
+      };
+
+      visit(sourceFile);
+    }
+
+    expect(missing).toEqual([]);
   });
 
   test('keeps visible JSX and table metadata strings covered by the i18n dictionaries', () => {

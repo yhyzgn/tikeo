@@ -99,7 +99,7 @@ export function JobNotificationConfigDrawer({ job, open, onClose }: Props) {
 
   const startCreate = () => {
     setPreview(null);
-    form.setFieldsValue({ name: `${job?.name ?? 'Job'} 失败通知`, trigger: 'failure', channelIds: [], enabled: true, severity: 'critical', dedupeSeconds: 300, includeLogLink: true, includeLogExcerpt: false, logExcerptLines: 80 });
+    form.setFieldsValue({ name: `${job?.name ?? 'Job'} ${t('失败通知')}`, trigger: 'failure', channelIds: [], enabled: true, severity: 'critical', dedupeSeconds: 300, includeLogLink: true, includeLogExcerpt: false, logExcerptLines: 80 });
   };
 
   const edit = (binding: JobNotificationBindingSummary) => {

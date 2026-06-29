@@ -1,4 +1,5 @@
 import { notificationMessages } from './notifications-en-US';
+import { recentUiMessages } from './recent-ui-en-US';
 import { dashboardAboutMessages } from './dashboard-about-en-US';
 
 // Complete en-US UI dictionary. Add future translations here instead of scanning source code.
@@ -19,6 +20,7 @@ export const messages: Record<string, string> = {
     "日志仅展示最近 80 行，完整日志请在登录控制台内查看。": "Only the latest 80 log lines are shown. Sign in to the console for complete logs.",
     "加载执行透传信息失败": "Failed to load execution passthrough information",
     ...notificationMessages,
+    ...recentUiMessages,
     "分布式任务调度平台": "Distributed Task Scheduling Platform",
     "轻量、容器友好、Worker 主动隧道连接": "Lightweight, container-friendly, with worker-initiated tunnel connections",
     "跟随系统": "Follow system",

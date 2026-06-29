@@ -1,4 +1,5 @@
 import { notificationMessages } from './notifications-zh-CN';
+import { recentUiMessages } from './recent-ui-zh-CN';
 import { dashboardAboutMessages } from './dashboard-about-zh-CN';
 
 // Complete zh-CN UI dictionary. Add future translations here instead of scanning source code.
@@ -18,6 +19,7 @@ export const messages: Record<string, string> = {
     "日志仅展示最近 80 行，完整日志请在登录控制台内查看。": "日志仅展示最近 80 行，完整日志请在登录控制台内查看。",
     "加载执行透传信息失败": "加载执行透传信息失败",
     ...notificationMessages,
+    ...recentUiMessages,
     "分布式任务调度平台": "分布式任务调度平台",
     "轻量、容器友好、Worker 主动隧道连接": "轻量、容器友好、Worker 主动隧道连接",
     "跟随系统": "跟随系统",
