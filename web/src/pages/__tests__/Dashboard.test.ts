@@ -37,6 +37,10 @@ describe('dashboard realtime overview', () => {
     expect(source).toContain('调度驾驶舱');
     expect(source).toContain('最近 12 小时执行趋势');
     expect(source).toContain('实例状态分布');
+    expect(source).toContain('实例状态分布明细');
+    expect(source).toContain('失败率');
+    expect(source).toContain('活跃实例');
+    expect(source).toContain('主状态：');
     expect(source).toContain('任务计划图');
     expect(source).toContain('调度健康');
     expect(source).toContain('队列压力');
@@ -64,6 +68,9 @@ describe('dashboard realtime overview', () => {
     expect(styles).toContain('.dashboard-trend__segment--success');
     expect(styles).toContain('.dashboard-trend__segment--failed');
     expect(styles).toContain('.dashboard-donut');
+    expect(styles).toContain('.dashboard-instance-status');
+    expect(styles).toContain('.dashboard-instance-status__kpi');
+    expect(styles).toContain('.dashboard-status-lane');
     expect(source).toContain('conic-gradient');
     expect(styles).toContain('.dashboard-plan-map');
     expect(styles).toContain('.dashboard-plan-map__bar');

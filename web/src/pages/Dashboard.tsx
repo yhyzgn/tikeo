@@ -59,6 +59,7 @@ interface TrendBucket {
 }
 
 interface StatusSlice {
+  key: string;
   label: string;
   value: number;
   color: string;
@@ -129,7 +130,7 @@ function statusSlices(instances: JobInstanceSummary[]): StatusSlice[] {
   }
   return [...counts.entries()]
     .sort((left, right) => right[1] - left[1])
-    .map(([status, value]) => ({ label: STATUS_META[status]?.label ?? status, value, color: STATUS_META[status]?.color ?? '#64748b' }));
+    .map(([status, value]) => ({ key: status, label: STATUS_META[status]?.label ?? status, value, color: STATUS_META[status]?.color ?? '#64748b' }));
 }
 
 function miniSlices(items: MiniSlice[]): MiniSlice[] {
@@ -318,7 +319,14 @@ function TrendBars({ buckets }: { buckets: TrendBucket[] }) {
 
 function StatusDonut({ slices }: { slices: StatusSlice[] }) {
   const total = slices.reduce((sum, slice) => sum + slice.value, 0);
-  if (total === 0) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无实例" />;
+  if (total === 0) {
+    return (
+      <div className="dashboard-instance-status-empty">
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无实例" />
+        <Typography.Text type="secondary">触发任务后，这里会展示成功、失败、运行中与重试实例的实时占比。</Typography.Text>
+      </div>
+    );
+  }
   let offset = 25;
   const gradient = slices.map((slice) => {
     const start = offset;
@@ -326,18 +334,64 @@ function StatusDonut({ slices }: { slices: StatusSlice[] }) {
     offset += span;
     return `${slice.color} ${start}% ${offset}%`;
   }).join(', ');
+  const succeeded = slices.find((slice) => slice.key === 'succeeded')?.value ?? 0;
+  const failed = slices.find((slice) => slice.key === 'failed')?.value ?? 0;
+  const active = slices
+    .filter((slice) => ['pending', 'dispatching', 'running', 'retrying'].includes(slice.key))
+    .reduce((sum, slice) => sum + slice.value, 0);
+  const terminal = Math.max(0, total - active);
+  const successRate = Math.round((succeeded / total) * 100);
+  const failureRate = Math.round((failed / total) * 100);
+  const leading = slices[0];
+  const healthTone = failed > 0 ? 'danger' : active > 0 ? 'active' : 'healthy';
+  const healthText = failed > 0 ? '需要处理' : active > 0 ? '执行中' : '运行健康';
   return (
-    <div className="dashboard-donut-wrap">
-      <div className="dashboard-donut" style={{ background: `conic-gradient(${gradient})` }}>
-        <div className="dashboard-donut__inner">
-          <strong>{total}</strong>
-          <span>instances</span>
+    <div className={`dashboard-instance-status dashboard-instance-status--${healthTone}`}>
+      <div className="dashboard-instance-status__topline">
+        <Tag color={failed > 0 ? 'red' : active > 0 ? 'blue' : 'green'}>{healthText}</Tag>
+        <Typography.Text type="secondary">主状态：{leading.label} · {Math.round((leading.value / total) * 100)}%</Typography.Text>
+      </div>
+      <div className="dashboard-instance-status__hero">
+        <div className="dashboard-donut" style={{ background: `conic-gradient(${gradient})` }}>
+          <div className="dashboard-donut__inner">
+            <strong>{total}</strong>
+            <span>实例总量</span>
+          </div>
+        </div>
+        <div className="dashboard-instance-status__kpis">
+          <Link to={instancesPath({ status: 'succeeded' })} className="dashboard-instance-status__kpi dashboard-instance-status__kpi--success">
+            <span>成功率</span>
+            <strong>{successRate}%</strong>
+            <em>{succeeded} 成功</em>
+          </Link>
+          <Link to={instancesPath({ status: 'failed' })} className="dashboard-instance-status__kpi dashboard-instance-status__kpi--danger">
+            <span>失败率</span>
+            <strong>{failureRate}%</strong>
+            <em>{failed} 失败</em>
+          </Link>
+          <Link to={instancesPath({ status: 'active' })} className="dashboard-instance-status__kpi dashboard-instance-status__kpi--active">
+            <span>活跃实例</span>
+            <strong>{active}</strong>
+            <em>待派发 / 运行 / 重试</em>
+          </Link>
         </div>
       </div>
-      <div className="dashboard-donut__legend">
-        {slices.map((slice) => (
-          <span key={slice.label}><i style={{ background: slice.color }} />{slice.label} · {slice.value}</span>
-        ))}
+      <div className="dashboard-status-lanes" aria-label="实例状态分布明细">
+        {slices.map((slice) => {
+          const percent = Math.round((slice.value / total) * 100);
+          return (
+            <Link to={instancesPath({ status: slice.key })} className="dashboard-status-lane" key={slice.key}>
+              <span className="dashboard-status-lane__head"><i style={{ background: slice.color }} />{slice.label}<strong>{slice.value}</strong></span>
+              <span className="dashboard-status-lane__rail"><b style={{ '--lane-color': slice.color, '--lane-width': `${Math.max(4, percent)}%` } as CSSProperties} /></span>
+              <em>{percent}%</em>
+            </Link>
+          );
+        })}
+      </div>
+      <div className="dashboard-instance-status__footer">
+        <span>终态实例 {terminal}</span>
+        <span>活跃实例 {active}</span>
+        <span>失败实例 {failed}</span>
       </div>
     </div>
   );
