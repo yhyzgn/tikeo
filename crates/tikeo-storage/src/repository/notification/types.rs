@@ -319,6 +319,8 @@ pub struct NotificationMessageFilters {
     pub severity: Option<String>,
     /// Status value.
     pub status: Option<String>,
+    /// Optional maximum number of messages to return.
+    pub limit: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]

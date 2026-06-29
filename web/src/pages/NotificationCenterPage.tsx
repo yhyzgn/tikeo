@@ -148,14 +148,14 @@ export function NotificationCenterPage() {
       listNotificationChannels(),
       listNotificationPolicies(),
       listNotificationTemplates(),
-      listNotificationMessages(),
+      listNotificationMessages({ page_size: 20 }),
       getNotificationDeliveryQueueStatus(),
     ]);
     setChannelTypes(typesData);
     setChannels(channelsData);
     setPolicies(policiesData);
     setTemplates(templatesData);
-    setMessages(messagesData.slice(0, 20));
+    setMessages(messagesData);
     setStatus(statusData);
     setError(null);
   }, []);

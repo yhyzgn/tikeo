@@ -25,7 +25,7 @@ import {
   getDispatchQueue,
   instanceListStreamUrl,
   listAuditLogs,
-  listJobInstances,
+  listInstances,
   listJobs,
   listWorkers,
   workerStreamUrl,
@@ -39,6 +39,8 @@ import {
 } from '../api/client';
 import { useRouteActive } from '../hooks/useRouteActivation';
 import { ROUTE_META } from '../routes';
+
+const DASHBOARD_INSTANCE_PAGE_SIZE = 100;
 
 type InstanceListStreamSnapshot = {
   jobs: JobSummary[];
@@ -412,8 +414,9 @@ export function Dashboard() {
 
   const load = useCallback(async () => {
     try {
-      const [jobPage, workerPage, diagnostics, queueOverview, alertStatus, audits] = await Promise.all([
+      const [jobPage, instancePage, workerPage, diagnostics, queueOverview, alertStatus, audits] = await Promise.all([
         listJobs(),
+        listInstances({ pageSize: DASHBOARD_INSTANCE_PAGE_SIZE }),
         listWorkers(),
         getClusterDiagnostics().catch(() => null),
         getDispatchQueue().catch(() => null),
@@ -421,13 +424,12 @@ export function Dashboard() {
         listAuditLogs({ page_size: 8 }).catch(() => null),
       ]);
       setJobs(jobPage.items);
+      setInstances(instancePage.items);
       setWorkers(workerPage);
       setClusterDiagnostics(diagnostics);
       setQueue(queueOverview);
       setAlertQueue(alertStatus);
       setAuditLogs(audits);
-      const instancePages = await Promise.all(jobPage.items.map((job) => listJobInstances(job.id)));
-      setInstances(instancePages.flatMap((page) => page.items));
       setLastUpdated(new Date());
     } catch { /* silent */ }
   }, []);
@@ -459,7 +461,7 @@ export function Dashboard() {
       ]).then(() => setLastUpdated(new Date()));
     };
 
-    const instanceSource = new EventSource(instanceListStreamUrl());
+    const instanceSource = new EventSource(instanceListStreamUrl({ pageSize: DASHBOARD_INSTANCE_PAGE_SIZE }));
     instanceSource.addEventListener('instances.snapshot', (event) => {
       try {
         const snapshot = JSON.parse((event as MessageEvent).data) as InstanceListStreamSnapshot;

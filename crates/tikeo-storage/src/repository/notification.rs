@@ -564,6 +564,9 @@ impl NotificationMessageRepository {
         if let Some(value) = filters.status {
             query = query.filter(notification_message::Column::Status.eq(value));
         }
+        if let Some(limit) = filters.limit {
+            query = query.limit(limit);
+        }
         let rows = query
             .order_by_desc(notification_message::Column::CreatedAt)
             .all(&self.db)

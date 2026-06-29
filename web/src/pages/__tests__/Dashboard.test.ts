@@ -9,7 +9,9 @@ describe('dashboard realtime overview', () => {
     expect(source).toContain('instanceListStreamUrl');
     expect(source).toContain('workerStreamUrl');
     expect(source).toContain('listWorkers');
-    expect(source).toContain('new EventSource(instanceListStreamUrl())');
+    expect(source).toContain('listInstances({ pageSize: DASHBOARD_INSTANCE_PAGE_SIZE })');
+    expect(source).not.toContain('jobPage.items.map((job) => listJobInstances(job.id))');
+    expect(source).toContain('new EventSource(instanceListStreamUrl({ pageSize: DASHBOARD_INSTANCE_PAGE_SIZE }))');
     expect(source).toContain('new EventSource(workerStreamUrl())');
     expect(source).toContain("instanceSource.addEventListener('instances.snapshot'");
     expect(source).toContain("workerSource.addEventListener('workers.snapshot'");

@@ -307,7 +307,7 @@ export interface NotificationMessageTrace {
   logs: { url: string | null; excerpt: NotificationTraceLogLine[]; truncated: boolean };
 }
 
-function queryString(params: Record<string, string | boolean | undefined> = {}): string {
+function queryString(params: Record<string, string | number | boolean | undefined> = {}): string {
   const query = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && String(value).trim() !== '') query.set(key, String(value));
@@ -407,7 +407,7 @@ export function renderNotificationTemplate(id: string, payload: { provider?: str
   });
 }
 
-export function listNotificationMessages(params: { status?: string; event_type?: string } = {}): Promise<NotificationMessageSummary[]> {
+export function listNotificationMessages(params: { status?: string; event_type?: string; page_size?: number } = {}): Promise<NotificationMessageSummary[]> {
   return request<NotificationMessageSummary[]>(`/api/v1/notification-messages${queryString(params)}`);
 }
 

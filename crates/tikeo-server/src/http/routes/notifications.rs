@@ -169,6 +169,8 @@ pub struct NotificationMessageQuery {
     pub event_type: Option<String>,
     pub severity: Option<String>,
     pub status: Option<String>,
+    /// Optional maximum number of messages to return.
+    pub page_size: Option<u32>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, ToSchema, utoipa::IntoParams)]
@@ -993,6 +995,7 @@ pub async fn list_notification_messages(
             event_type: query.event_type,
             severity: query.severity,
             status: query.status,
+            limit: query.page_size.map(u64::from),
         })
         .await
         .map_err(|error| ApiError::storage(&error))?;
