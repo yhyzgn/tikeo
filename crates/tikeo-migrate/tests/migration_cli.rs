@@ -7,6 +7,53 @@ use std::{
     process::{Command, Stdio},
 };
 
+fn write_xxl_export(path: &Path) {
+    fs::write(
+        path,
+        r#"{
+  "jobs": [
+    {
+      "id": 1001,
+      "jobDesc": "nightly billing settlement",
+      "executorAppName": "billing",
+      "scheduleType": "CRON",
+      "scheduleConf": "0 0 2 * * ?",
+      "misfireStrategy": "FIRE_ONCE_NOW",
+      "executorHandler": "billingSettlementProcessor",
+      "executorFailRetryCount": 2,
+      "triggerStatus": 1,
+      "executorRouteStrategy": "ROUND",
+      "executorBlockStrategy": "SERIAL_EXECUTION"
+    },
+    {
+      "id": 1002,
+      "jobDesc": "manual reconciliation",
+      "executorAppName": "billing",
+      "scheduleType": "NONE",
+      "executorHandler": "reconciliationProcessor",
+      "triggerStatus": 0
+    }
+  ]
+}"#,
+    )
+    .unwrap_or_else(|error| panic!("xxl export fixture should be written: {error}"));
+}
+
+fn write_xxl_java_project(path: &Path) {
+    fs::create_dir_all(path.join("src/main/java/com/example"))
+        .unwrap_or_else(|error| panic!("java fixture dirs should be created: {error}"));
+    fs::write(
+        path.join("build.gradle.kts"),
+        "plugins {\n    id(\"org.springframework.boot\") version \"3.5.8\"\n}\n\ndependencies {\n    implementation(\"com.xuxueli:xxl-job-core:2.4.1\")\n}\n",
+    )
+    .unwrap_or_else(|error| panic!("gradle fixture should be written: {error}"));
+    fs::write(
+        path.join("src/main/java/com/example/BillingJob.java"),
+        "package com.example;\n\nimport com.xxl.job.core.handler.annotation.XxlJob;\n\nclass BillingJob {\n    @XxlJob(\"billingProcessor\")\n    public void execute() {\n    }\n}\n",
+    )
+    .unwrap_or_else(|error| panic!("java fixture should be written: {error}"));
+}
+
 fn write_sqlite_db(path: &Path, sql: &str) {
     let mut child = Command::new("python3")
         .arg("-c")
@@ -33,28 +80,25 @@ fn write_sqlite_db(path: &Path, sql: &str) {
 fn plan_command_writes_complete_bundle_for_xxl_job_and_java_project() {
     let binary = std::env::var("CARGO_BIN_EXE_tikeo-migrate")
         .unwrap_or_else(|error| panic!("binary path should exist: {error}"));
-    let output_dir =
+    let work_dir =
         std::env::temp_dir().join(format!("tikeo-migrate-bundle-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&output_dir);
+    let output_dir = work_dir.join("bundle");
+    let input = work_dir.join("xxl-job-export.json");
+    let project_dir = work_dir.join("java-springboot3");
+    let _ = fs::remove_dir_all(&work_dir);
+    fs::create_dir_all(&work_dir)
+        .unwrap_or_else(|error| panic!("fixture work dir should be created: {error}"));
+    write_xxl_export(&input);
+    write_xxl_java_project(&project_dir);
+
     let status = Command::new(&binary)
-        .args([
-            "plan",
-            "--from",
-            "xxl-job",
-            "--input",
-            "tests/fixtures/migration/xxl-job-export.json",
-            "--output-dir",
-        ])
+        .args(["plan", "--from", "xxl-job", "--input"])
+        .arg(&input)
+        .args(["--output-dir"])
         .arg(&output_dir)
-        .args([
-            "--project",
-            "tests/fixtures/java-springboot3",
-            "--namespace",
-            "ops",
-            "--app",
-            "fallback",
-        ])
-        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .args(["--project"])
+        .arg(&project_dir)
+        .args(["--namespace", "ops", "--app", "fallback"])
         .status()
         .unwrap_or_else(|error| panic!("migration CLI should run: {error}"));
 
@@ -73,7 +117,7 @@ fn plan_command_writes_complete_bundle_for_xxl_job_and_java_project() {
     assert!(java_plan.contains("billingProcessor"));
     assert!(output_dir.join("data-import-plan.json").exists());
     assert!(output_dir.join("CHECKLIST.md").exists());
-    let _ = fs::remove_dir_all(output_dir);
+    let _ = fs::remove_dir_all(work_dir);
 }
 
 #[test]
