@@ -23,6 +23,8 @@ build/
 *.db.*
 
 # Java/Gradle build output
+.gradle/
+**/.gradle/
 sdks/java/**/build/
 sdks/java/.gradle/
 examples/java/**/build/
