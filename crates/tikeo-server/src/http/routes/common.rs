@@ -17,6 +17,10 @@ pub fn trace_id(headers: &HeaderMap) -> String {
 pub struct StreamAuthQuery {
     /// Bearer token appended as `?token=...` when `EventSource` cannot set headers.
     pub token: Option<String>,
+    /// Page size value for paged streams.
+    pub page_size: Option<u32>,
+    /// Page token value for paged streams.
+    pub page_token: Option<String>,
 }
 
 /// Apply stream token.

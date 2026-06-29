@@ -10,7 +10,7 @@ import {
   instanceLogStreamUrl,
   listInstanceAttempts,
   listInstanceLogs,
-  listJobInstances,
+  listInstances,
   listJobs,
   type JobInstanceAttemptSummary,
   type JobInstanceLogSummary,
@@ -301,6 +301,8 @@ const renderExecutionResult = (instance: JobInstanceSummary | null, attempts: Jo
 type InstanceListStreamSnapshot = {
   jobs: JobSummary[];
   instances: JobInstanceSummary[];
+  nextPageToken?: string | null;
+  totalCount?: number;
   attempts?: Array<{ instanceId: string; items: JobInstanceAttemptSummary[] }>;
 };
 
@@ -315,11 +317,15 @@ export function InstancesPage() {
   const [loading, setLoading] = useState(false);
   const [tablePage, setTablePage] = useState(1);
   const [pageSize, setPageSize] = usePersistentTablePageSize();
+  const [totalInstances, setTotalInstances] = useState(0);
   const streamHealthyRef = useRef(false);
+
+  const pageToken = useMemo(() => (tablePage > 1 ? String((tablePage - 1) * pageSize) : null), [pageSize, tablePage]);
 
   const applyInstanceSnapshot = useCallback((snapshot: InstanceListStreamSnapshot) => {
     setJobs(snapshot.jobs);
     setInstances(snapshot.instances);
+    setTotalInstances(snapshot.totalCount ?? snapshot.instances.length);
     if (snapshot.attempts) {
       setAttemptsByInstance(new Map(snapshot.attempts.map((entry) => [entry.instanceId, entry.items])));
     }
@@ -330,14 +336,15 @@ export function InstancesPage() {
       setLoading(true);
     }
     try {
-      const jobPage = await listJobs();
-      const instancePages = await Promise.all(jobPage.items.map((job) => listJobInstances(job.id)));
-      const sortedInstances = instancePages
-        .flatMap((page) => page.items)
-        .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+      const [jobPage, instancePage] = await Promise.all([
+        listJobs(),
+        listInstances({ pageSize, pageToken }),
+      ]);
       applyInstanceSnapshot({
         jobs: jobPage.items,
-        instances: sortedInstances,
+        instances: instancePage.items,
+        nextPageToken: instancePage.nextPageToken,
+        totalCount: instancePage.totalCount,
       });
     } catch (cause) {
       if (!options?.silent) {
@@ -348,13 +355,13 @@ export function InstancesPage() {
         setLoading(false);
       }
     }
-  }, [applyInstanceSnapshot, t]);
+  }, [applyInstanceSnapshot, pageSize, pageToken, t]);
 
   useEffect(() => {
     if (!active) return undefined;
     streamHealthyRef.current = false;
     setLoading(true);
-    const source = new EventSource(instanceListStreamUrl());
+    const source = new EventSource(instanceListStreamUrl({ pageSize, pageToken }));
     source.addEventListener('instances.snapshot', (event) => {
       try {
         const snapshot = JSON.parse((event as MessageEvent).data) as InstanceListStreamSnapshot;
@@ -383,23 +390,19 @@ export function InstancesPage() {
       window.clearTimeout(watchdogTimer);
       window.clearInterval(fallbackTimer);
     };
-  }, [active, applyInstanceSnapshot, load]);
+  }, [active, applyInstanceSnapshot, load, pageSize, pageToken]);
   const jobName = useMemo(() => new Map(jobs.map((job) => [job.id, job.name])), [jobs]);
   const filteredInstances = useMemo(() => instances.filter((instance) => instanceMatchesFilters(instance, jobName, filters)), [filters, instances, jobName]);
-  useEffect(() => setTablePage(1), [filters, pageSize]);
-  const visibleInstances = useMemo(() => {
-    const start = (tablePage - 1) * pageSize;
-    return filteredInstances.slice(start, start + pageSize);
-  }, [filteredInstances, pageSize, tablePage]);
+  useEffect(() => setTablePage(1), [filters]);
   const tablePagination = useMemo(() => ({
     ...persistentPagination(pageSize, setPageSize),
     current: tablePage,
-    total: filteredInstances.length,
+    total: hasInstanceFilters(filters) ? filteredInstances.length : totalInstances,
     onChange: (page: number, nextPageSize: number) => {
       setTablePage(nextPageSize === pageSize ? page : 1);
       setPageSize(nextPageSize);
     },
-  }), [filteredInstances.length, pageSize, setPageSize, tablePage]);
+  }), [filteredInstances.length, filters, pageSize, setPageSize, tablePage, totalInstances]);
   const filterEntryLabel = semanticFilterLabel(filters);
   const updateFilters = useCallback((patch: Partial<InstanceFilters>) => {
     const next = { ...filters, ...patch };
@@ -597,7 +600,7 @@ export function InstancesPage() {
             </Typography.Paragraph>
           </div>
           <Space>
-            <Tag color={hasInstanceFilters(filters) ? 'blue' : 'default'}>{filteredInstances.length}/{instances.length}</Tag>
+            <Tag color={hasInstanceFilters(filters) ? 'blue' : 'default'}>{filteredInstances.length}/{hasInstanceFilters(filters) ? instances.length : totalInstances}</Tag>
             <Button onClick={resetFilters} disabled={!hasInstanceFilters(filters)}>重置</Button>
           </Space>
         </div>
@@ -657,7 +660,7 @@ export function InstancesPage() {
       ) : (
         <>
           <Typography.Paragraph type="secondary">实例详情 API 已可用：GET /api/v1/instances/&lt;instance&gt;</Typography.Paragraph>
-          <Table rowKey="id" loading={loading} columns={columns} dataSource={visibleInstances} pagination={tablePagination} scroll={{ x: 1_440 }} locale={{ emptyText: hasInstanceFilters(filters) ? '没有匹配当前过滤条件的实例' : '暂无实例' }} />
+          <Table rowKey="id" loading={loading} columns={columns} dataSource={filteredInstances} pagination={tablePagination} scroll={{ x: 1_440 }} locale={{ emptyText: hasInstanceFilters(filters) ? '没有匹配当前过滤条件的实例' : '暂无实例' }} />
         </>
       )}
       <Drawer

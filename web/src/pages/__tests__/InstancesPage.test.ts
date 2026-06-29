@@ -166,7 +166,7 @@ describe('instance execution result view', () => {
 describe('instance list realtime refresh', () => {
   test('subscribes to instance list SSE and only uses REST as an unhealthy-stream fallback', () => {
     expect(source).toContain('instanceListStreamUrl');
-    expect(source).toContain('new EventSource(instanceListStreamUrl())');
+    expect(source).toContain('new EventSource(instanceListStreamUrl({ pageSize, pageToken }))');
     expect(source).toContain("source.addEventListener('instances.snapshot'");
     expect(source).toContain('streamHealthyRef.current = true;');
     expect(source).toContain('setInstances(snapshot.instances);');
@@ -185,11 +185,13 @@ describe('instance list realtime refresh', () => {
     expect(source).not.toContain('attemptPairs');
   });
 
-  test('renders only the current table page slice after filtering', () => {
-    expect(source).toContain('const visibleInstances = useMemo(() => {');
-    expect(source).toContain('filteredInstances.slice(start, start + pageSize)');
-    expect(source).toContain('dataSource={visibleInstances}');
-    expect(source).toContain('pagination={tablePagination}');
+  test('loads only the current server-side instance page', () => {
+    expect(source).toContain('listInstances({ pageSize, pageToken })');
+    expect(source).toContain('const pageToken = useMemo(() => (tablePage > 1 ? String((tablePage - 1) * pageSize) : null)');
+    expect(source).toContain('setTotalInstances(snapshot.totalCount ?? snapshot.instances.length);');
+    expect(source).toContain('total: hasInstanceFilters(filters) ? filteredInstances.length : totalInstances');
+    expect(source).toContain('dataSource={filteredInstances}');
+    expect(source).not.toContain('jobPage.items.map((job) => listJobInstances(job.id))');
   });
 });
 
@@ -207,7 +209,7 @@ describe('instance list filters', () => {
     expect(source).toContain('执行模式');
     expect(source).toContain('Worker');
     expect(source).toContain('实例 / 日志关键字');
-    expect(source).toContain('dataSource={visibleInstances}');
+    expect(source).toContain('dataSource={filteredInstances}');
     expect(source).toContain('没有匹配当前过滤条件的实例');
   });
 });

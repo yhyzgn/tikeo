@@ -523,6 +523,9 @@ pub struct JobInstancePage {
     pub items: Vec<JobInstanceSummary>,
     /// Next page token value.
     pub next_page_token: Option<String>,
+    /// Total matching instance count when the endpoint can compute it cheaply.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_count: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]

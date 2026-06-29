@@ -4,7 +4,7 @@ use crate::http::{
     AppState,
     dto::{
         JobInstanceAttemptSummary, JobInstanceLogSummary, JobInstanceResult, JobInstanceSummary,
-        JobSummary,
+        JobSummary, MeResponse,
     },
     error::ApiError,
 };
@@ -37,6 +37,10 @@ pub(super) struct JobInstanceListStreamSnapshot {
     pub(super) jobs: Vec<JobSummary>,
     /// Latest visible instances sorted newest first.
     pub(super) instances: Vec<JobInstanceSummary>,
+    /// Next page token value.
+    pub(super) next_page_token: Option<String>,
+    /// Total visible instance count.
+    pub(super) total_count: u64,
     /// Attempt summaries grouped by instance. Omitted on the list stream to avoid per-instance N+1 work; details stream carries attempts.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(super) attempts: Vec<JobInstanceListStreamAttemptGroup>,
@@ -72,11 +76,11 @@ impl From<tikeo_storage::JobSummary> for JobSummary {
     }
 }
 
-pub(super) async fn instance_list_stream_snapshot(
+pub(super) async fn visible_jobs(
     state: &AppState,
-    principal: &crate::http::dto::MeResponse,
-) -> Result<JobInstanceListStreamSnapshot, ApiError> {
-    let jobs = state
+    principal: &MeResponse,
+) -> Result<Vec<JobSummary>, ApiError> {
+    Ok(state
         .jobs
         .list_jobs()
         .await
@@ -91,24 +95,50 @@ pub(super) async fn instance_list_stream_snapshot(
             )
         })
         .map(JobSummary::from)
-        .collect::<Vec<_>>();
+        .collect())
+}
 
-    let mut instances = Vec::new();
-    for job in &jobs {
-        for instance in state
-            .instances
-            .list_by_job(&job.id)
-            .await
-            .map_err(|error| ApiError::storage(&error))?
-        {
-            instances.push(instance_summary_with_latest_log(state, instance).await?);
-        }
+pub(super) async fn paged_visible_instances(
+    state: &AppState,
+    jobs: &[JobSummary],
+    page_size: u64,
+    offset: u64,
+) -> Result<(Vec<JobInstanceSummary>, Option<String>, u64), ApiError> {
+    let job_ids = jobs.iter().map(|job| job.id.clone()).collect::<Vec<_>>();
+    let total_count = state
+        .instances
+        .count_by_jobs(&job_ids)
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
+    let rows = state
+        .instances
+        .list_by_jobs_page(&job_ids, page_size, offset)
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
+    let mut instances = Vec::with_capacity(rows.len());
+    for row in rows {
+        instances.push(instance_summary_with_latest_log(state, row).await?);
     }
-    instances.sort_by(|left, right| right.created_at.cmp(&left.created_at));
+    let next_offset = offset.saturating_add(page_size);
+    let next_page_token = (next_offset < total_count).then(|| next_offset.to_string());
+    Ok((instances, next_page_token, total_count))
+}
+
+pub(super) async fn instance_list_stream_snapshot(
+    state: &AppState,
+    principal: &MeResponse,
+    page_size: u64,
+    offset: u64,
+) -> Result<JobInstanceListStreamSnapshot, ApiError> {
+    let jobs = visible_jobs(state, principal).await?;
+    let (instances, next_page_token, total_count) =
+        paged_visible_instances(state, &jobs, page_size, offset).await?;
 
     Ok(JobInstanceListStreamSnapshot {
         jobs,
         instances,
+        next_page_token,
+        total_count,
         attempts: Vec::new(),
     })
 }

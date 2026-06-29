@@ -429,6 +429,7 @@ fn job_routes() -> Router<Arc<AppState>> {
             axum::routing::post(routes::rollback_job),
         )
         .route("/jobs/{job}/instances", get(routes::list_job_instances))
+        .route("/instances", get(routes::list_instances))
         .route("/instances/stream", get(routes::stream_instances))
         .route("/instances/{instance}", get(routes::get_job_instance))
         .route(

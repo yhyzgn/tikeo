@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set, TransactionTrait, sea_query::Expr,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, Set, TransactionTrait, sea_query::Expr,
 };
 use tikeo_core::{ExecutionMode, InstanceStatus, TriggerType};
 
@@ -185,6 +185,47 @@ impl JobInstanceRepository {
             .await?;
 
         Ok(rows.into_iter().map(JobInstanceSummary::from).collect())
+    }
+
+    /// List instances for visible jobs ordered by newest creation timestamp first.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn list_by_jobs_page(
+        &self,
+        job_ids: &[String],
+        limit: u64,
+        offset: u64,
+    ) -> Result<Vec<JobInstanceSummary>, sea_orm::DbErr> {
+        if job_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let rows = job_instance::Entity::find()
+            .filter(job_instance::Column::JobId.is_in(job_ids.to_owned()))
+            .order_by_desc(job_instance::Column::CreatedAt)
+            .order_by_desc(job_instance::Column::Id)
+            .limit(limit)
+            .offset(offset)
+            .all(&self.db)
+            .await?;
+
+        Ok(rows.into_iter().map(JobInstanceSummary::from).collect())
+    }
+
+    /// Count instances for visible jobs.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn count_by_jobs(&self, job_ids: &[String]) -> Result<u64, sea_orm::DbErr> {
+        if job_ids.is_empty() {
+            return Ok(0);
+        }
+        job_instance::Entity::find()
+            .filter(job_instance::Column::JobId.is_in(job_ids.to_owned()))
+            .count(&self.db)
+            .await
     }
 
     /// Summarize historical terminal durations for a job.

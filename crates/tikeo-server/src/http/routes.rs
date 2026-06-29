@@ -75,8 +75,8 @@ pub use job_notifications::{
 };
 pub use jobs::{
     cancel_job_instance, create_job, delete_job, get_job_instance, list_instance_attempts,
-    list_instance_logs, list_job_instances, list_job_versions, list_jobs, rollback_job,
-    stream_instance_logs, stream_instances, trigger_job, update_job,
+    list_instance_logs, list_instances, list_job_instances, list_job_versions, list_jobs,
+    rollback_job, stream_instance_logs, stream_instances, trigger_job, update_job,
 };
 pub use metrics::metrics_summary;
 pub use notification_templates::{

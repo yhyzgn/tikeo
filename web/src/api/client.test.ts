@@ -737,6 +737,7 @@ describe('api client envelope handling', () => {
 
     expect(instanceLogStreamUrl('inst 1')).toBe('/api/v1/instances/inst%201/logs/stream?token=stream-token%2Fwith%20symbols');
     expect(instanceListStreamUrl()).toBe('/api/v1/instances/stream?token=stream-token%2Fwith%20symbols');
+    expect(instanceListStreamUrl({ pageSize: 20, pageToken: '40' })).toBe('/api/v1/instances/stream?page_size=20&page_token=40&token=stream-token%2Fwith%20symbols');
     expect(workerStreamUrl()).toBe('/api/v1/workers/stream?token=stream-token%2Fwith%20symbols');
     expect(dispatchQueueStreamUrl()).toBe('/api/v1/dispatch-queue/stream?token=stream-token%2Fwith%20symbols');
   });

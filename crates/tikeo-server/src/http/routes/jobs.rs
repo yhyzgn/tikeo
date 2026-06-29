@@ -36,9 +36,27 @@ use super::common::{
 };
 use views::{
     instance_list_stream_snapshot, instance_log_stream_snapshot, instance_summary_with_latest_log,
+    paged_visible_instances, visible_jobs,
 };
 
 mod views;
+
+const DEFAULT_INSTANCE_PAGE_SIZE: u32 = 20;
+const MAX_INSTANCE_PAGE_SIZE: u64 = 100;
+
+fn normalized_page(query: &PageQuery) -> Result<(u64, u64), ApiError> {
+    let page_size = u64::from(query.page_size.unwrap_or(DEFAULT_INSTANCE_PAGE_SIZE))
+        .clamp(1, MAX_INSTANCE_PAGE_SIZE);
+    let offset = query
+        .page_token
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .map(str::parse::<u64>)
+        .transpose()
+        .map_err(|_| ApiError::bad_request("invalid page_token"))?
+        .unwrap_or(0);
+    Ok((page_size, offset))
+}
 
 /// List jobs.
 ///
@@ -1001,6 +1019,30 @@ pub async fn list_job_instances(
     Ok(Json(ApiResponse::success(JobInstancePage {
         items,
         next_page_token: None,
+        total_count: None,
+    })))
+}
+
+/// List visible instances across jobs.
+///
+/// # Errors
+///
+/// Returns authorization or storage errors when lookup fails.
+pub async fn list_instances(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Query(query): Query<PageQuery>,
+) -> Result<Json<JobInstancePageApiResponse>, ApiError> {
+    let principal = auth::require_permission(&headers, &state, "instances", "read").await?;
+    let (page_size, offset) = normalized_page(&query)?;
+    let jobs = visible_jobs(&state, &principal).await?;
+    let (items, next_page_token, total_count) =
+        paged_visible_instances(&state, &jobs, page_size, offset).await?;
+
+    Ok(Json(ApiResponse::success(JobInstancePage {
+        items,
+        next_page_token,
+        total_count: Some(total_count),
     })))
 }
 
@@ -1015,6 +1057,11 @@ pub async fn stream_instances(
     Query(query): Query<StreamAuthQuery>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, ApiError> {
     apply_stream_token(&mut headers, &query)?;
+    let page_query = PageQuery {
+        page_size: query.page_size,
+        page_token: query.page_token.clone(),
+    };
+    let (page_size, offset) = normalized_page(&page_query)?;
     let principal = auth::require_permission(&headers, &state, "instances", "read").await?;
     let (tx, rx) = mpsc::channel(16);
 
@@ -1022,7 +1069,8 @@ pub async fn stream_instances(
         let mut last_snapshot_json: Option<String> = None;
         let mut interval = time::interval(Duration::from_secs(1));
         loop {
-            if let Ok(snapshot) = instance_list_stream_snapshot(&state, &principal).await
+            if let Ok(snapshot) =
+                instance_list_stream_snapshot(&state, &principal, page_size, offset).await
                 && let Ok(snapshot_json) = serde_json::to_string(&snapshot)
                 && last_snapshot_json.as_deref() != Some(snapshot_json.as_str())
             {

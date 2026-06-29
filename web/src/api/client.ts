@@ -7,6 +7,20 @@ export interface ApiResponse<T> {
 export interface Page<T> {
   items: T[];
   nextPageToken: string | null;
+  totalCount?: number;
+}
+
+export interface PageOptions {
+  pageSize?: number;
+  pageToken?: string | null;
+}
+
+function pageQuery(options: PageOptions = {}): string {
+  const params = new URLSearchParams();
+  if (options.pageSize !== undefined) params.set('page_size', String(options.pageSize));
+  if (options.pageToken) params.set('page_token', options.pageToken);
+  const query = params.toString();
+  return query ? `?${query}` : '';
 }
 
 
@@ -798,8 +812,8 @@ export function instanceLogStreamUrl(instanceId: string): string {
   return streamUrl(`/api/v1/instances/${encodeURIComponent(instanceId)}/logs/stream`);
 }
 
-export function instanceListStreamUrl(): string {
-  return streamUrl('/api/v1/instances/stream');
+export function instanceListStreamUrl(options: PageOptions = {}): string {
+  return streamUrl(`/api/v1/instances/stream${pageQuery(options)}`);
 }
 
 export function workerStreamUrl(): string {
@@ -1044,6 +1058,10 @@ export async function triggerJobWebhookEvent(jobId: string, payload: InboundWebh
 
 export async function listJobInstances(jobId: string): Promise<Page<JobInstanceSummary>> {
   return request<Page<JobInstanceSummary>>(`/api/v1/jobs/${encodeURIComponent(jobId)}/instances`);
+}
+
+export async function listInstances(options: PageOptions = {}): Promise<Page<JobInstanceSummary>> {
+  return request<Page<JobInstanceSummary>>(`/api/v1/instances${pageQuery(options)}`);
 }
 
 export async function getInstance(instanceId: string): Promise<JobInstanceSummary> {
