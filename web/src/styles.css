@@ -3874,6 +3874,99 @@ html[data-theme="dark"] .public-console-page__hero { background: rgba(15, 23, 42
   margin-bottom: 12px;
 }
 
+.dashboard-notification-card .ant-card-extra a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--app-primary-color);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.dashboard-notification-card--danger {
+  border-color: color-mix(in srgb, #ef4444 34%, var(--app-border));
+}
+
+.dashboard-notification-card--warn {
+  border-color: color-mix(in srgb, #f59e0b 32%, var(--app-border));
+}
+
+.dashboard-notification-health {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.dashboard-notification-health .ant-statistic {
+  margin-bottom: 0;
+}
+
+.dashboard-notification-health .ant-tag {
+  margin-inline-end: 0;
+  margin-top: 4px;
+  font-weight: 800;
+}
+
+.dashboard-notification-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.dashboard-notification-grid span {
+  min-width: 0;
+  padding: 8px 6px;
+  border: 1px solid var(--app-border);
+  border-radius: 12px;
+  background: var(--app-surface-muted);
+  text-align: center;
+}
+
+.dashboard-notification-grid strong,
+.dashboard-notification-grid em {
+  display: block;
+}
+
+.dashboard-notification-grid strong {
+  color: var(--app-text-strong);
+  font-size: 17px;
+  line-height: 1.1;
+}
+
+.dashboard-notification-grid em {
+  margin-top: 3px;
+  color: var(--app-text-subtle);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.dashboard-notification-deadletter {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--app-primary-color) 7%, var(--app-surface-muted));
+  color: var(--app-text-muted);
+  font-size: 12px;
+  font-weight: 750;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-notification-card--danger .dashboard-notification-deadletter {
+  background: color-mix(in srgb, #ef4444 10%, var(--app-surface-muted));
+  color: #b91c1c;
+}
+
+.dashboard-notification-card--warn .dashboard-notification-deadletter {
+  background: color-mix(in srgb, #f59e0b 12%, var(--app-surface-muted));
+  color: #a16207;
+}
+
 .dashboard-mini-distribution {
   display: grid;
   gap: 10px;

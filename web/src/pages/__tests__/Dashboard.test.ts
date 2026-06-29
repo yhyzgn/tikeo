@@ -28,7 +28,8 @@ describe('dashboard realtime overview', () => {
   test('renders cockpit charts, health metrics, and task schedule plan from live data', () => {
     expect(source).toContain('getClusterDiagnostics');
     expect(source).toContain('getDispatchQueue');
-    expect(source).toContain('getAlertDeliveryQueueStatus');
+    expect(source).toContain('getNotificationDeliveryQueueStatus');
+    expect(source).toContain('NotificationDeliveryQueueStatus');
     expect(source).toContain('listAuditLogs');
     expect(source).toContain('dispatchQueueStreamUrl');
     expect(source).toContain('function TrendBars');
@@ -47,6 +48,14 @@ describe('dashboard realtime overview', () => {
     expect(source).toContain('调度健康');
     expect(source).toContain('队列压力');
     expect(source).toContain('通知投递');
+    expect(source).toContain('有效投递率');
+    expect(source).toContain('通知投递明细');
+    expect(source).toContain('最近死信');
+    expect(source).toContain('retryPending');
+    expect(source).toContain('retryConsumed');
+    expect(source).toContain('totalAttempts');
+    expect(source).toContain('deadLetter');
+    expect(source).not.toContain('getAlertDeliveryQueueStatus');
     expect(source).toContain('HA / 网关');
     expect(source).toContain('审计活动');
     expect(source).toContain('任务类型分布');
@@ -78,6 +87,9 @@ describe('dashboard realtime overview', () => {
     expect(styles).toContain('.dashboard-plan-map__bar');
     expect(styles).toContain('.dashboard-mini-distribution');
     expect(styles).toContain('.dashboard-signal-card');
+    expect(styles).toContain('.dashboard-notification-card');
+    expect(styles).toContain('.dashboard-notification-grid');
+    expect(styles).toContain('.dashboard-notification-deadletter');
     expect(styles).toContain('.dashboard-risk-grid');
     expect(styles).toContain('.dashboard-top-list');
     expect(styles).toContain('.dashboard-audit-list');

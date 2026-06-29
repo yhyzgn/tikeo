@@ -20,7 +20,6 @@ import { Link } from 'react-router-dom';
 
 import {
   dispatchQueueStreamUrl,
-  getAlertDeliveryQueueStatus,
   getClusterDiagnostics,
   getDispatchQueue,
   instanceListStreamUrl,
@@ -29,7 +28,6 @@ import {
   listJobs,
   listWorkers,
   workerStreamUrl,
-  type AlertDeliveryQueueStatus,
   type AuditLogPage,
   type ClusterDiagnosticsResponse,
   type JobInstanceSummary,
@@ -37,6 +35,7 @@ import {
   type QueueOverview,
   type WorkerListResponse,
 } from '../api/client';
+import { getNotificationDeliveryQueueStatus, type NotificationDeliveryQueueStatus } from '../api/notifications';
 import { useRouteActive } from '../hooks/useRouteActivation';
 import { ROUTE_META } from '../routes';
 
@@ -182,14 +181,14 @@ function riskSignals(params: {
   pendingInstances: number;
   onlineWorkers: number;
   queue: QueueOverview | null;
-  alertQueue: AlertDeliveryQueueStatus | null;
+  notificationQueue: NotificationDeliveryQueueStatus | null;
   clusterStatus: string;
 }) {
   const signals: Array<{ label: string; value: string; tone: 'green' | 'gold' | 'red' | 'blue' }> = [];
   signals.push({ label: '失败实例', value: String(params.failedInstances), tone: params.failedInstances > 0 ? 'red' : 'green' });
   signals.push({ label: '活跃实例', value: String(params.pendingInstances), tone: params.pendingInstances > 0 ? 'blue' : 'green' });
   signals.push({ label: '队列积压', value: String((params.queue?.pending ?? 0) + (params.queue?.running ?? 0)), tone: (params.queue?.pending ?? 0) > 0 ? 'gold' : 'green' });
-  signals.push({ label: '通知死信', value: String(params.alertQueue?.dead_letter ?? 0), tone: (params.alertQueue?.dead_letter ?? 0) > 0 ? 'red' : 'green' });
+  signals.push({ label: '通知死信', value: String(params.notificationQueue?.deadLetter ?? 0), tone: (params.notificationQueue?.deadLetter ?? 0) > 0 ? 'red' : 'green' });
   signals.push({ label: '在线容量', value: String(params.onlineWorkers), tone: params.onlineWorkers > 0 ? 'green' : 'gold' });
   signals.push({ label: '集群状态', value: params.clusterStatus, tone: params.clusterStatus === 'ready' || params.clusterStatus === 'leader' ? 'green' : 'gold' });
   return signals;
@@ -207,7 +206,7 @@ function recommendedActions(params: {
   failedInstances: number;
   queueBacklog: number;
   onlineWorkers: number;
-  alertDeadLetters: number;
+  notificationDeadLetters: number;
   clusterStatus: string;
 }): Array<{ key: string; label: string; detail: string; to: string; tone: 'ok' | 'warn' | 'danger' }> {
   const actions: Array<{ key: string; label: string; detail: string; to: string; tone: 'ok' | 'warn' | 'danger' }> = [];
@@ -220,8 +219,8 @@ function recommendedActions(params: {
   if (params.onlineWorkers === 0) {
     actions.push({ key: 'workers', label: '恢复 Worker 容量', detail: '当前没有在线 Worker，任务不会被实际消费', to: ROUTE_META.workers.path, tone: 'danger' });
   }
-  if (params.alertDeadLetters > 0) {
-    actions.push({ key: 'alerts', label: '处理通知死信', detail: `${params.alertDeadLetters} 条通知进入死信队列`, to: ROUTE_META.notifications.path, tone: 'warn' });
+  if (params.notificationDeadLetters > 0) {
+    actions.push({ key: 'alerts', label: '处理通知死信', detail: `${params.notificationDeadLetters} 条通知进入死信队列`, to: ROUTE_META.notifications.path, tone: 'warn' });
   }
   if (!['ready', 'leader'].includes(params.clusterStatus)) {
     actions.push({ key: 'ha', label: '检查集群状态', detail: `当前状态为 ${params.clusterStatus}，建议确认网关与 Raft 节点`, to: ROUTE_META.workers.path, tone: 'warn' });
@@ -405,7 +404,7 @@ export function Dashboard() {
   const [workers, setWorkers] = useState<WorkerListResponse | null>(null);
   const [clusterDiagnostics, setClusterDiagnostics] = useState<ClusterDiagnosticsResponse | null>(null);
   const [queue, setQueue] = useState<QueueOverview | null>(null);
-  const [alertQueue, setAlertQueue] = useState<AlertDeliveryQueueStatus | null>(null);
+  const [notificationQueue, setNotificationQueue] = useState<NotificationDeliveryQueueStatus | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLogPage | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [realtimeMode, setRealtimeMode] = useState<'connecting' | 'live' | 'fallback'>('connecting');
@@ -414,13 +413,13 @@ export function Dashboard() {
 
   const load = useCallback(async () => {
     try {
-      const [jobPage, instancePage, workerPage, diagnostics, queueOverview, alertStatus, audits] = await Promise.all([
+      const [jobPage, instancePage, workerPage, diagnostics, queueOverview, notificationStatus, audits] = await Promise.all([
         listJobs(),
         listInstances({ pageSize: DASHBOARD_INSTANCE_PAGE_SIZE }),
         listWorkers(),
         getClusterDiagnostics().catch(() => null),
         getDispatchQueue().catch(() => null),
-        getAlertDeliveryQueueStatus().catch(() => null),
+        getNotificationDeliveryQueueStatus().catch(() => null),
         listAuditLogs({ page_size: 8 }).catch(() => null),
       ]);
       setJobs(jobPage.items);
@@ -428,7 +427,7 @@ export function Dashboard() {
       setWorkers(workerPage);
       setClusterDiagnostics(diagnostics);
       setQueue(queueOverview);
-      setAlertQueue(alertStatus);
+      setNotificationQueue(notificationStatus);
       setAuditLogs(audits);
       setLastUpdated(new Date());
     } catch { /* silent */ }
@@ -456,7 +455,7 @@ export function Dashboard() {
     const refreshSlowSignals = () => {
       void Promise.all([
         getClusterDiagnostics().then(setClusterDiagnostics).catch(() => null),
-        getAlertDeliveryQueueStatus().then(setAlertQueue).catch(() => null),
+        getNotificationDeliveryQueueStatus().then(setNotificationQueue).catch(() => null),
         listAuditLogs({ page_size: 8 }).then(setAuditLogs).catch(() => null),
       ]).then(() => setLastUpdated(new Date()));
     };
@@ -568,9 +567,21 @@ export function Dashboard() {
   const smartGateway = clusterDiagnostics?.smartGateway;
   const nodeCount = clusterDiagnostics?.nodes.length ?? clusterDiagnostics?.status?.nodes ?? 0;
   const queueBacklog = (queue?.pending ?? 0) + (queue?.running ?? 0);
-  const alertDeliveryRate = alertQueue?.total_attempts ? Math.round((alertQueue.delivered / alertQueue.total_attempts) * 100) : 100;
-  const riskItems = riskSignals({ failedInstances, pendingInstances, onlineWorkers, queue, alertQueue, clusterStatus });
-  const actions = recommendedActions({ failedInstances, queueBacklog, onlineWorkers, alertDeadLetters: alertQueue?.dead_letter ?? 0, clusterStatus });
+  const notificationDelivered = notificationQueue?.delivered ?? 0;
+  const notificationRetryPending = notificationQueue?.retryPending ?? 0;
+  const notificationRetryConsumed = notificationQueue?.retryConsumed ?? 0;
+  const notificationDeadLetters = notificationQueue?.deadLetter ?? 0;
+  const notificationFailed = notificationQueue?.failed ?? 0;
+  const notificationTerminal = notificationDelivered + notificationDeadLetters + notificationFailed;
+  const notificationTotal = notificationQueue?.totalAttempts ?? 0;
+  const notificationDeliveryRate = notificationTerminal
+    ? Math.round((notificationDelivered / notificationTerminal) * 100)
+    : notificationTotal ? Math.round((notificationDelivered / notificationTotal) * 100) : 100;
+  const notificationTone = notificationDeadLetters || notificationFailed ? 'danger' : notificationRetryPending ? 'warn' : 'ok';
+  const notificationToneLabel = notificationDeadLetters ? '存在死信' : notificationFailed ? '存在失败' : notificationRetryPending ? '等待重试' : '通道健康';
+  const latestDeadLetter = notificationQueue?.recentDeadLetters?.[0] ?? null;
+  const riskItems = riskSignals({ failedInstances, pendingInstances, onlineWorkers, queue, notificationQueue, clusterStatus });
+  const actions = recommendedActions({ failedInstances, queueBacklog, onlineWorkers, notificationDeadLetters, clusterStatus });
   const realtime = realtimeModeMeta(realtimeMode);
   const recentAudits = auditLogs?.items ?? [];
 
@@ -655,14 +666,44 @@ export function Dashboard() {
           </Card>
         </Col>
         <Col xs={24} md={12} xl={6}>
-          <Card className="clean-card dashboard-signal-card" title="通知投递">
-            <Statistic title="投递成功率" value={alertDeliveryRate} suffix="%" prefix={<ApiOutlined />} valueStyle={{ color: alertQueue?.dead_letter ? '#ef4444' : '#10b981' }} />
+          <Card
+            className={`clean-card dashboard-signal-card dashboard-notification-card dashboard-notification-card--${notificationTone}`}
+            title="通知投递"
+            extra={<Link to={ROUTE_META.notifications.path}>通知中心 <ArrowRightOutlined /></Link>}
+          >
+            <div className="dashboard-notification-health">
+              <Statistic
+                title="有效投递率"
+                value={notificationDeliveryRate}
+                suffix="%"
+                prefix={<ApiOutlined />}
+                valueStyle={{ color: notificationDeadLetters || notificationFailed ? '#ef4444' : '#10b981' }}
+              />
+              <Tag color={notificationDeadLetters || notificationFailed ? 'red' : notificationRetryPending ? 'gold' : 'green'}>{notificationToneLabel}</Tag>
+            </div>
+            <div className="dashboard-notification-grid" aria-label="通知投递明细">
+              <span><strong>{notificationTotal}</strong><em>总尝试</em></span>
+              <span><strong>{notificationDelivered}</strong><em>已送达</em></span>
+              <span><strong>{notificationRetryPending}</strong><em>待重试</em></span>
+              <span><strong>{notificationRetryConsumed}</strong><em>已重试</em></span>
+              <span><strong>{notificationDeadLetters}</strong><em>死信</em></span>
+              <span><strong>{notificationFailed}</strong><em>失败</em></span>
+            </div>
             <MiniDistribution slices={miniSlices([
-              { label: 'Delivered', value: alertQueue?.delivered ?? 0, color: '#10b981' },
-              { label: 'Retry', value: alertQueue?.retry_pending ?? 0, color: '#f59e0b' },
-              { label: 'Dead', value: alertQueue?.dead_letter ?? 0, color: '#ef4444' },
-              { label: 'Failed', value: alertQueue?.failed ?? 0, color: '#fb7185' },
+              { label: 'Delivered', value: notificationDelivered, color: '#10b981' },
+              { label: 'Retry', value: notificationRetryPending, color: '#f59e0b' },
+              { label: 'Dead', value: notificationDeadLetters, color: '#ef4444' },
+              { label: 'Failed', value: notificationFailed, color: '#fb7185' },
             ])} emptyText="暂无投递记录" />
+            <div className="dashboard-notification-deadletter">
+              {latestDeadLetter ? (
+                <Tooltip title={latestDeadLetter.error ?? latestDeadLetter.targetRedacted}>
+                  <span data-runtime-text>最近死信：{latestDeadLetter.provider} · {latestDeadLetter.retryState} · {formatTime(latestDeadLetter.createdAt)}</span>
+                </Tooltip>
+              ) : (
+                <span>暂无死信，异常投递会在这里显示最近一条。</span>
+              )}
+            </div>
           </Card>
         </Col>
         <Col xs={24} md={12} xl={6}>
@@ -745,7 +786,7 @@ export function Dashboard() {
               <Space direction="vertical" size={14} style={{ width: '100%' }}>
                 <div><Typography.Text strong>成功率</Typography.Text><Progress percent={successRate} status={failedInstances ? 'exception' : 'success'} /></div>
                 <div><Typography.Text strong>Worker 覆盖</Typography.Text><Progress percent={workerCoverage} /></div>
-                <div><Typography.Text strong>通知投递</Typography.Text><Progress percent={alertDeliveryRate} status={alertQueue?.dead_letter ? 'exception' : 'success'} /></div>
+                <div><Typography.Text strong>通知投递</Typography.Text><Progress percent={notificationDeliveryRate} status={notificationDeadLetters || notificationFailed ? 'exception' : notificationRetryPending ? 'active' : 'success'} /></div>
                 <div><Typography.Text strong>集群状态</Typography.Text><div><Tag color={clusterStatus === 'ready' || clusterStatus === 'leader' ? 'green' : 'gold'}>{clusterStatus}</Tag></div></div>
               </Space>
             </Card>
