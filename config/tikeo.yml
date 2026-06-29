@@ -11,7 +11,7 @@ server:
 storage:
   # Structured DB config avoids URL escaping problems when passwords contain '@', '/', ':', '#', etc.
   # Supported types: sqlite, postgres, mysql, cockroachdb.
-  timestamp_offset: "+00:00"
+  timestamp_offset: "+08:00"
   database:
     # SQLite is the default single-node mode. For PostgreSQL/MySQL, switch type and fill host/port/user/password/database.
     type: sqlite
