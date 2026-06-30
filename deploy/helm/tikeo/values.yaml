@@ -55,7 +55,7 @@ gatewayApi:
 server:
   image:
     repository: yhyzgn/tikeo-server
-    tag: v0.3.24
+    tag: v0.3.25
     pullPolicy: IfNotPresent
   replicas: 1
   cluster:
@@ -168,7 +168,7 @@ server:
 web:
   image:
     repository: yhyzgn/tikeo-web
-    tag: v0.3.24
+    tag: v0.3.25
     pullPolicy: IfNotPresent
   replicas: 1
   cluster:
