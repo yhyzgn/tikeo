@@ -65,7 +65,7 @@ services:
 
   tikeo-prometheus:
     container_name: tikeo-prometheus
-    image: prom/prometheus:v3.0.1
+    image: prom/prometheus:latest
     profiles: ["observability"]
     depends_on:
       tikeo-server:

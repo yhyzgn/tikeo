@@ -97,6 +97,31 @@ async fn run_storage_smoke(connection_url: &str) {
             .is_some()
     );
 
+    let calendar_repository = tikeo_storage::CalendarRepository::new(db.clone());
+    let calendar = calendar_repository
+        .upsert(tikeo_storage::UpsertCalendar {
+            namespace: namespace.clone(),
+            app: app.to_owned(),
+            name: format!("compat-calendar-{}", unique_suffix()),
+            timezone: "Asia/Shanghai".to_owned(),
+            excluded_dates: vec!["2026-10-01".to_owned()],
+            holidays: vec!["2026-10-02".to_owned()],
+            maintenance_windows: vec![tikeo_storage::CalendarWindowSummary {
+                start: "2026-10-01T01:00:00+08:00".to_owned(),
+                end: "2026-10-01T02:00:00+08:00".to_owned(),
+            }],
+            freeze_windows: Vec::new(),
+            created_by: "compat-test".to_owned(),
+        })
+        .await
+        .unwrap_or_else(|error| panic!("calendar should persist on {connection_url}: {error}"));
+    assert_eq!(calendar.timezone, "Asia/Shanghai");
+    let calendars = calendar_repository
+        .list(Some(&namespace), Some(app))
+        .await
+        .unwrap_or_else(|error| panic!("calendars should list on {connection_url}: {error}"));
+    assert!(calendars.iter().any(|item| item.id == calendar.id));
+
     let script_repository = ScriptRepository::new(db.clone());
     let script = script_repository
         .create_script(CreateScript {

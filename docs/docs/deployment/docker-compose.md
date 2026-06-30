@@ -11,7 +11,7 @@ The Compose files use these images by default:
 
 - `yhyzgn/tikeo-server:latest`
 - `yhyzgn/tikeo-web:latest`
-- `prom/prometheus:v3.0.1` when the `observability` profile is enabled
+- `prom/prometheus:latest` when the `observability` profile is enabled
 
 They do **not** build local images. For production, pin `TIKEO_IMAGE` and `TIKEO_WEB_IMAGE` in `.env` to a released version instead of using `latest`.
 
@@ -403,7 +403,7 @@ docker run -d --name tikeo-prometheus \
   -v "$PWD/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro" \
   -v "$PWD/observability/prometheus/tikeo-recording-rules.yml:/etc/prometheus/tikeo-recording-rules.yml:ro" \
   -v "$PWD/observability/prometheus/tikeo-alert-rules.yml:/etc/prometheus/tikeo-alert-rules.yml:ro" \
-  prom/prometheus:v3.0.1 \
+  prom/prometheus:latest \
   --config.file=/etc/prometheus/prometheus.yml \
   --web.enable-lifecycle
 

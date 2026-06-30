@@ -53,10 +53,14 @@ const vendorChunkGroups = [
     priority: 31,
   },
   {
-    name: 'vendor-codemirror',
+    name: 'vendor-codemirror-languages',
+    test: /node_modules[\/](@codemirror[\/]lang-(javascript|python)|@lezer[\/](javascript|python))[\/]/,
+    priority: 31,
+  },
+  {
+    name: 'vendor-codemirror-core',
     test: /node_modules[\/](@codemirror|codemirror|@lezer)[\/]/,
     priority: 30,
-    maxSize: 260 * 1024,
   },
   {
     name: 'vendor-visual',

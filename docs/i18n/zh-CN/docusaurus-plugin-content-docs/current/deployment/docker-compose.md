@@ -11,7 +11,7 @@ Compose 文件默认使用这些镜像：
 
 - `yhyzgn/tikeo-server:latest`
 - `yhyzgn/tikeo-web:latest`
-- 启用 `observability` profile 时使用 `prom/prometheus:v3.0.1`
+- 启用 `observability` profile 时使用 `prom/prometheus:latest`
 
 这些 Compose 文件不会从本地 Dockerfile 构建镜像。生产环境应在 `.env` 中把 `TIKEO_IMAGE` 和 `TIKEO_WEB_IMAGE` 固定到明确发布版本，不要直接依赖 `latest`。
 
@@ -403,7 +403,7 @@ docker run -d --name tikeo-prometheus \
   -v "$PWD/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro" \
   -v "$PWD/observability/prometheus/tikeo-recording-rules.yml:/etc/prometheus/tikeo-recording-rules.yml:ro" \
   -v "$PWD/observability/prometheus/tikeo-alert-rules.yml:/etc/prometheus/tikeo-alert-rules.yml:ro" \
-  prom/prometheus:v3.0.1 \
+  prom/prometheus:latest \
   --config.file=/etc/prometheus/prometheus.yml \
   --web.enable-lifecycle
 

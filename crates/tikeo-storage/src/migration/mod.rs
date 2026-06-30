@@ -1,5 +1,6 @@
 //! Database schema migrations for tikeo storage.
 
+mod calendar_management;
 mod canary_policy;
 mod columns;
 mod fsod_outbox;
@@ -62,10 +63,12 @@ impl MigratorTrait for Migrator {
             Box::new(SecurityPolicyCenterMigration),
             Box::new(CanaryPolicyMigration),
             Box::new(WorkerPoolJobScopeMigration),
+            Box::new(CalendarManagementMigration),
         ]
     }
 }
 
+use calendar_management::CalendarManagementMigration;
 use canary_policy::CanaryPolicyMigration;
 use fsod_outbox::FsodOutboxMigration;
 use notification_center::{

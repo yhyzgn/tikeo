@@ -11,8 +11,8 @@ describe('production chunking', () => {
     expect(rcGroup).not.toContain('maxSize');
   });
 
-  test('does not split Ant Design vendor groups with maxSize', () => {
-    for (const groupName of ['vendor-rc-picker', 'vendor-rc-table', 'vendor-rc-select-menu', 'vendor-rc-components', 'vendor-ant-design-icons', 'vendor-ant-design-runtime', 'vendor-antd-internals', 'vendor-antd', 'vendor-antd-core']) {
+  test('does not split dependency-sensitive vendor groups with maxSize', () => {
+    for (const groupName of ['vendor-rc-picker', 'vendor-rc-table', 'vendor-rc-select-menu', 'vendor-rc-components', 'vendor-ant-design-icons', 'vendor-ant-design-runtime', 'vendor-antd-internals', 'vendor-antd', 'vendor-antd-core', 'vendor-codemirror-core', 'vendor-codemirror-languages']) {
       const group = viteConfig.match(new RegExp(`name:\\s*'${groupName}'[\\s\\S]*?priority:\\s*\\d+,\\n\\s*}`))?.[0] ?? '';
       expect(group).not.toContain('maxSize');
     }
