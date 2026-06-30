@@ -4363,7 +4363,7 @@ dependencies = [
 
 [[package]]
 name = "tikeo"
-version = "0.3.22"
+version = "0.3.23"
 dependencies = [
  "anyhow",
  "mimalloc",
@@ -4373,7 +4373,7 @@ dependencies = [
 
 [[package]]
 name = "tikeo-config"
-version = "0.3.22"
+version = "0.3.23"
 dependencies = [
  "config",
  "serde",
@@ -4382,7 +4382,7 @@ dependencies = [
 
 [[package]]
 name = "tikeo-core"
-version = "0.3.22"
+version = "0.3.23"
 dependencies = [
  "serde",
  "serde_json",
@@ -4390,7 +4390,7 @@ dependencies = [
 
 [[package]]
 name = "tikeo-migrate"
-version = "0.3.22"
+version = "0.3.23"
 dependencies = [
  "anyhow",
  "clap",
@@ -4404,7 +4404,7 @@ dependencies = [
 
 [[package]]
 name = "tikeo-proto"
-version = "0.3.22"
+version = "0.3.23"
 dependencies = [
  "prost 0.14.3",
  "protoc-bin-vendored",
@@ -4415,7 +4415,7 @@ dependencies = [
 
 [[package]]
 name = "tikeo-server"
-version = "0.3.22"
+version = "0.3.23"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4473,7 +4473,7 @@ dependencies = [
 
 [[package]]
 name = "tikeo-storage"
-version = "0.3.22"
+version = "0.3.23"
 dependencies = [
  "log",
  "sea-orm",
@@ -4494,7 +4494,7 @@ dependencies = [
 
 [[package]]
 name = "tikeo-wasm"
-version = "0.3.22"
+version = "0.3.23"
 dependencies = [
  "thiserror 2.0.18",
  "tikeo-core",
